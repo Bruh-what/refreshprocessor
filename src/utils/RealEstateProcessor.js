@@ -608,12 +608,12 @@ class RealEstateProcessor {
           }
         }
 
-        // Only create name-based keys if we have a meaningful name
-        if (normalizedName && normalizedName.length > 1) {
-          // FIRST: Add exact name match key (case-insensitive) - FULL NAME ONLY
+        // Only create name-based keys if we have BOTH first AND last name
+        if (firstName && lastName && firstName.trim() && lastName.trim()) {
+          // FIRST: Add exact name match key (case-insensitive) - REQUIRES BOTH FIRST AND LAST NAME
           keys.push(`name|${normalizedName}`);
 
-          // Enhanced name+email combinations - FULL NAME ONLY
+          // Enhanced name+email combinations - REQUIRES BOTH FIRST AND LAST NAME
           for (const email of emails) {
             if (email && normalizedName) {
               const normalizedEmail = this.normalizeEmail(email);
@@ -956,12 +956,12 @@ class RealEstateProcessor {
               if (email) keys.push(`email|${email}`);
             }
 
-            // Name-based keys
-            if (normalizedName && normalizedName.length > 1) {
-              // FIRST: Add exact name match key (case-insensitive) - FULL NAME ONLY
+            // Name-based keys - REQUIRES BOTH FIRST AND LAST NAME
+            if (firstName && lastName && normalizedName && normalizedName.length > 1) {
+              // FIRST: Add exact name match key (case-insensitive) - REQUIRES BOTH FIRST AND LAST NAME
               keys.push(`name|${normalizedName}`);
 
-              // Name+email combinations - FULL NAME ONLY
+              // Name+email combinations - REQUIRES BOTH FIRST AND LAST NAME
               for (const email of emails) {
                 if (email) {
                   const normalizedEmail = this.normalizeEmail(email);
@@ -1233,7 +1233,7 @@ class RealEstateProcessor {
     return processAllChunks();
   }
 
-  // Normalize names for matching
+  // Normalize names for matching - REQUIRES BOTH FIRST AND LAST NAME
   normalizeName(firstName, lastName) {
     const first = (firstName || "")
       .toLowerCase()
@@ -1245,6 +1245,11 @@ class RealEstateProcessor {
       .trim()
       .replace(/[^\w\s]/g, "")
       .replace(/\s+/g, " "); // Replace multiple spaces with single space
+
+    // Only return normalized name if BOTH first and last names exist
+    if (!first || !last) {
+      return ""; // Return empty string if either name is missing
+    }
 
     // Handle cases like "Werner H" where last name is just an initial
     const normalizedName = `${first} ${last}`.trim();
