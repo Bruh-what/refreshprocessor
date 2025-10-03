@@ -1188,8 +1188,11 @@ class RealEstateProcessor {
               duplicateCount++;
               if (matchType.includes("name")) fuzzyMatches++;
 
-              // Keep duplicates in result
-              result.push(record);
+              // Add both records to result since we're keeping duplicates now
+              if (!result.includes(masterRecord)) {
+                result.push(masterRecord);
+              }
+              result.push(duplicateRecord);
             } else {
               // No match - add as unique
               for (const key of keys) {
