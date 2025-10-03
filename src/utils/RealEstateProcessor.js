@@ -608,39 +608,16 @@ class RealEstateProcessor {
           }
         }
 
-        // Exact phone matches
-        for (const phone of phones) {
-          if (phone) {
-            keys.push(`phone|${phone}`);
-          }
-        }
-
         // Only create name-based keys if we have a meaningful name
         if (normalizedName && normalizedName.length > 1) {
-          // FIRST: Add exact name match key (case-insensitive)
+          // FIRST: Add exact name match key (case-insensitive) - FULL NAME ONLY
           keys.push(`name|${normalizedName}`);
 
-          // Enhanced name+email combinations
+          // Enhanced name+email combinations - FULL NAME ONLY
           for (const email of emails) {
             if (email && normalizedName) {
               const normalizedEmail = this.normalizeEmail(email);
               keys.push(`name-email|${normalizedName}|${normalizedEmail}`);
-
-              // Also try with just first name for fuzzy matching
-              const firstNameOnly = (firstName || "")
-                .toLowerCase()
-                .trim()
-                .replace(/[^\w\s]/g, "");
-              if (firstNameOnly.length > 1) {
-                keys.push(`first-email|${firstNameOnly}|${normalizedEmail}`);
-              }
-            }
-          }
-
-          // Name+phone combinations
-          for (const phone of phones) {
-            if (phone && normalizedName) {
-              keys.push(`name-phone|${normalizedName}|${phone}`);
             }
           }
         }
@@ -979,27 +956,17 @@ class RealEstateProcessor {
               if (email) keys.push(`email|${email}`);
             }
 
-            // Phone keys
-            for (const phone of phones) {
-              if (phone) keys.push(`phone|${phone}`);
-            }
-
             // Name-based keys
             if (normalizedName && normalizedName.length > 1) {
-              // FIRST: Add exact name match key (case-insensitive)
+              // FIRST: Add exact name match key (case-insensitive) - FULL NAME ONLY
               keys.push(`name|${normalizedName}`);
 
-              // Name+email combinations
+              // Name+email combinations - FULL NAME ONLY
               for (const email of emails) {
                 if (email) {
                   const normalizedEmail = this.normalizeEmail(email);
                   keys.push(`name-email|${normalizedName}|${normalizedEmail}`);
                 }
-              }
-
-              // Name+phone combinations
-              for (const phone of phones) {
-                if (phone) keys.push(`name-phone|${normalizedName}|${phone}`);
               }
             }
 
