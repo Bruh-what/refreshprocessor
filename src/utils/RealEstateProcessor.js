@@ -957,7 +957,12 @@ class RealEstateProcessor {
             }
 
             // Name-based keys - REQUIRES BOTH FIRST AND LAST NAME
-            if (firstName && lastName && normalizedName && normalizedName.length > 1) {
+            if (
+              firstName &&
+              lastName &&
+              normalizedName &&
+              normalizedName.length > 1
+            ) {
               // FIRST: Add exact name match key (case-insensitive) - REQUIRES BOTH FIRST AND LAST NAME
               keys.push(`name|${normalizedName}`);
 

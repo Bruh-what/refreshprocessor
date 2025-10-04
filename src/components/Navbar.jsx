@@ -59,9 +59,19 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
+              marginRight: "1rem",
             }}
           >
             CSV Formatter
+          </Link>
+          <Link
+            to="/simple-duplicate-tagger"
+            style={{
+              color: "white",
+              textDecoration: "none",
+            }}
+          >
+            Simple Duplicate Tagger
           </Link>
         </div>
       </div>
