@@ -108,32 +108,23 @@ const SimpleDuplicateTagger = () => {
             return dateA - dateB; // Oldest first becomes master
           });
 
-          // First record becomes master (CRMMERGED)
-          const masterIndex = records[0].index;
-          const masterRecord = processedData[masterIndex];
+          // Tag ALL records in the group as duplicates (including master)
+          for (let j = 0; j < records.length; j++) {
+            const recordIndex = records[j].index;
+            const record = processedData[recordIndex];
 
-          // Add CRMMERGED tag to master
-          const existingTags = masterRecord["Tags"] || "";
-          if (!existingTags.includes("CRMMERGED")) {
-            masterRecord["Tags"] = existingTags
-              ? `${existingTags},CRMMERGED`
-              : "CRMMERGED";
-          }
-          masterRecords++;
-
-          // Tag remaining records as duplicates (CRMDuplicate)
-          for (let j = 1; j < records.length; j++) {
-            const duplicateIndex = records[j].index;
-            const duplicateRecord = processedData[duplicateIndex];
-
-            const existingTags = duplicateRecord["Tags"] || "";
+            const existingTags = record["Tags"] || "";
             if (!existingTags.includes("CRMDuplicate")) {
-              duplicateRecord["Tags"] = existingTags
+              record["Tags"] = existingTags
                 ? `${existingTags},CRMDuplicate`
                 : "CRMDuplicate";
             }
             totalDuplicateRecords++;
           }
+
+          // Track which one is the master (oldest) for reporting purposes
+          const masterIndex = records[0].index;
+          masterRecords++;
 
           // Store details for reporting
           duplicateDetails.push({
@@ -158,21 +149,17 @@ const SimpleDuplicateTagger = () => {
 
       addLog(`\n=== TAGGING COMPLETE ===`);
       addLog(`Duplicate groups found: ${duplicateGroups}`);
-      addLog(`Master records tagged (CRMMERGED): ${masterRecords}`);
       addLog(
-        `Duplicate records tagged (CRMDuplicate): ${totalDuplicateRecords}`
+        `Total records tagged with CRMDuplicate: ${totalDuplicateRecords}`
       );
+      addLog(`Master records (oldest in each group): ${masterRecords}`);
 
       // Verify tags were applied
-      const taggedMasters = processedData.filter(
-        (r) => r.Tags && r.Tags.includes("CRMMERGED")
-      ).length;
       const taggedDuplicates = processedData.filter(
         (r) => r.Tags && r.Tags.includes("CRMDuplicate")
       ).length;
 
       addLog(`\n=== VERIFICATION ===`);
-      addLog(`Records with CRMMERGED tag: ${taggedMasters}`);
       addLog(`Records with CRMDuplicate tag: ${taggedDuplicates}`);
 
       setResults({
@@ -181,7 +168,6 @@ const SimpleDuplicateTagger = () => {
         duplicateGroups: duplicateGroups,
         masterRecords: masterRecords,
         duplicateRecords: totalDuplicateRecords,
-        taggedMasters: taggedMasters,
         taggedDuplicates: taggedDuplicates,
         duplicateDetails: duplicateDetails.slice(0, 20), // Show top 20 groups
         recordsWithNames: recordsWithNames,
@@ -203,6 +189,27 @@ const SimpleDuplicateTagger = () => {
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "simple_duplicate_tagged.csv";
+    link.click();
+  };
+
+  const exportTaggedOnly = () => {
+    if (!results) return;
+
+    // Filter to only records that have CRMDuplicate tag
+    const taggedRecords = results.processedData.filter(
+      (record) => record.Tags && record.Tags.includes("CRMDuplicate")
+    );
+
+    if (taggedRecords.length === 0) {
+      alert("No tagged records found to export!");
+      return;
+    }
+
+    const csv = Papa.unparse(taggedRecords);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "duplicate_tagged_only.csv";
     link.click();
   };
 
@@ -253,7 +260,7 @@ const SimpleDuplicateTagger = () => {
           {/* Summary Stats */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold mb-4">Results Summary</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="text-center p-4 bg-blue-50 rounded">
                 <div className="text-2xl font-bold text-blue-600">
                   {results.originalCount}
@@ -265,12 +272,6 @@ const SimpleDuplicateTagger = () => {
                   {results.duplicateGroups}
                 </div>
                 <div className="text-sm text-gray-600">Duplicate Groups</div>
-              </div>
-              <div className="text-center p-4 bg-purple-50 rounded">
-                <div className="text-2xl font-bold text-purple-600">
-                  {results.taggedMasters}
-                </div>
-                <div className="text-sm text-gray-600">CRMMERGED Tags</div>
               </div>
               <div className="text-center p-4 bg-red-50 rounded">
                 <div className="text-2xl font-bold text-red-600">
@@ -300,13 +301,19 @@ const SimpleDuplicateTagger = () => {
             </div>
           </div>
 
-          {/* Export Button */}
-          <div className="text-center">
+          {/* Export Buttons */}
+          <div className="text-center space-x-4">
             <button
               onClick={exportResults}
               className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-6 rounded"
             >
-              Export Tagged CSV
+              Export All Records
+            </button>
+            <button
+              onClick={exportTaggedOnly}
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded"
+            >
+              Export Tagged Only ({results.taggedDuplicates} records)
             </button>
           </div>
 
@@ -360,11 +367,11 @@ const SimpleDuplicateTagger = () => {
               </p>
               <p>
                 <strong>Master Selection:</strong> Oldest record (by Created At
-                date) becomes master and gets CRMMERGED tag.
+                date) is identified as master for reference.
               </p>
               <p>
-                <strong>Duplicate Tagging:</strong> All other records in the
-                group get CRMDuplicate tag.
+                <strong>Duplicate Tagging:</strong> ALL records in duplicate
+                groups (including masters) get CRMDuplicate tag.
               </p>
               <p>
                 <strong>No Merging:</strong> Records are only tagged - no data
