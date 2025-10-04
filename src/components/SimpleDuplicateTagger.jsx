@@ -35,6 +35,66 @@ const SimpleDuplicateTagger = () => {
     return `${first} ${last}`.trim();
   };
 
+  // Calculate information completeness score for a record
+  const calculateInformationScore = (record) => {
+    let score = 0;
+
+    // Key fields worth more points
+    const keyFields = [
+      "First Name",
+      "Last Name",
+      "Email",
+      "Personal Email",
+      "Phone",
+      "Mobile Phone",
+      "Home Phone",
+      "Work Phone",
+      "Address",
+      "City",
+      "State",
+      "Zip Code",
+      "Country",
+    ];
+
+    // Secondary fields worth fewer points
+    const secondaryFields = [
+      "Company",
+      "Job Title",
+      "Website",
+      "Birthday",
+      "Anniversary",
+      "Notes",
+      "Lead Source",
+      "Tags",
+      "Created At",
+      "Updated At",
+    ];
+
+    // Count key fields (3 points each)
+    keyFields.forEach((field) => {
+      if (record[field] && record[field].toString().trim()) {
+        score += 3;
+      }
+    });
+
+    // Count secondary fields (1 point each)
+    secondaryFields.forEach((field) => {
+      if (record[field] && record[field].toString().trim()) {
+        score += 1;
+      }
+    });
+
+    // Bonus for longer text fields (indicates more detailed info)
+    const textFields = ["Notes", "Address", "Company"];
+    textFields.forEach((field) => {
+      if (record[field] && record[field].toString().trim().length > 50) {
+        score += 2; // Bonus for detailed text
+      }
+    });
+
+    return score;
+  };
+
   const processFile = async () => {
     if (!file) return;
 
@@ -86,8 +146,8 @@ const SimpleDuplicateTagger = () => {
       addLog(`Records without valid names: ${recordsWithoutNames}`);
       addLog(`Unique name groups: ${nameGroups.size}`);
 
-      // Process duplicates - tag them in the original data
-      const processedData = [...parsed.data];
+      // Process duplicates - create a deep copy to avoid modifying original data
+      const processedData = parsed.data.map((record) => ({ ...record }));
       let duplicateGroups = 0;
       let totalDuplicateRecords = 0;
       let masterRecords = 0;
@@ -97,21 +157,33 @@ const SimpleDuplicateTagger = () => {
         if (records.length > 1) {
           duplicateGroups++;
 
-          // Sort by creation date if available, otherwise use original order
+          // Sort by information completeness - record with most data becomes master
           records.sort((a, b) => {
-            const dateA = a.record["Created At"]
-              ? new Date(a.record["Created At"])
-              : new Date(0);
-            const dateB = b.record["Created At"]
-              ? new Date(b.record["Created At"])
-              : new Date(0);
-            return dateA - dateB; // Oldest first becomes master
+            const scoreA = calculateInformationScore(a.record);
+            const scoreB = calculateInformationScore(b.record);
+            return scoreB - scoreA; // Highest score first becomes master
           });
 
           // Tag ALL records in the group as duplicates (including master)
           for (let j = 0; j < records.length; j++) {
             const recordIndex = records[j].index;
             const record = processedData[recordIndex];
+
+            // Debug: Log what we're about to modify for Lauren records
+            if (
+              record["First Name"] &&
+              record["First Name"].toLowerCase().includes("lauren")
+            ) {
+              console.log(
+                `Before tagging Lauren record at index ${recordIndex}:`,
+                {
+                  firstName: record["First Name"],
+                  lastName: record["Last Name"],
+                  name: record["Name"],
+                  tags: record["Tags"],
+                }
+              );
+            }
 
             const existingTags = record["Tags"] || "";
             if (!existingTags.includes("CRMDuplicate")) {
@@ -120,6 +192,22 @@ const SimpleDuplicateTagger = () => {
                 : "CRMDuplicate";
             }
             totalDuplicateRecords++;
+
+            // Debug: Log after modification
+            if (
+              record["First Name"] &&
+              record["First Name"].toLowerCase().includes("lauren")
+            ) {
+              console.log(
+                `After tagging Lauren record at index ${recordIndex}:`,
+                {
+                  firstName: record["First Name"],
+                  lastName: record["Last Name"],
+                  name: record["Name"],
+                  tags: record["Tags"],
+                }
+              );
+            }
           }
 
           // Track which one is the master (oldest) for reporting purposes
@@ -132,13 +220,15 @@ const SimpleDuplicateTagger = () => {
             count: records.length,
             masterIndex: masterIndex + 2, // +2 for CSV line number (1-indexed + header)
             duplicateIndexes: records.slice(1).map((r) => r.index + 2),
-            records: records.map((r) => ({
+            records: records.map((r, index) => ({
               line: r.index + 2,
               firstName: r.record["First Name"] || "",
               lastName: r.record["Last Name"] || "",
               email:
                 r.record["Email"] || r.record["Personal Email"] || "No email",
               createdAt: r.record["Created At"] || "No date",
+              infoScore: calculateInformationScore(r.record),
+              isMaster: index === 0,
             })),
           });
         }
@@ -152,7 +242,9 @@ const SimpleDuplicateTagger = () => {
       addLog(
         `Total records tagged with CRMDuplicate: ${totalDuplicateRecords}`
       );
-      addLog(`Master records (oldest in each group): ${masterRecords}`);
+      addLog(
+        `Master records (most complete info in each group): ${masterRecords}`
+      );
 
       // Verify tags were applied
       const taggedDuplicates = processedData.filter(
@@ -331,14 +423,17 @@ const SimpleDuplicateTagger = () => {
                       <div
                         key={i}
                         className={`${
-                          i === 0
+                          record.isMaster
                             ? "text-green-600 font-medium"
                             : "text-red-600"
                         }`}
                       >
-                        {i === 0 ? "[MASTER]" : "[DUPLICATE]"} Line{" "}
+                        {record.isMaster ? "[MASTER]" : "[DUPLICATE]"} Line{" "}
                         {record.line}: {record.firstName} {record.lastName} (
                         {record.email})
+                        <span className="text-blue-500 ml-2">
+                          - Score: {record.infoScore}
+                        </span>
                         {record.createdAt !== "No date" && (
                           <span className="text-gray-500 ml-2">
                             - {record.createdAt}
@@ -366,8 +461,9 @@ const SimpleDuplicateTagger = () => {
                 (e.g., "John Smith" and "john smith" are the same).
               </p>
               <p>
-                <strong>Master Selection:</strong> Oldest record (by Created At
-                date) is identified as master for reference.
+                <strong>Master Selection:</strong> Record with most complete
+                information (based on filled fields) is identified as master for
+                reference.
               </p>
               <p>
                 <strong>Duplicate Tagging:</strong> ALL records in duplicate
