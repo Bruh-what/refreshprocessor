@@ -15,140 +15,434 @@ const ContactCategorizer = () => {
     ]);
   };
 
-  // Known real estate brokerage domains
+  // Extract all emails from a contact (matching RealEstateProcessor logic)
+  const getAllEmails = (contact) => {
+    const emailFields = [
+      "Personal Email", "Email", "Work Email", "Email 2", "Email 3",
+      "Primary Personal Email", "Custom Email", "Email (1)", "Email (2)",
+      "Email (3)", "Email (Work)", "Email (Home 1)", "Email (Home 2)",
+      "Email (Andrea)", "Email (David)", "Email (Edina)", "Email (Email 1)",
+      "Email (Email 2)", "Email (Gabriele)", "Email (Jennifer)", "Email (John)",
+      "Email (Lauren)", "Email (Lee)", "Email (Lyn)", "Email (Michael)",
+      "Email (Obsolete)", "Email (Ralf)", "Email (Icloud)", "Email (Other 1)",
+      "Email (Other 2)", "Email (Other 3)", "Email (Work 1)", "Email (Work 2)",
+      "Email (Work 3)", "Primary Email", "Primary Work Email"
+    ];
+
+    // Extract all valid email addresses from the specified fields
+    const emails = emailFields
+      .map((field) => contact[field])
+      .filter((email) => email && email.trim() && email.includes("@"))
+      .map((email) => email.toLowerCase().trim());
+
+    // Scan all other fields for anything that looks like an email address
+    if (contact) {
+      for (const [key, value] of Object.entries(contact)) {
+        if (typeof value === "string" && value.includes("@") && 
+            !emailFields.includes(key) && 
+            /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) {
+          const email = value.toLowerCase().trim();
+          if (!emails.includes(email)) {
+            emails.push(email);
+          }
+        }
+      }
+    }
+
+    // Return unique emails only
+    return [...new Set(emails)];
+  };
+
+  // Comprehensive list of real estate brokerage domains (matching RealEstateProcessor)
   const BROKERAGE_DOMAINS = new Set([
-    "compass.com", "elliman.com", "corcoran.com", "sothebysrealty.com",
-    "coldwellbanker.com", "century21.com", "kw.com", "remax.com",
-    "weichert.com", "bhgre.com", "windermere.com", "cbsudler.com",
-    "eradre.com", "howardhanna.com", "remaxresults.com", "gibsonhomes.com",
-    "nemoves.com", "lamacchiarealty.com", "berkshirehathaway.com"
+    "compass.com", "coldwellbanker.com", "century21.com", "kw.com", "remax.com",
+    "sothebysrealty.com", "berkshirehathaway.com", "howardhanna.com", "elliman.com",
+    "elegran.com", "weichert.com", "windermere.com", "johnlscott.com", "realogy.com",
+    "anywhere.re", "cbmoves.com", "era.com", "bhhsamb.com", "bhhsnw.com", "bhhsne.com",
+    "sirmove.com", "kellerwilliams.com", "kwrealty.com", "kwcom.com", "kwconnect.com",
+    "remax.net", "remaxagent.com", "remaxresults.com", "remaxnow.com", "c21.com",
+    "century21.net", "c21global.com", "century21global.com", "prudentialrealestate.com",
+    "prudential.com", "pru.com", "exitreality.com", "exitrealtygroup.com", "exitrealtycorp.com",
+    "realtyone.com", "realtyonegroup.com", "rog.com", "exprealty.com", "exprealtyworld.com",
+    "expresidenitalrealty.com", "nexthome.com", "nexthomerealty.com", "nexthomefranchise.com",
+    "redfin.com", "redfinagent.com", "redfinnow.com", "zillow.com", "zillowgroup.com",
+    "trulia.com", "flowrealty.com", "bhhs.com", "corcoran.com", "longandfoster.com",
+    "homesmart.com", "realtrends.com", "cbhomes.com", "bhgre.com", "erares.com",
+    "cbredirect.com", "nar.realtor", "sothebys.com", "realestateone.com", "realtyfirst.com",
+    "realliving.com", "realtyexecutives.com", "unitedrealestate.com", "exrny.com",
+    "bondnewyork.com", "thenextsteprealty.com", "nextstopny.com", "djsoucygroup.com",
+    "herzwurmhomes.com", "bhsusa.com", "realnewyork.com", "cushwake.com", "raveis.com"
   ]);
 
-  // Agent keywords for email/field analysis
+  // Comprehensive agent keywords (matching RealEstateProcessor)
   const AGENT_KEYWORDS = [
     "realtor", "realty", "properties", "homes", "broker", "realestate",
-    "agent", "compass", "corcoran", "weichert", "kw", "remax", "c21"
+    "homesales", "homesforsale", "listings", "residence", "residential",
+    "agent", "real estate", "re/max", "century21", "sothebys", "coldwell",
+    "keller", "williams", "berkshire", "hathaway", "douglas", "elliman",
+    "compass", "corcoran", "weichert", "christie", "bhhs", "exp", "redfin",
+    "zillow", "trulia", "homesmart", "associates", "realtors", "property",
+    "flow", "harrynorman", "dorseyalston", "ansleyre", "ansley", "atlantafinehomes",
+    "evatlanta", "heritageselect", "anchorny", "serhant", "citihabitats",
+    "bondnewyork", "nestseekers", "halstead", "cbrealty", "cbwalburg",
+    "rutenbert", "stribling", "opgny", "corenyc", "exrny", "bond", "newyorkrealty"
   ];
 
-  // Vendor keywords
+  // Comprehensive vendor keywords (matching RealEstateProcessor)
   const VENDOR_KEYWORDS = [
-    "title", "escrow", "mortgage", "lending", "loan", "bank", "insurance",
-    "inspection", "appraisal", "attorney", "law", "notary", "staging",
-    "photography", "contractor", "cleaning", "hvac", "plumbing", "electric"
+    "title", "escrow", "mortgage", "lending", "loan", "bank", "credit", "insurance",
+    "home warranty", "inspection", "appraisal", "appraiser", "appraisals", "attorney",
+    "architects", "law", "legal", "notary", "staging", "photography", "marketing",
+    "repair", "contractor", "contractors", "handyman", "cleaning", "moving", "modus",
+    "chartwell", "krisslaw", "modustitle", "chartwellescrow", "storage", "funding",
+    "construction", "plumbing", "capital", "firm", "design", "designer", "architect",
+    "renovations", "interiors", "furnace", "duct cleaning", "air conditioning", "hvac",
+    "property management", "landscaping", "gardening", "flooring", "carpentry", "painter",
+    "painting", "roofing", "electrical", "electrician", "financial", "finance", "advisor",
+    "investment", "investing", "accounting", "accountant", "tax", "inspection", "inspector",
+    "business development", "studio", "build"
   ];
 
-  // Categorize contact based on multiple signals
+  // Categorize contact based on multiple signals (enhanced to match RealEstateProcessor)
   const categorizeContact = (contact) => {
     let agentConfidence = 0;
     let vendorConfidence = 0;
     let category = "Contact"; // Default
     let reasons = [];
 
-    // Extract key fields
-    const email = (contact["Email"] || contact["Personal Email"] || contact["Work Email"] || "").toLowerCase();
+    // Extract ALL emails using comprehensive method
+    const emails = getAllEmails(contact);
+    
+    // Extract key fields with more comprehensive field checking
     const company = (contact["Company"] || "").toLowerCase();
-    const title = (contact["Title"] || "").toLowerCase();
+    const title = (contact["Title"] || contact["Job Title"] || "").toLowerCase();
     const tags = (contact["Tags"] || "").toLowerCase();
-    const groups = (contact["Groups"] || "").toLowerCase();
+    const groups = (contact["Groups"] || contact["Group"] || "").toLowerCase();
+    const notes = (contact["Notes"] || contact["Note"] || "").toLowerCase();
+    const keyInfo = (contact["Key Background Info"] || "").toLowerCase();
 
-    // Check for existing past client classification
-    if (contact["Client Classification"] === "Past Client" || 
-        tags.includes("past client") || tags.includes("past buyer") || tags.includes("past seller")) {
-      return { category: "Contact", confidence: 100, reasons: ["Protected as past client"] };
+    // Check for past client classification - will reduce confidence later (like RealEstateProcessor)
+    const isPastClient = contact["Client Classification"] === "Past Client" || 
+                        groups.includes("past client") ||
+                        tags.includes("past client") || 
+                        tags.includes("past buyer") || 
+                        tags.includes("past seller");
+
+    // Check all contact fields for specific vendor keywords (like RealEstateProcessor)
+    let directVendorMatch = false;
+    for (const [key, value] of Object.entries(contact)) {
+      if (typeof value === "string") {
+        const lowerValue = value.toLowerCase();
+        if (lowerValue.includes("chartwellescrow.com") || 
+            lowerValue.includes("modustitle.com") ||
+            lowerValue.includes("krislaw") ||
+            (lowerValue.includes("escrow") && lowerValue.includes("chartwell")) ||
+            (lowerValue.includes("title") && lowerValue.includes("modus"))) {
+          vendorConfidence += 100;
+          reasons.push(`Direct vendor match: ${key} contains ${value}`);
+          directVendorMatch = true;
+          break;
+        }
+      }
     }
 
-    // Extract email domain
-    const emailDomain = email.includes("@") ? email.split("@")[1] : "";
+    if (directVendorMatch) {
+      return { category: "Vendor", vendorConfidence, agentConfidence: 0, reasons };
+    }
 
     // AGENT CLASSIFICATION SIGNALS
 
-    // 1. Direct brokerage domain match (highest priority)
-    if (BROKERAGE_DOMAINS.has(emailDomain)) {
-      agentConfidence += 50;
-      reasons.push(`Brokerage email domain: ${emailDomain}`);
+    // 1. Check all email domains for brokerage matches (matching RealEstateProcessor values)
+    const domains = emails.map(email => {
+      const match = email.match(/@([\w.-]+)$/);
+      return match ? match[1] : "";
+    }).filter(Boolean);
+
+    for (const domain of domains) {
+      if (BROKERAGE_DOMAINS.has(domain)) {
+        agentConfidence += 50; // Very strong signal - matches RealEstateProcessor
+        reasons.push(`Brokerage email domain: ${domain}`);
+      } else {
+        // More aggressive keyword matching for domains (like RealEstateProcessor)
+        for (const keyword of AGENT_KEYWORDS) {
+          if (domain.includes(keyword)) {
+            agentConfidence += 45; // Increased from 40 to 45 for stronger signal
+            reasons.push(`Agent keyword in domain: ${keyword}`);
+            break;
+          }
+        }
+
+        // Special case for Compass agents using Gmail or other generic domains
+        if ((domain === "gmail.com" || domain === "icloud.com" || domain === "yahoo.com") &&
+            (company.includes("compass") || company.includes("realty") || 
+             company.includes("real estate") || title.includes("agent") || 
+             title.includes("realtor"))) {
+          agentConfidence += 45; // Increased from 40 to 45 for stronger signal
+          reasons.push(`Generic domain + real estate company/title`);
+        }
+      }
     }
 
-    // 2. Agent keywords in email
-    AGENT_KEYWORDS.forEach(keyword => {
-      if (email.includes(keyword)) {
-        agentConfidence += 20;
-        reasons.push(`Agent keyword in email: ${keyword}`);
+    // 2. Agent keywords in ALL emails (enhanced matching)
+    for (const email of emails) {
+      const lowerEmail = email.toLowerCase();
+      
+      // Direct classification for obvious agent keywords in email username (before the @)
+      if (lowerEmail.includes("realtor") ||
+          lowerEmail.includes("realestate") ||
+          lowerEmail.includes("homesales") ||
+          (lowerEmail.includes("agent") && !lowerEmail.includes("mortgage")) ||
+          (lowerEmail.includes("broker") && !lowerEmail.includes("mortgage"))) {
+        agentConfidence += 45; // Strong signal - matches RealEstateProcessor
+        reasons.push(`Direct agent keyword in email: ${email}`);
+      }
+    }
+
+    // 3. Enhanced company name analysis
+    const companyPatterns = [
+      /\brealty\b/i, /\brealtors\b/i, /\brealtor\b/i, /\bproperties\b/i,
+      /\bhomes\b/i, /\breal estate\b/i, /\bbroker\b/i, /\bsir\b/i,
+      /\bre\/max\b/i, /\bkw\b/i, /\bbhhs\b/i
+    ];
+    
+    const companyKeywords = [
+      "realty", "real estate", "sotheby", "coldwell banker", "keller williams",
+      "century 21", "berkshire hathaway", "re/max", "remax", "douglas elliman",
+      "compass", "corcoran", "exp realty", "weichert", "better homes", "christie",
+      "vanguard properties", "redfin", "zillow", "trulia", "flow realty"
+    ];
+
+    companyKeywords.forEach(keyword => {
+      if (company.includes(keyword)) {
+        agentConfidence += 40; // Strong signal - matches RealEstateProcessor
+        reasons.push(`Real estate company: ${keyword}`);
       }
     });
 
-    // 3. Company name analysis
-    if (company.includes("realty") || company.includes("real estate") || 
-        company.includes("compass") || company.includes("keller williams") ||
-        company.includes("century 21") || company.includes("coldwell banker") ||
-        company.includes("re/max") || company.includes("sotheby")) {
-      agentConfidence += 40;
-      reasons.push(`Real estate company: ${company}`);
+    companyPatterns.forEach(pattern => {
+      if (pattern.test(company)) {
+        agentConfidence += 40; // Strong signal - matches RealEstateProcessor 
+        reasons.push(`Company pattern match: ${pattern.source}`);
+      }
+    });
+
+    // 4. Enhanced job title analysis
+    const agentTitles = [
+      "real estate agent", "realtor", "broker", "real estate", "property manager",
+      "sales associate", "listing agent", "buyer agent", "real estate professional"
+    ];
+
+    agentTitles.forEach(titleKeyword => {
+      if (title.includes(titleKeyword)) {
+        agentConfidence += 40;
+        reasons.push(`Real estate title: ${titleKeyword}`);
+      }
+    });
+
+    // Special case for "sales associate" + real estate company
+    if (title.includes("sales associate") && 
+        (company.includes("real estate") || company.includes("realty") || company.includes("properties"))) {
+      agentConfidence += 35;
+      reasons.push("Sales associate at real estate company");
     }
 
-    // 4. Job title analysis
-    if (title.includes("real estate agent") || title.includes("realtor") ||
-        title.includes("broker") || title.includes("sales associate") ||
-        title.includes("listing agent") || title.includes("buyer agent")) {
-      agentConfidence += 40;
-      reasons.push(`Real estate title: ${title}`);
+    // 5. Existing tags/groups analysis (matching RealEstateProcessor)
+    if (tags.includes("agent")) {
+      agentConfidence += 40; // Strong signal from existing tags
+      reasons.push("Existing agent tags");
+    }
+    if (groups.includes("agent")) {
+      agentConfidence += 40; // Strong signal from existing groups
+      reasons.push("Existing agent groups");
     }
 
-    // 5. Existing tags/groups
-    if (tags.includes("agent") || groups.includes("agent") || 
-        tags.includes("compass") || tags.includes("realtor")) {
-      agentConfidence += 40;
-      reasons.push("Existing agent tags/groups");
+    // 6. Notes and background info analysis (matching RealEstateProcessor)
+    if (notes.includes("realtor") || keyInfo.includes("realtor") ||
+        notes.includes("real estate agent") || keyInfo.includes("real estate agent") ||
+        (notes.includes("broker") && !notes.includes("mortgage broker") && 
+         !keyInfo.includes("mortgage broker"))) {
+      agentConfidence += 20; // Moderate signal - matches RealEstateProcessor
+      reasons.push("Agent indicator in notes/background");
     }
 
     // VENDOR CLASSIFICATION SIGNALS
 
-    // 1. Direct vendor email domains
-    if (email.includes("chartwellescrow.com") || email.includes("modustitle.com") ||
-        email.includes("escrow") || email.includes("title")) {
-      vendorConfidence += 50;
-      reasons.push(`Vendor email domain: ${emailDomain}`);
+    // 1. Direct vendor email domain analysis
+    for (const email of emails) {
+      const lowerEmail = email.toLowerCase();
+      
+      // Immediate classification for specific known vendor emails
+      if (lowerEmail.includes("@chartwellescrow.com") ||
+          lowerEmail.includes("@krislaw") ||
+          lowerEmail.includes("@modustitle.com") ||
+          lowerEmail.includes("escrow") ||
+          lowerEmail.includes("title") ||
+          lowerEmail.includes("@chartwell") ||
+          lowerEmail.includes("@modus") ||
+          lowerEmail.includes("@escrow") ||
+          lowerEmail.includes("law.com")) {
+        vendorConfidence += 100;
+        reasons.push(`Direct vendor email: ${email}`);
+      }
+
+      // Enhanced vendor keyword matching in email
+      VENDOR_KEYWORDS.forEach(keyword => {
+        if (lowerEmail.includes(keyword)) {
+          vendorConfidence += 15;
+          reasons.push(`Vendor keyword in email: ${keyword}`);
+        }
+      });
     }
 
-    // 2. Vendor keywords in various fields
-    const allFieldText = `${email} ${company} ${title} ${tags}`.toLowerCase();
+    // 2. Enhanced vendor keywords in ALL fields (matching RealEstateProcessor scoring)
+    const allFieldText = `${emails.join(" ")} ${company} ${title} ${tags} ${groups} ${notes} ${keyInfo}`.toLowerCase();
     VENDOR_KEYWORDS.forEach(keyword => {
       if (allFieldText.includes(keyword)) {
-        vendorConfidence += 15;
+        vendorConfidence += 30; // Moderate signal for keyword match - matches RealEstateProcessor
         reasons.push(`Vendor keyword found: ${keyword}`);
       }
     });
 
-    // 3. Company patterns
-    if (company.includes(" inc") || company.includes(" llc") || 
-        company.includes(" corp") || company.includes("title") ||
-        company.includes("escrow") || company.includes("law") ||
-        company.includes("mortgage") || company.includes("bank")) {
-      vendorConfidence += 30;
-      reasons.push(`Business entity: ${company}`);
-    }
+    // 3. Enhanced company patterns for vendors (matching RealEstateProcessor)
+    const businessPatterns = [
+      " inc", " llc", " corp", "title", "escrow", "law", "mortgage", "bank",
+      "insurance", "lending", "credit", "financial", "capital", "firm"
+    ];
 
-    // 4. Professional service titles
-    if (title.includes("escrow") || title.includes("title officer") ||
-        title.includes("attorney") || title.includes("lawyer") ||
-        title.includes("loan officer") || title.includes("inspector")) {
-      vendorConfidence += 50;
-      reasons.push(`Professional service title: ${title}`);
-    }
-
-    // DECISION LOGIC
-    const agentThreshold = 35;
-    const vendorThreshold = 40;
-
-    if (agentConfidence >= agentThreshold && vendorConfidence >= vendorThreshold) {
-      // Both qualify - choose highest confidence
-      if (agentConfidence > vendorConfidence) {
-        category = "Agent";
-      } else {
-        category = "Vendor";
+    businessPatterns.forEach(pattern => {
+      if (company.includes(pattern)) {
+        vendorConfidence += 30; // Moderate signal - matches RealEstateProcessor
+        reasons.push(`Business entity pattern: ${pattern}`);
       }
-    } else if (agentConfidence >= agentThreshold) {
+    });
+
+    // Known vendor domains
+    const knownVendorDomains = [
+      "modustitle.com", "chartwellescrow.com", "krisslawatlantic.com",
+      "escrow.com", "chartwell.com", "modus.com", "titlecompany.com",
+      "escrowservice.com", "titleservice.com", "lawfirm.com", "krislaw.com"
+    ];
+
+    // Check domains for vendor keywords and known vendor domains (matching RealEstateProcessor)
+    for (const domain of domains) {
+      // Check if domain contains vendor keywords
+      let hasVendorDomainKeyword = false;
+      for (const keyword of VENDOR_KEYWORDS) {
+        if (domain.includes(keyword)) {
+          hasVendorDomainKeyword = true;
+          vendorConfidence += 40; // Strong signal - matches RealEstateProcessor
+          reasons.push(`Vendor keyword in domain: ${keyword}`);
+          break;
+        }
+      }
+
+      if (knownVendorDomains.includes(domain)) {
+        vendorConfidence += 50; // Very strong signal for known vendor domains - matches RealEstateProcessor
+        reasons.push(`Known vendor domain: ${domain}`);
+      }
+    }
+
+    // 4. Enhanced professional service titles (matching RealEstateProcessor)
+    const specificVendorTitles = [
+      "escrow officer", "title officer", "closing attorney", "real estate attorney",
+      "loan officer", "mortgage broker", "appraiser", "home inspector", 
+      "insurance agent", "contractor", "architect", "designer", "accountant", 
+      "tax preparer", "financial advisor", "title", "escrow", "attorney", "lawyer"
+    ];
+
+    specificVendorTitles.forEach(titleKeyword => {
+      if (title.includes(titleKeyword)) {
+        vendorConfidence += 50; // Very strong signal for specific vendor job titles - matches RealEstateProcessor
+        reasons.push(`Professional service title: ${titleKeyword}`);
+      }
+    });
+
+    // 5. Enhanced tags and groups analysis for vendors (matching RealEstateProcessor)
+    if (tags.includes("vendor")) {
+      vendorConfidence += 40; // Strong signal from existing tags
+      reasons.push("Existing vendor tags");
+    }
+    if (groups.includes("vendor")) {
+      vendorConfidence += 40; // Strong signal from existing groups  
+      reasons.push("Existing vendor groups");
+    }
+
+    // Apply past client confidence reduction (matching RealEstateProcessor)
+    if (isPastClient) {
+      vendorConfidence -= 50; // Past clients get a penalty to stay as Contacts
+      agentConfidence -= 50; // Also reduce agent confidence for past clients
+      reasons.push("Past client detected - confidence reduced");
+    }
+
+    // DECISION LOGIC (matching RealEstateProcessor exactly)
+    const AGENT_THRESHOLD = 35;
+    const VENDOR_THRESHOLD = 40;
+
+    // FIRST: Check for direct indicators (override confidence scoring)
+    // If a contact is already in the "Agents" group, they should be classified as an Agent
+    if (groups.includes("agent")) {
+      return { category: "Agent", agentConfidence: 100, vendorConfidence, reasons: ["Existing agent group"] };
+    }
+
+    // SECOND: Check for known agent domains based on email patterns (direct classification)
+    for (const email of emails) {
+      const lowerEmail = email.toLowerCase();
+
+      // Direct classification for emails at known real estate brokerages
+      if (lowerEmail.includes("@compass.com") ||
+          lowerEmail.includes("@elliman.com") ||
+          lowerEmail.includes("@corcoran.com") ||
+          lowerEmail.includes("@bhhs") ||
+          lowerEmail.includes("@coldwellbanker") ||
+          lowerEmail.includes("@sothebys") ||
+          lowerEmail.includes("@sothebysrealty") ||
+          lowerEmail.includes("@sir.com") ||
+          lowerEmail.includes("@remax.com") ||
+          lowerEmail.includes("@century21") ||
+          lowerEmail.includes("@c21") ||
+          lowerEmail.includes("@kw.com") ||
+          lowerEmail.includes("@exprealty") ||
+          lowerEmail.includes("@weichert.com") ||
+          lowerEmail.includes("@redfin.com") ||
+          lowerEmail.includes("@propertyshark") ||
+          lowerEmail.includes("@nestseekers") ||
+          lowerEmail.includes("@halstead") ||
+          lowerEmail.includes("@stribling.com") ||
+          lowerEmail.includes("@bondnewyork") ||
+          lowerEmail.includes("@exrny.com")) {
+        return { category: "Agent", agentConfidence: 100, vendorConfidence, reasons: [`Direct brokerage email: ${email}`] };
+      }
+
+      // Check for obvious agent keywords in email username (before the @)
+      if (lowerEmail.includes("realtor") ||
+          lowerEmail.includes("realestate") ||
+          (lowerEmail.includes("agent") && !lowerEmail.includes("mortgage")) ||
+          (lowerEmail.includes("broker") && !lowerEmail.includes("mortgage"))) {
+        return { category: "Agent", agentConfidence: 100, vendorConfidence, reasons: [`Agent keyword in email: ${email}`] };
+      }
+    }
+
+    // THIRD: Check for company name that directly indicates real estate agent
+    const exactCompanyMatches = [
+      "compass", "corcoran", "compass ", "corcoran group", "douglas elliman",
+      "berkshire hathaway", "keller williams", "re/max", "remax", "sotheby's",
+      "sothebys", "coldwell banker", "century 21", "exit realty", "exp realty",
+      "bond new york", "nest seekers", "weichert"
+    ];
+
+    for (const exactMatch of exactCompanyMatches) {
+      if (company === exactMatch) {
+        return { category: "Agent", agentConfidence: 100, vendorConfidence, reasons: [`Direct company match: ${company}`] };
+      }
+    }
+
+    // FOURTH: Use confidence scoring for remaining cases
+    if (agentConfidence >= AGENT_THRESHOLD && vendorConfidence >= VENDOR_THRESHOLD) {
+      // Both qualify - choose highest confidence
+      category = agentConfidence > vendorConfidence ? "Agent" : "Vendor";
+    } else if (agentConfidence >= AGENT_THRESHOLD) {
       category = "Agent";
-    } else if (vendorConfidence >= vendorThreshold) {
+    } else if (vendorConfidence >= VENDOR_THRESHOLD) {
       category = "Vendor";
     }
 
@@ -207,7 +501,7 @@ const ContactCategorizer = () => {
         .slice(0, 10)
         .map(r => ({
           name: `${r["First Name"] || ""} ${r["Last Name"] || ""}`.trim(),
-          email: r["Email"] || r["Personal Email"] || "No email",
+          email: getAllEmails(r).join(", ") || "No email",
           company: r["Company"] || "No company",
           confidence: r._categorization.agentConfidence,
           reasons: r._categorization.reasons
@@ -218,7 +512,7 @@ const ContactCategorizer = () => {
         .slice(0, 10)
         .map(r => ({
           name: `${r["First Name"] || ""} ${r["Last Name"] || ""}`.trim(),
-          email: r["Email"] || r["Personal Email"] || "No email",
+          email: getAllEmails(r).join(", ") || "No email",
           company: r["Company"] || "No company",
           confidence: r._categorization.vendorConfidence,
           reasons: r._categorization.reasons
@@ -447,13 +741,15 @@ const ContactCategorizer = () => {
 
           {/* How It Works */}
           <div className="bg-yellow-50 rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">How Categorization Works</h2>
+            <h2 className="text-xl font-semibold mb-4">Enhanced Categorization Logic</h2>
             <div className="text-sm space-y-2">
-              <p><strong>🏢 Agent Detection:</strong> Email domains (compass.com, kw.com), company names (Keller Williams), job titles (Realtor), existing tags</p>
-              <p><strong>🔧 Vendor Detection:</strong> Business entities (LLC, Inc), service keywords (title, escrow, mortgage), professional titles (Attorney, Loan Officer)</p>
+              <p><strong>📧 Email Analysis:</strong> Scans ALL email fields (Personal Email, Work Email, Email 2, etc.) + finds emails in any field</p>
+              <p><strong>🏢 Agent Detection:</strong> 70+ brokerage domains, 40+ agent keywords, company patterns, job titles, notes analysis</p>
+              <p><strong>🔧 Vendor Detection:</strong> Direct vendor matches (Chartwell, Modus Title), 50+ service keywords, business entities, professional titles</p>
+              <p><strong>🎯 Multi-Signal Analysis:</strong> Checks company, title, tags, groups, notes, background info for comprehensive classification</p>
               <p><strong>👤 Contact Protection:</strong> Past clients remain as "Contact" regardless of other signals</p>
               <p><strong>⚖️ Confidence Scoring:</strong> Multiple signals build confidence scores. Agents need 35+ points, Vendors need 40+ points</p>
-              <p><strong>🎯 Smart Defaults:</strong> Unclear contacts remain as "Contact" to avoid incorrect categorization</p>
+              <p><strong>🔍 Enhanced Matching:</strong> Now matches RealEstateProcessor logic for consistent results across tools</p>
             </div>
           </div>
         </div>
