@@ -123,8 +123,11 @@ const ContactCategorizer = () => {
 
     // Check for past client classification - will reduce confidence later (like RealEstateProcessor)
     const isPastClient = contact["Client Classification"] === "Past Client" || 
+                        contact["Client Classification"] === "past buyer" ||
                         groups.includes("past client") ||
+                        groups.includes("past clients") ||
                         tags.includes("past client") || 
+                        tags.includes("past clients") ||
                         tags.includes("past buyer") || 
                         tags.includes("past seller");
 
@@ -446,6 +449,14 @@ const ContactCategorizer = () => {
       category = "Vendor";
     }
 
+    // FIFTH: Complete past client protection (matching RealEstateProcessor)
+    // If they're a past client, override any other category classification
+    if (isPastClient && (category === "Agent" || category === "Vendor")) {
+      const originalCategory = category;
+      category = "Contact";
+      reasons = [`Maintained as Contact (overriding ${originalCategory} classification because contact is a past client)`];
+    }
+
     return {
       category,
       agentConfidence,
@@ -489,8 +500,28 @@ const ContactCategorizer = () => {
           updatedRecord["Changes Made"] = "Category=Vendor";
           updatedRecord["Classification Reason"] = result.reasons.slice(0, 3).join("; ");
         } else {
-          updatedRecord["Changes Made"] = "Category=Contact";
-          updatedRecord["Classification Reason"] = result.reasons.length > 0 ? result.reasons.slice(0, 3).join("; ") : "No classification signals found";
+          // Check if this was a past client override
+          const isPastClientOverride = result.reasons.some(reason => 
+            reason.includes("overriding") && reason.includes("past client")
+          );
+          
+          if (isPastClientOverride) {
+            updatedRecord["Changes Made"] = result.reasons[0]; // The full override message
+            updatedRecord["Classification Reason"] = "Past client protection";
+          } else {
+            updatedRecord["Changes Made"] = "Category=Contact";
+            updatedRecord["Classification Reason"] = result.reasons.length > 0 ? result.reasons.slice(0, 3).join("; ") : "No classification signals found";
+          }
+        }
+
+        // Debug: Log a sample record to verify change fields are set
+        if (index < 3) {
+          console.log(`Sample record ${index}:`, {
+            name: `${updatedRecord["First Name"]} ${updatedRecord["Last Name"]}`,
+            category: updatedRecord["Category"],
+            changesMade: updatedRecord["Changes Made"],
+            reason: updatedRecord["Classification Reason"]
+          });
         }
         
         return {
@@ -558,6 +589,16 @@ const ContactCategorizer = () => {
   const exportResults = () => {
     if (!results) return;
 
+    // Debug: Check if change logging columns exist
+    console.log("Sample record from export:", results.processedData[0]);
+    console.log("All column headers:", Object.keys(results.processedData[0]));
+    
+    // Check specifically for our change logging columns
+    const hasChanges = results.processedData[0]["Changes Made"];
+    const hasReasons = results.processedData[0]["Classification Reason"];
+    console.log("Has 'Changes Made' column:", !!hasChanges);
+    console.log("Has 'Classification Reason' column:", !!hasReasons);
+
     const csv = Papa.unparse(results.processedData);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
@@ -574,6 +615,10 @@ const ContactCategorizer = () => {
       alert(`No ${category.toLowerCase()}s found to export!`);
       return;
     }
+
+    // Debug: Check if change logging columns exist in filtered data
+    console.log(`Sample ${category} record:`, filteredData[0]);
+    console.log(`${category} column headers:`, Object.keys(filteredData[0]));
 
     const csv = Papa.unparse(filteredData);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
