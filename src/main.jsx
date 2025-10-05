@@ -5,6 +5,7 @@ import App from "./App.jsx";
 import ImportMapperPage from "./pages/ImportMapperPage.jsx";
 import CsvFormatter from "./pages/CsvFormatter.jsx";
 import SimpleDuplicateTagger from "./components/SimpleDuplicateTagger.jsx";
+import ContactCategorizer from "./components/ContactCategorizer.jsx";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -17,6 +18,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route
           path="/simple-duplicate-tagger"
           element={<SimpleDuplicateTagger />}
+        />
+        <Route
+          path="/contact-categorizer"
+          element={<ContactCategorizer />}
         />
       </Routes>
     </BrowserRouter>

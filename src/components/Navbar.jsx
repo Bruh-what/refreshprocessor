@@ -69,9 +69,19 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
+              marginRight: "1rem",
             }}
           >
             Simple Duplicate Tagger
+          </Link>
+          <Link
+            to="/contact-categorizer"
+            style={{
+              color: "white",
+              textDecoration: "none",
+            }}
+          >
+            Contact Categorizer
           </Link>
         </div>
       </div>

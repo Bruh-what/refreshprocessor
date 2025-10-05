@@ -308,41 +308,82 @@ const SimpleDuplicateTagger = () => {
   // Extract all emails from a record
   const extractEmails = (record) => {
     const emailFields = [
-      "Email", "Personal Email", "Work Email", "Primary Email", 
-      "Primary Personal Email", "Primary Work Email", "Email 2", 
-      "Primary other Email", "other Email", "Primary Custom Email",
-      "Primary personal Email", "other Email 2", "other Email 3",
-      "Primary work Email", "work Email", "Email 3", "Email 4", 
-      "Email 5", "Email 6", "work Email 2", "Personal Email 2", 
-      "Personal Email 3", "Personal Email 4", "home Email", 
-      "home Email 2", "personal Email", "other Email 4", 
-      "Custom Email", "Custom Email 2", "Obsolete Email"
+      "Email",
+      "Personal Email",
+      "Work Email",
+      "Primary Email",
+      "Primary Personal Email",
+      "Primary Work Email",
+      "Email 2",
+      "Primary other Email",
+      "other Email",
+      "Primary Custom Email",
+      "Primary personal Email",
+      "other Email 2",
+      "other Email 3",
+      "Primary work Email",
+      "work Email",
+      "Email 3",
+      "Email 4",
+      "Email 5",
+      "Email 6",
+      "work Email 2",
+      "Personal Email 2",
+      "Personal Email 3",
+      "Personal Email 4",
+      "home Email",
+      "home Email 2",
+      "personal Email",
+      "other Email 4",
+      "Custom Email",
+      "Custom Email 2",
+      "Obsolete Email",
     ];
-    
+
     return emailFields
-      .map(field => record[field])
-      .filter(email => email && email.trim() && email.includes('@'))
-      .map(email => email.trim().toLowerCase());
+      .map((field) => record[field])
+      .filter((email) => email && email.trim() && email.includes("@"))
+      .map((email) => email.trim().toLowerCase());
   };
 
   // Extract all phone numbers from a record
   const extractPhones = (record) => {
     const phoneFields = [
-      "Phone", "Mobile Phone", "Home Phone", "Work Phone", "Primary Phone",
-      "Primary Mobile Phone", "Primary Home Phone", "Primary Work Phone",
-      "Primary Main Phone", "Primary Other Phone", "Other Phone",
-      "Home Phone 2", "Other Phone 2", "Phone 2", "Work Phone 2",
-      "Mobile Phone 2", "Mobile Phone 3", "Main Phone", "Custom Phone",
-      "Primary Custom Phone", "Primary Wife Phone", "Primary workMobile Phone",
-      "Work_fax Phone", "Home_fax Phone", "Primary Work_fax Phone",
-      "Primary homeFax Phone", "Primary Other_fax Phone", "Primary Home_fax Phone"
+      "Phone",
+      "Mobile Phone",
+      "Home Phone",
+      "Work Phone",
+      "Primary Phone",
+      "Primary Mobile Phone",
+      "Primary Home Phone",
+      "Primary Work Phone",
+      "Primary Main Phone",
+      "Primary Other Phone",
+      "Other Phone",
+      "Home Phone 2",
+      "Other Phone 2",
+      "Phone 2",
+      "Work Phone 2",
+      "Mobile Phone 2",
+      "Mobile Phone 3",
+      "Main Phone",
+      "Custom Phone",
+      "Primary Custom Phone",
+      "Primary Wife Phone",
+      "Primary workMobile Phone",
+      "Work_fax Phone",
+      "Home_fax Phone",
+      "Primary Work_fax Phone",
+      "Primary homeFax Phone",
+      "Primary Other_fax Phone",
+      "Primary Home_fax Phone",
     ];
-    
+
     return phoneFields
-      .map(field => record[field])
-      .filter(phone => phone && phone.trim())
-      .map(phone => phone.trim().replace(/\D/g, '')) // Remove non-digits for comparison
-      .filter(phone => phone.length >= 10); // Valid phone numbers
+      .map((field) => record[field])
+      .filter((phone) => phone && phone.trim())
+      .map((phone) => phone.trim().replace(/\D/g, "")) // Remove non-digits for comparison
+      .filter((phone) => phone.length >= 10); // Valid phone numbers
   };
 
   // Merge duplicate records into masters
@@ -359,12 +400,15 @@ const SimpleDuplicateTagger = () => {
 
       // Group records by normalized name again to process merges
       const nameGroups = new Map();
-      
+
       for (let i = 0; i < mergedData.length; i++) {
         const record = mergedData[i];
         if (!record.Tags || !record.Tags.includes("CRMDuplicate")) continue;
-        
-        const normalizedName = normalizeName(record["First Name"], record["Last Name"]);
+
+        const normalizedName = normalizeName(
+          record["First Name"],
+          record["Last Name"]
+        );
         if (!normalizedName) continue;
 
         if (!nameGroups.has(normalizedName)) {
@@ -387,25 +431,47 @@ const SimpleDuplicateTagger = () => {
         const masterRecord = mergedData[records[0].index];
         const duplicateRecords = records.slice(1);
 
-        addLog(`Merging ${duplicateRecords.length} duplicates into master: "${name}"`);
+        addLog(
+          `Merging ${duplicateRecords.length} duplicates into master: "${name}"`
+        );
 
         // Extract existing data from master
-        const masterEmails = extractEmails(masterRecord).map(e => e.toLowerCase());
+        const masterEmails = extractEmails(masterRecord).map((e) =>
+          e.toLowerCase()
+        );
         const masterPhones = extractPhones(masterRecord);
 
         // Merge data from each duplicate into master
         for (const duplicate of duplicateRecords) {
           const dupRecord = mergedData[duplicate.index];
-          
+
           // Merge emails
           const dupEmails = extractEmails(dupRecord);
           const emailFields = [
-            "Personal Email", "Email", "Work Email", "Email 2", "Primary other Email",
-            "other Email", "Primary Custom Email", "Primary personal Email", 
-            "other Email 2", "other Email 3", "Email 3", "Email 4", "Email 5", 
-            "Email 6", "work Email 2", "Personal Email 2", "Personal Email 3",
-            "Personal Email 4", "home Email", "home Email 2", "personal Email",
-            "other Email 4", "Custom Email", "Custom Email 2"
+            "Personal Email",
+            "Email",
+            "Work Email",
+            "Email 2",
+            "Primary other Email",
+            "other Email",
+            "Primary Custom Email",
+            "Primary personal Email",
+            "other Email 2",
+            "other Email 3",
+            "Email 3",
+            "Email 4",
+            "Email 5",
+            "Email 6",
+            "work Email 2",
+            "Personal Email 2",
+            "Personal Email 3",
+            "Personal Email 4",
+            "home Email",
+            "home Email 2",
+            "personal Email",
+            "other Email 4",
+            "Custom Email",
+            "Custom Email 2",
           ];
 
           for (const email of dupEmails) {
@@ -424,11 +490,22 @@ const SimpleDuplicateTagger = () => {
           // Merge phone numbers
           const dupPhones = extractPhones(dupRecord);
           const phoneFields = [
-            "Mobile Phone", "Home Phone", "Work Phone", "Primary Other Phone",
-            "Other Phone", "Home Phone 2", "Other Phone 2", "Phone 2", 
-            "Work Phone 2", "Mobile Phone 2", "Mobile Phone 3", "Main Phone",
-            "Custom Phone", "Primary Custom Phone", "Primary Wife Phone",
-            "Primary workMobile Phone"
+            "Mobile Phone",
+            "Home Phone",
+            "Work Phone",
+            "Primary Other Phone",
+            "Other Phone",
+            "Home Phone 2",
+            "Other Phone 2",
+            "Phone 2",
+            "Work Phone 2",
+            "Mobile Phone 2",
+            "Mobile Phone 3",
+            "Main Phone",
+            "Custom Phone",
+            "Primary Custom Phone",
+            "Primary Wife Phone",
+            "Primary workMobile Phone",
           ];
 
           for (const phone of dupPhones) {
@@ -446,24 +523,41 @@ const SimpleDuplicateTagger = () => {
 
           // Merge other fields if master is empty
           const fieldsToMerge = [
-            "Company", "Title", "Notes", "Key Background Info",
-            "Primary Work Address Line 1", "Primary Work Address City", 
-            "Primary Work Address State", "Primary Work Address Zip",
-            "Home Address Line 1", "Home Address City", "Home Address State", 
-            "Home Address Zip", "Team Assigned To"
+            "Company",
+            "Title",
+            "Notes",
+            "Key Background Info",
+            "Primary Work Address Line 1",
+            "Primary Work Address City",
+            "Primary Work Address State",
+            "Primary Work Address Zip",
+            "Home Address Line 1",
+            "Home Address City",
+            "Home Address State",
+            "Home Address Zip",
+            "Team Assigned To",
           ];
 
           for (const field of fieldsToMerge) {
-            if ((!masterRecord[field] || !masterRecord[field].trim()) && 
-                dupRecord[field] && dupRecord[field].trim()) {
+            if (
+              (!masterRecord[field] || !masterRecord[field].trim()) &&
+              dupRecord[field] &&
+              dupRecord[field].trim()
+            ) {
               masterRecord[field] = dupRecord[field];
             }
           }
 
           // Merge tags (combine unique tags)
           if (dupRecord["Tags"]) {
-            const masterTags = (masterRecord["Tags"] || "").split(",").map(t => t.trim()).filter(t => t);
-            const dupTags = dupRecord["Tags"].split(",").map(t => t.trim()).filter(t => t);
+            const masterTags = (masterRecord["Tags"] || "")
+              .split(",")
+              .map((t) => t.trim())
+              .filter((t) => t);
+            const dupTags = dupRecord["Tags"]
+              .split(",")
+              .map((t) => t.trim())
+              .filter((t) => t);
             const allTags = [...new Set([...masterTags, ...dupTags])];
             masterRecord["Tags"] = allTags.join(",");
           }
@@ -472,8 +566,11 @@ const SimpleDuplicateTagger = () => {
         }
 
         // Update master record tags
-        const existingTags = (masterRecord["Tags"] || "").split(",").map(t => t.trim()).filter(t => t);
-        const updatedTags = existingTags.filter(t => t !== "CRMDuplicate");
+        const existingTags = (masterRecord["Tags"] || "")
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t);
+        const updatedTags = existingTags.filter((t) => t !== "CRMDuplicate");
         if (!updatedTags.includes("CRMMERGED")) {
           updatedTags.push("CRMMERGED");
         }
@@ -493,9 +590,8 @@ const SimpleDuplicateTagger = () => {
         mergedData: mergedData,
         masterCount: masterCount,
         mergeCount: mergeCount,
-        hasMerged: true
+        hasMerged: true,
       });
-
     } catch (error) {
       addLog(`Merge error: ${error.message}`);
       console.error("Merge error:", error);
@@ -625,11 +721,11 @@ const SimpleDuplicateTagger = () => {
               📋 Merge Duplicates (Optional)
             </h2>
             <p className="text-gray-700 mb-4">
-              Merge duplicate records into their master records. This will consolidate 
-              emails, phone numbers, and other data from duplicates into the master record 
-              with the highest information score.
+              Merge duplicate records into their master records. This will
+              consolidate emails, phone numbers, and other data from duplicates
+              into the master record with the highest information score.
             </p>
-            
+
             {!results.hasMerged ? (
               <div className="space-y-4">
                 <div className="bg-yellow-100 border-l-4 border-yellow-400 p-4">
@@ -637,22 +733,32 @@ const SimpleDuplicateTagger = () => {
                     <div className="text-yellow-700">
                       <p className="font-medium">⚠️ Important:</p>
                       <ul className="list-disc list-inside mt-2 text-sm">
-                        <li>Master records will get <strong>CRMMERGED</strong> tags</li>
-                        <li>Duplicate records keep <strong>CRMDuplicate</strong> tags</li>
-                        <li>Emails, phones, and other data will be consolidated</li>
+                        <li>
+                          Master records will get <strong>CRMMERGED</strong>{" "}
+                          tags
+                        </li>
+                        <li>
+                          Duplicate records keep <strong>CRMDuplicate</strong>{" "}
+                          tags
+                        </li>
+                        <li>
+                          Emails, phones, and other data will be consolidated
+                        </li>
                         <li>This action cannot be undone in this session</li>
                       </ul>
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="text-center">
                   <button
                     onClick={mergeRecords}
                     disabled={processing}
                     className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-lg disabled:opacity-50"
                   >
-                    {processing ? "Merging..." : `🔄 Merge ${results.duplicateGroups} Duplicate Groups`}
+                    {processing
+                      ? "Merging..."
+                      : `🔄 Merge ${results.duplicateGroups} Duplicate Groups`}
                   </button>
                 </div>
               </div>
@@ -662,13 +768,21 @@ const SimpleDuplicateTagger = () => {
                   <div className="text-green-700">
                     <p className="font-medium">✅ Merge Complete!</p>
                     <div className="mt-2 text-sm">
-                      <p>• {results.masterCount} master records created with CRMMERGED tags</p>
-                      <p>• {results.mergeCount} duplicate records consolidated</p>
-                      <p>• Data merged: emails, phones, addresses, and other fields</p>
+                      <p>
+                        • {results.masterCount} master records created with
+                        CRMMERGED tags
+                      </p>
+                      <p>
+                        • {results.mergeCount} duplicate records consolidated
+                      </p>
+                      <p>
+                        • Data merged: emails, phones, addresses, and other
+                        fields
+                      </p>
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="text-center space-x-4">
                   <button
                     onClick={exportMergedResults}
