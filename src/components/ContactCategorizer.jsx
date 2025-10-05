@@ -481,6 +481,18 @@ const ContactCategorizer = () => {
         const updatedRecord = { ...record };
         updatedRecord["Category"] = result.category;
         
+        // Add change logging (like RealEstateProcessor)
+        if (result.category === "Agent") {
+          updatedRecord["Changes Made"] = "Category=Agent";
+          updatedRecord["Classification Reason"] = result.reasons.slice(0, 3).join("; ");
+        } else if (result.category === "Vendor") {
+          updatedRecord["Changes Made"] = "Category=Vendor";
+          updatedRecord["Classification Reason"] = result.reasons.slice(0, 3).join("; ");
+        } else {
+          updatedRecord["Changes Made"] = "Category=Contact";
+          updatedRecord["Classification Reason"] = result.reasons.length > 0 ? result.reasons.slice(0, 3).join("; ") : "No classification signals found";
+        }
+        
         return {
           ...updatedRecord,
           _categorization: result
@@ -526,6 +538,7 @@ const ContactCategorizer = () => {
 
       setResults({
         processedData: processedData.map(r => {
+          // Keep the change logging fields, only remove internal _categorization
           const { _categorization, ...cleanRecord } = r;
           return cleanRecord;
         }),
@@ -750,6 +763,7 @@ const ContactCategorizer = () => {
               <p><strong>👤 Contact Protection:</strong> Past clients remain as "Contact" regardless of other signals</p>
               <p><strong>⚖️ Confidence Scoring:</strong> Multiple signals build confidence scores. Agents need 35+ points, Vendors need 40+ points</p>
               <p><strong>🔍 Enhanced Matching:</strong> Now matches RealEstateProcessor logic for consistent results across tools</p>
+              <p><strong>📝 Change Logging:</strong> Adds "Changes Made" and "Classification Reason" columns to track why each contact was categorized</p>
             </div>
           </div>
         </div>
