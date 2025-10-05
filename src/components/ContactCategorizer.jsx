@@ -259,6 +259,23 @@ const ContactCategorizer = () => {
     link.click();
   };
 
+  const exportByCategory = (category) => {
+    if (!results) return;
+
+    const filteredData = results.processedData.filter(record => record.Category === category);
+    if (filteredData.length === 0) {
+      alert(`No ${category.toLowerCase()}s found to export!`);
+      return;
+    }
+
+    const csv = Papa.unparse(filteredData);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${category.toLowerCase()}s_only.csv`;
+    link.click();
+  };
+
   return (
     <div>
       <Navbar />
@@ -336,14 +353,58 @@ const ContactCategorizer = () => {
             </div>
           </div>
 
-          {/* Export Button */}
-          <div className="text-center">
-            <button
-              onClick={exportResults}
-              className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-6 rounded"
-            >
-              📥 Export Categorized CSV
-            </button>
+          {/* Export Options */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4">📥 Export Results</h2>
+            <div className="space-y-4">
+              <p className="text-gray-600 text-center">
+                Download your categorized contacts with the new "Category" column added to each record.
+              </p>
+              
+              {/* Main Export Button */}
+              <div className="text-center">
+                <button
+                  onClick={exportResults}
+                  className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg text-lg"
+                >
+                  📥 Export Complete Categorized File
+                </button>
+                <div className="text-sm text-gray-500 mt-2">
+                  File: "categorized_contacts.csv" with {results.stats.total} records
+                </div>
+              </div>
+
+              {/* Category-Specific Export Buttons */}
+              <div className="border-t pt-4">
+                <h3 className="text-md font-semibold mb-3 text-center">Export by Category</h3>
+                <div className="flex justify-center space-x-4">
+                  {results.stats.agents > 0 && (
+                    <button
+                      onClick={() => exportByCategory('Agent')}
+                      className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                      🏢 Agents Only ({results.stats.agents})
+                    </button>
+                  )}
+                  {results.stats.vendors > 0 && (
+                    <button
+                      onClick={() => exportByCategory('Vendor')}
+                      className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                      🔧 Vendors Only ({results.stats.vendors})
+                    </button>
+                  )}
+                  {results.stats.contacts > 0 && (
+                    <button
+                      onClick={() => exportByCategory('Contact')}
+                      className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                      👤 Contacts Only ({results.stats.contacts})
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Sample Agents */}
