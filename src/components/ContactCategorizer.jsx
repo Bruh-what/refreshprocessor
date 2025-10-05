@@ -215,10 +215,14 @@ const ContactCategorizer = () => {
       "vanguard properties", "redfin", "zillow", "trulia", "flow realty"
     ];
 
+    // Track if we found a direct real estate company match (to prevent vendor overrides)
+    let hasDirectRealEstateMatch = false;
+
     companyKeywords.forEach(keyword => {
       if (company.includes(keyword)) {
         agentConfidence += 40; // Strong signal - matches RealEstateProcessor
         reasons.push(`Real estate company: ${keyword}`);
+        hasDirectRealEstateMatch = true;
       }
     });
 
@@ -226,6 +230,7 @@ const ContactCategorizer = () => {
       if (pattern.test(company)) {
         agentConfidence += 40; // Strong signal - matches RealEstateProcessor 
         reasons.push(`Company pattern match: ${pattern.source}`);
+        hasDirectRealEstateMatch = true;
       }
     });
 
@@ -307,6 +312,7 @@ const ContactCategorizer = () => {
     });
 
     // 3. Enhanced company patterns for vendors (matching RealEstateProcessor)
+    // BUT respect direct real estate company matches first!
     const businessPatterns = [
       " inc", " llc", " corp", "title", "escrow", "law", "mortgage", "bank",
       "insurance", "lending", "credit", "financial", "capital", "firm"
@@ -314,6 +320,12 @@ const ContactCategorizer = () => {
 
     businessPatterns.forEach(pattern => {
       if (company.includes(pattern)) {
+        // Special case: Don't apply "bank" vendor signal if we already have a direct real estate match
+        if (pattern === "bank" && hasDirectRealEstateMatch) {
+          reasons.push(`Business pattern "${pattern}" ignored due to direct real estate company match`);
+          return; // Skip this vendor signal
+        }
+        
         vendorConfidence += 30; // Moderate signal - matches RealEstateProcessor
         reasons.push(`Business entity pattern: ${pattern}`);
       }
@@ -492,13 +504,42 @@ const ContactCategorizer = () => {
         const updatedRecord = { ...record };
         updatedRecord["Category"] = result.category;
         
-        // Add change logging (like RealEstateProcessor)
-        if (result.category === "Agent") {
-          updatedRecord["Changes Made"] = "Category=Agent";
-          updatedRecord["Classification Reason"] = result.reasons.slice(0, 3).join("; ");
-        } else if (result.category === "Vendor") {
-          updatedRecord["Changes Made"] = "Category=Vendor";
-          updatedRecord["Classification Reason"] = result.reasons.slice(0, 3).join("; ");
+        // Add Groups and Tags based on categorization (like RealEstateProcessor)
+        const originalGroups = (updatedRecord["Groups"] || "").split(",").map(g => g.trim()).filter(g => g !== "");
+        const isTrulyUngrouped = originalGroups.length === 0;
+        const newGroups = [...originalGroups];
+        let changesMade = [];
+        let newTags = (updatedRecord["Tags"] || "").split(",").map(t => t.trim()).filter(t => t !== "");
+
+        // Add groups based on category (matching RealEstateProcessor)
+        if (result.category === "Agent" && !originalGroups.some(g => g.toLowerCase() === "agents")) {
+          newGroups.push("Agents");
+          
+          // Add change logging
+          changesMade.push("Category=Agent");
+          if (isTrulyUngrouped) {
+            changesMade.push("Added to Agents group (contact was ungrouped)");
+            newTags.push("Group: Ungrouped to Agents");
+          } else {
+            changesMade.push(`Added to Agents group (previously in: ${originalGroups.join(", ")})`);
+            newTags.push(`Group: ${originalGroups.join(",")} to Agents`);
+          }
+          changesMade.push(`Classified as real estate agent based on ${result.reasons.slice(0, 2).join(", ")}`);
+          
+        } else if (result.category === "Vendor" && !originalGroups.some(g => g.toLowerCase() === "vendors")) {
+          newGroups.push("Vendors");
+          
+          // Add change logging
+          changesMade.push("Category=Vendor");
+          if (isTrulyUngrouped) {
+            changesMade.push("Added to Vendors group (contact was ungrouped)");
+            newTags.push("Group: Ungrouped to Vendors");
+          } else {
+            changesMade.push(`Added to Vendors group (previously in: ${originalGroups.join(", ")})`);
+            newTags.push(`Group: ${originalGroups.join(",")} to Vendors`);
+          }
+          changesMade.push(`Classified as vendor based on ${result.reasons.slice(0, 2).join(", ")}`);
+          
         } else {
           // Check if this was a past client override
           const isPastClientOverride = result.reasons.some(reason => 
@@ -506,13 +547,17 @@ const ContactCategorizer = () => {
           );
           
           if (isPastClientOverride) {
-            updatedRecord["Changes Made"] = result.reasons[0]; // The full override message
-            updatedRecord["Classification Reason"] = "Past client protection";
+            changesMade.push(result.reasons[0]); // The full override message
           } else {
-            updatedRecord["Changes Made"] = "Category=Contact";
-            updatedRecord["Classification Reason"] = result.reasons.length > 0 ? result.reasons.slice(0, 3).join("; ") : "No classification signals found";
+            changesMade.push("Category=Contact");
           }
         }
+
+        // Update the record with new groups and tags
+        updatedRecord["Groups"] = newGroups.join(",");
+        updatedRecord["Tags"] = newTags.join(",");
+        updatedRecord["Changes Made"] = changesMade.join("; ");
+        updatedRecord["Classification Reason"] = result.reasons.slice(0, 3).join("; ") || "No classification signals found";
 
         // Debug: Log a sample record to verify change fields are set
         if (index < 3) {
