@@ -2078,7 +2078,7 @@ Respond with only one word: Agent, Vendor, or Contact`;
       const chunk = workingData.slice(i, i + classificationChunkSize);
 
       for (const contact of chunk) {
-        this.classifyAndAssignGroups(contact);
+        await this.classifyAndAssignGroups(contact);
       }
 
       // Update progress and yield control
@@ -3389,7 +3389,7 @@ Respond with only one word: Agent, Vendor, or Contact`;
     }
   }
 
-  classifyAndAssignGroups(contact) {
+  async classifyAndAssignGroups(contact) {
     const emails = this.getAllEmails(contact);
 
     // Special case: Check all contact fields for specific vendor keywords
@@ -3421,16 +3421,55 @@ Respond with only one word: Agent, Vendor, or Contact`;
     if (directVendorMatch) return;
 
     // Classify contact type - pass the full contact for additional vendor checks
-    const category = this.classifyContact(emails, contact);
+    let category = this.classifyContact(emails, contact);
+
+    // If rule-based classification is unclear AND ChatGPT API is available, use AI fallback
+    if (category === "Contact" && this.chatGptApiKey) {
+      console.log(
+        `[Classification] Rule-based classification unclear for ${contact["First Name"]} ${contact["Last Name"]}, trying ChatGPT...`
+      );
+      try {
+        const aiCategory = await this.classifyWithChatGpt(contact);
+        if (aiCategory && ["Agent", "Vendor", "Contact"].includes(aiCategory)) {
+          category = aiCategory;
+          console.log(
+            `[Classification] ✅ ChatGPT classified as: ${aiCategory}`
+          );
+          contact.changes = contact.changes || [];
+          contact.changes.push(`Category=${aiCategory} (AI-assisted)`);
+        } else {
+          console.log(
+            `[Classification] ⚠️ ChatGPT returned unclear result: ${aiCategory}, keeping as Contact`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `[Classification] ❌ ChatGPT classification failed:`,
+          error
+        );
+        console.log(
+          `[Classification] Falling back to rule-based result: ${category}`
+        );
+      }
+    }
+
     contact["Category"] = category;
 
     // Add change note for category assignment (matching Python format)
     if (category === "Agent") {
       contact.changes = contact.changes || [];
-      contact.changes.push("Category=Agent");
+      if (
+        !contact.changes.some((change) => change.includes("Category=Agent"))
+      ) {
+        contact.changes.push("Category=Agent");
+      }
     } else if (category === "Vendor") {
       contact.changes = contact.changes || [];
-      contact.changes.push("Category=Vendor");
+      if (
+        !contact.changes.some((change) => change.includes("Category=Vendor"))
+      ) {
+        contact.changes.push("Category=Vendor");
+      }
       console.log(
         `Classified as Vendor: ${contact["First Name"]} ${
           contact["Last Name"]

@@ -7,12 +7,68 @@ const ContactCategorizer = () => {
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [contactsMovedToLeads, setContactsMovedToLeads] = useState(0);
 
   const addLog = (message) => {
     setLogs((prev) => [
       ...prev,
       `${new Date().toLocaleTimeString()}: ${message}`,
     ]);
+  };
+
+  // Extract email domain (matching RealEstateProcessor)
+  const getEmailDomain = (email) => {
+    if (!email || typeof email !== "string") return "";
+    const match = email.toLowerCase().match(/@([\w.-]+)$/);
+    return match ? match[1] : "";
+  };
+
+  // Check if all emails are from personal email providers (matching RealEstateProcessor)
+  const hasOnlyPersonalEmailDomains = (emails) => {
+    if (!emails || emails.length === 0) return false;
+
+    // List of common personal email domains (matching RealEstateProcessor)
+    const personalDomains = [
+      "gmail.com",
+      "yahoo.com",
+      "hotmail.com",
+      "outlook.com",
+      "aol.com",
+      "icloud.com",
+      "mail.com",
+      "zoho.com",
+      "protonmail.com",
+      "msn.com",
+      "live.com",
+      "comcast.net",
+      "verizon.net",
+      "att.net",
+      "sbcglobal.net",
+      "gmx.com",
+      "me.com",
+      "ymail.com",
+      "mac.com",
+      "cox.net",
+      "charter.net",
+    ];
+
+    // Check each email domain
+    for (const email of emails) {
+      const domain = getEmailDomain(email);
+      if (!domain) continue;
+
+      // If any email is not from a personal domain, return false
+      const isPersonalDomain = personalDomains.some(
+        (pd) => domain === pd || domain.endsWith("." + pd)
+      );
+
+      if (!isPersonalDomain) {
+        return false;
+      }
+    }
+
+    // All emails are from personal domains
+    return emails.length > 0;
   };
 
   // Extract all emails from a contact (matching RealEstateProcessor logic)
@@ -831,6 +887,7 @@ const ContactCategorizer = () => {
 
     setProcessing(true);
     setLogs([]);
+    setContactsMovedToLeads(0); // Reset counter
     addLog("Starting contact categorization...");
 
     try {
@@ -929,6 +986,44 @@ const ContactCategorizer = () => {
           }
         }
 
+        // LEADS ASSIGNMENT LOGIC (matching RealEstateProcessor)
+        // AFTER all other group assignments are completed, check if contact needs to be in the Leads group
+        // This ensures we don't incorrectly assign to Leads when other group assignments are pending
+        if (newGroups.length === 0) {
+          // Contact doesn't fit in any predefined groups, so check if they should go to Leads
+          // Check if they're already in a Leads group (case insensitive)
+          const isAlreadyInLeadsGroup = originalGroups.some(
+            (group) => group.toLowerCase() === "leads"
+          );
+
+          // Only move contacts with personal email domains (not company domains)
+          const emails = getAllEmails(updatedRecord);
+          const hasOnlyPersonalEmails = hasOnlyPersonalEmailDomains(emails);
+
+          if (!isAlreadyInLeadsGroup && hasOnlyPersonalEmails) {
+            // Add to Leads group
+            newGroups.push("Leads");
+
+            // Add change note
+            if (isTrulyUngrouped) {
+              changesMade.push("Added to Leads group (contact was ungrouped)");
+              // Add tag showing the group transition
+              newTags.push("Group: Ungrouped to Leads");
+            } else {
+              changesMade.push(
+                `Added to Leads group (previously in: ${originalGroups.join(
+                  ", "
+                )})`
+              );
+              // Add transition tag for group movement
+              newTags.push(`Group: ${originalGroups.join(",")} to Leads`);
+            }
+
+            // Increment the counter for contacts moved to Leads
+            setContactsMovedToLeads((prev) => prev + 1);
+          }
+        }
+
         // Update the record with new groups and tags
         updatedRecord["Groups"] = newGroups.join(",");
         updatedRecord["Tags"] = newTags.join(",");
@@ -954,11 +1049,17 @@ const ContactCategorizer = () => {
       });
 
       // Generate statistics
+      const leadsCount = processedData.filter(
+        (r) => r.Groups && r.Groups.toLowerCase().includes("leads")
+      ).length;
+
       const stats = {
         total: processedData.length,
         agents: processedData.filter((r) => r.Category === "Agent").length,
         vendors: processedData.filter((r) => r.Category === "Vendor").length,
         contacts: processedData.filter((r) => r.Category === "Contact").length,
+        leads: leadsCount,
+        contactsMovedToLeads: contactsMovedToLeads,
       };
 
       // Sample categorized records for review
@@ -989,6 +1090,9 @@ const ContactCategorizer = () => {
       addLog(`Agents: ${stats.agents}`);
       addLog(`Vendors: ${stats.vendors}`);
       addLog(`Contacts: ${stats.contacts}`);
+      addLog(
+        `Leads: ${stats.leads} (${stats.contactsMovedToLeads} moved to leads)`
+      );
 
       setResults({
         processedData: processedData.map((r) => {
@@ -1103,7 +1207,7 @@ const ContactCategorizer = () => {
               <h2 className="text-xl font-semibold mb-4">
                 Categorization Summary
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="text-center p-4 bg-blue-50 rounded">
                   <div className="text-2xl font-bold text-blue-600">
                     {results.stats.total}
@@ -1121,6 +1225,15 @@ const ContactCategorizer = () => {
                     {results.stats.vendors}
                   </div>
                   <div className="text-sm text-gray-600">Vendors</div>
+                </div>
+                <div className="text-center p-4 bg-purple-50 rounded">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {results.stats.leads}
+                  </div>
+                  <div className="text-sm text-gray-600">Leads</div>
+                  <div className="text-xs text-purple-500 mt-1">
+                    ({results.stats.contactsMovedToLeads} moved)
+                  </div>
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded">
                   <div className="text-2xl font-bold text-gray-600">

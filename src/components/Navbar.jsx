@@ -79,9 +79,19 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
+              marginRight: "1rem",
             }}
           >
             Contact Categorizer
+          </Link>
+          <Link
+            to="/gpt-classifier"
+            style={{
+              color: "white",
+              textDecoration: "none",
+            }}
+          >
+            GPT Classifier
           </Link>
         </div>
       </div>
