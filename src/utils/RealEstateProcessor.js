@@ -261,7 +261,138 @@ const VENDOR_KEYWORDS = [
 
 class RealEstateProcessor {
   constructor() {
+    this.chatGptApiKey = null; // Initialize ChatGPT API key
     this.resetProcessor();
+  }
+
+  // Set ChatGPT API key for AI-assisted classification
+  setChatGptApiKey(apiKey) {
+    this.chatGptApiKey = apiKey;
+    console.log("[ChatGPT] API key set for classification assistance");
+  }
+
+  // Classify contact using ChatGPT API (with detailed logging)
+  async classifyWithChatGpt(contact) {
+    if (!this.chatGptApiKey) {
+      console.log("[ChatGPT] No API key available, skipping AI classification");
+      return null;
+    }
+
+    console.log("[ChatGPT] Starting API classification for contact:", {
+      name:
+        `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim() ||
+        "Unknown",
+      company: contact["Company"] || "Unknown",
+      email: contact["Personal Email"] || contact["Email"] || "No email",
+    });
+
+    try {
+      const contactInfo = {
+        name: `${contact["First Name"] || ""} ${
+          contact["Last Name"] || ""
+        }`.trim(),
+        company: contact["Company"] || "",
+        title: contact["Title"] || contact["Job Title"] || "",
+        email: contact["Personal Email"] || contact["Email"] || "",
+        notes: contact["Notes"] || contact["Key Background Info"] || "",
+        tags: contact["Tags"] || "",
+        groups: contact["Groups"] || contact["Group"] || "",
+      };
+
+      const prompt = `Classify this contact as either "Agent", "Vendor", or "Contact" based on their information:
+
+Name: ${contactInfo.name}
+Company: ${contactInfo.company}
+Title: ${contactInfo.title}
+Email: ${contactInfo.email}
+Notes: ${contactInfo.notes}
+Tags: ${contactInfo.tags}
+Groups: ${contactInfo.groups}
+
+Agent = Real estate agent, realtor, broker, or someone who sells/lists properties
+Vendor = Service provider like title company, escrow, attorney, contractor, lender, inspector
+Contact = General contact, client, prospect, or unclear classification
+
+Respond with only one word: Agent, Vendor, or Contact`;
+
+      console.log("[ChatGPT] Sending request to OpenAI API...");
+      console.log("[ChatGPT] Prompt:", prompt);
+
+      const requestBody = {
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        max_tokens: 10,
+        temperature: 0.3,
+      };
+
+      console.log(
+        "[ChatGPT] Request body:",
+        JSON.stringify(requestBody, null, 2)
+      );
+
+      const response = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.chatGptApiKey}`,
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      console.log("[ChatGPT] Response status:", response.status);
+      console.log(
+        "[ChatGPT] Response headers:",
+        Object.fromEntries(response.headers.entries())
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[ChatGPT] API Error Response:", errorText);
+        throw new Error(
+          `ChatGPT API Error: ${response.status} - ${response.statusText}. Response: ${errorText}`
+        );
+      }
+
+      const data = await response.json();
+      console.log(
+        "[ChatGPT] Full API response:",
+        JSON.stringify(data, null, 2)
+      );
+
+      const classification = data.choices?.[0]?.message?.content?.trim();
+      console.log("[ChatGPT] Extracted classification:", classification);
+
+      // Validate the response
+      if (["Agent", "Vendor", "Contact"].includes(classification)) {
+        console.log(
+          "[ChatGPT] ✅ Valid classification received:",
+          classification
+        );
+        return classification;
+      } else {
+        console.warn(
+          "[ChatGPT] ⚠️ Invalid classification response:",
+          classification
+        );
+        return null;
+      }
+    } catch (error) {
+      console.error("[ChatGPT] ❌ Classification error:", error);
+      console.error("[ChatGPT] Error details:", {
+        message: error.message,
+        stack: error.stack,
+        contact: contactInfo,
+      });
+      return null;
+    }
   }
 
   resetProcessor() {

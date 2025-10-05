@@ -19,10 +19,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           path="/simple-duplicate-tagger"
           element={<SimpleDuplicateTagger />}
         />
-        <Route
-          path="/contact-categorizer"
-          element={<ContactCategorizer />}
-        />
+        <Route path="/contact-categorizer" element={<ContactCategorizer />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>
