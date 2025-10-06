@@ -184,8 +184,8 @@ const GPTClassifier = () => {
     addLog(`Found ${ungrouped.length} ungrouped contacts with business emails`);
   };
 
-  // Classify contact with ChatGPT
-  const classifyWithGPT = async (contact) => {
+  // Classify contact with ChatGPT (with timeout and retry)
+  const classifyWithGPT = async (contact, retryCount = 0) => {
     const contactInfo = {
       name: `${contact["First Name"] || ""} ${
         contact["Last Name"] || ""
@@ -214,10 +214,15 @@ Contact = General contact, client, prospect, or unclear classification
 
 Respond with only one word: Agent, Vendor, or Contact`;
 
+    // Create a promise that rejects after timeout
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('API call timeout (30s)')), 30000)
+    );
+
     try {
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
+      // Race between the API call and timeout
+      const response = await Promise.race([
+        fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -229,16 +234,24 @@ Respond with only one word: Agent, Vendor, or Contact`;
             max_tokens: 10,
             temperature: 0.3,
           }),
-        }
-      );
+        }),
+        timeoutPromise
+      ]);
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(
-          `API Error: ${response.status} - ${
-            errorData.error?.message || response.statusText
-          }`
-        );
+        const errorMessage = `API Error: ${response.status} - ${
+          errorData.error?.message || response.statusText
+        }`;
+        
+        // Retry on certain errors
+        if (retryCount < 2 && (response.status === 429 || response.status >= 500)) {
+          addLog(`⏳ Retrying API call (attempt ${retryCount + 1}/3): ${errorMessage}`);
+          await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 2000));
+          return await classifyWithGPT(contact, retryCount + 1);
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -251,30 +264,48 @@ Respond with only one word: Agent, Vendor, or Contact`;
         return null;
       }
     } catch (error) {
-      addLog(`❌ GPT API error: ${error.message}`);
+      if (retryCount < 2 && (error.message.includes('timeout') || error.message.includes('network'))) {
+        addLog(`⏳ Retrying API call (attempt ${retryCount + 1}/3): ${error.message}`);
+        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 2000));
+        return await classifyWithGPT(contact, retryCount + 1);
+      }
+      
+      addLog(`❌ GPT API error (final): ${error.message}`);
       throw error;
     }
   };
 
-  // Process contacts in parallel chunks (much faster!)
+  // Process contacts in parallel chunks (with robust timeout and error handling)
   const processContactChunk = async (contacts, chunkIndex, totalChunks) => {
     const results = [];
-    
+
+    addLog(`🔄 [Chunk ${chunkIndex + 1}/${totalChunks}] Starting ${contacts.length} contacts...`);
+
+    // Create timeout for entire chunk (5 minutes max per chunk)
+    const chunkTimeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Chunk ${chunkIndex + 1} timeout (5 minutes)`)), 300000)
+    );
+
     // Process contacts in parallel within the chunk (respecting rate limits)
     const promises = contacts.map(async (contact, index) => {
-      const contactName = `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim() || "Unknown";
-      
+      const contactName =
+        `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim() ||
+        "Unknown";
+
       try {
         // Staggered delay to spread out API calls (avoid hitting rate limits)
-        await new Promise(resolve => setTimeout(resolve, index * 100));
+        await new Promise((resolve) => setTimeout(resolve, index * 150)); // Increased from 100ms
+
+        addLog(`⏳ [Chunk ${chunkIndex + 1}] Processing ${contactName}...`);
         
         const gptResult = await classifyWithGPT(contact);
-        
+
         if (gptResult === "Agent" || gptResult === "Vendor") {
           // Create updated contact with GPT classification
           const updatedContact = { ...contact };
           updatedContact["Category"] = gptResult;
-          updatedContact["Groups"] = gptResult === "Agent" ? "Agents" : "Vendors";
+          updatedContact["Groups"] =
+            gptResult === "Agent" ? "Agents" : "Vendors";
           updatedContact["Changes Made"] = updatedContact["Changes Made"]
             ? `${updatedContact["Changes Made"]}; Category=${gptResult} (GPT-classified)`
             : `Category=${gptResult} (GPT-classified)`;
@@ -286,51 +317,94 @@ Respond with only one word: Agent, Vendor, or Contact`;
             contact: updatedContact,
             result: gptResult,
             contactName,
-            success: true
+            success: true,
           };
         } else {
           return {
             contact: null,
             result: "Contact",
             contactName,
-            success: true
+            success: true,
           };
         }
       } catch (error) {
+        addLog(`❌ [Chunk ${chunkIndex + 1}] ${contactName} failed: ${error.message}`);
         return {
           contact: null,
-          result: "Contact",
+          result: "Contact", 
           contactName,
           success: false,
-          error: error.message
+          error: error.message,
         };
       }
     });
 
-    // Wait for all contacts in this chunk to complete
-    const chunkResults = await Promise.all(promises);
-    
+    try {
+      // Race between chunk processing and timeout
+      const chunkResults = await Promise.race([
+        Promise.all(promises),
+        chunkTimeoutPromise
+      ]);
+
+      addLog(`✅ [Chunk ${chunkIndex + 1}/${totalChunks}] All contacts processed successfully`);
+      return chunkResults;
+      
+    } catch (error) {
+      addLog(`💥 [Chunk ${chunkIndex + 1}/${totalChunks}] Chunk failed: ${error.message}`);
+      
+      // If chunk times out, try to get partial results
+      const partialResults = await Promise.allSettled(promises);
+      const processedResults = partialResults.map(result => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          return {
+            contact: null,
+            result: "Contact",
+            contactName: "Unknown",
+            success: false,
+            error: result.reason?.message || "Unknown error"
+          };
+        }
+      });
+      
+      addLog(`⚠️ [Chunk ${chunkIndex + 1}] Recovered ${processedResults.filter(r => r.success).length}/${contacts.length} contacts`);
+      return processedResults;
+    }
+
     // Process results
     for (const result of chunkResults) {
       if (result.success) {
         if (result.contact) {
           results.push(result.contact);
-          addLog(`✅ [Chunk ${chunkIndex + 1}/${totalChunks}] ${result.contactName}: ${result.result}`);
+          addLog(
+            `✅ [Chunk ${chunkIndex + 1}/${totalChunks}] ${
+              result.contactName
+            }: ${result.result}`
+          );
         } else {
-          addLog(`➡️ [Chunk ${chunkIndex + 1}/${totalChunks}] ${result.contactName}: Contact (no change)`);
+          addLog(
+            `➡️ [Chunk ${chunkIndex + 1}/${totalChunks}] ${
+              result.contactName
+            }: Contact (no change)`
+          );
         }
       } else {
-        addLog(`❌ [Chunk ${chunkIndex + 1}/${totalChunks}] Failed to classify ${result.contactName}: ${result.error}`);
+        addLog(
+          `❌ [Chunk ${chunkIndex + 1}/${totalChunks}] Failed to classify ${
+            result.contactName
+          }: ${result.error}`
+        );
       }
     }
 
     return {
       classifiedContacts: results,
       totalProcessed: chunkResults.length,
-      agents: chunkResults.filter(r => r.result === "Agent").length,
-      vendors: chunkResults.filter(r => r.result === "Vendor").length,
-      contacts: chunkResults.filter(r => r.result === "Contact").length,
-      errors: chunkResults.filter(r => !r.success).length
+      agents: chunkResults.filter((r) => r.result === "Agent").length,
+      vendors: chunkResults.filter((r) => r.result === "Vendor").length,
+      contacts: chunkResults.filter((r) => r.result === "Contact").length,
+      errors: chunkResults.filter((r) => !r.success).length,
     };
   };
 
@@ -344,15 +418,25 @@ Respond with only one word: Agent, Vendor, or Contact`;
     // Configuration for parallel processing
     const CHUNK_SIZE = 5; // Process 5 contacts in parallel per chunk
     const CHUNK_DELAY = 2000; // 2 second delay between chunks to respect rate limits
-    
+
     const chunks = [];
     for (let i = 0; i < ungroupedContacts.length; i += CHUNK_SIZE) {
       chunks.push(ungroupedContacts.slice(i, i + CHUNK_SIZE));
     }
 
-    addLog(`🚀 Starting FAST GPT classification of ${ungroupedContacts.length} contacts...`);
-    addLog(`📦 Processing in ${chunks.length} chunks of ${CHUNK_SIZE} contacts each`);
-    addLog(`⚡ Estimated time: ${Math.ceil(chunks.length * CHUNK_DELAY / 1000 / 60)} minutes (vs ${Math.ceil(ungroupedContacts.length * 350 / 1000 / 60)} minutes sequentially)`);
+    addLog(
+      `🚀 Starting FAST GPT classification of ${ungroupedContacts.length} contacts...`
+    );
+    addLog(
+      `📦 Processing in ${chunks.length} chunks of ${CHUNK_SIZE} contacts each`
+    );
+    addLog(
+      `⚡ Estimated time: ${Math.ceil(
+        (chunks.length * CHUNK_DELAY) / 1000 / 60
+      )} minutes (vs ${Math.ceil(
+        (ungroupedContacts.length * 350) / 1000 / 60
+      )} minutes sequentially)`
+    );
 
     const allClassifiedContacts = [];
     let totalProcessed = 0;
@@ -364,12 +448,20 @@ Respond with only one word: Agent, Vendor, or Contact`;
     try {
       for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
         const chunk = chunks[chunkIndex];
-        
-        addLog(`📦 Processing chunk ${chunkIndex + 1}/${chunks.length} (${chunk.length} contacts)...`);
-        
+
+        addLog(
+          `📦 Processing chunk ${chunkIndex + 1}/${chunks.length} (${
+            chunk.length
+          } contacts)...`
+        );
+
         // Process this chunk in parallel
-        const chunkResult = await processContactChunk(chunk, chunkIndex, chunks.length);
-        
+        const chunkResult = await processContactChunk(
+          chunk,
+          chunkIndex,
+          chunks.length
+        );
+
         // Accumulate results
         allClassifiedContacts.push(...chunkResult.classifiedContacts);
         totalProcessed += chunkResult.totalProcessed;
@@ -377,16 +469,22 @@ Respond with only one word: Agent, Vendor, or Contact`;
         totalVendors += chunkResult.vendors;
         totalContacts += chunkResult.contacts;
         totalErrors += chunkResult.errors;
-        
+
         // Update progress
         setProgress((totalProcessed / ungroupedContacts.length) * 100);
-        
-        addLog(`✅ Chunk ${chunkIndex + 1} complete: ${chunkResult.agents} agents, ${chunkResult.vendors} vendors, ${chunkResult.contacts} contacts, ${chunkResult.errors} errors`);
-        
+
+        addLog(
+          `✅ Chunk ${chunkIndex + 1} complete: ${chunkResult.agents} agents, ${
+            chunkResult.vendors
+          } vendors, ${chunkResult.contacts} contacts, ${
+            chunkResult.errors
+          } errors`
+        );
+
         // Delay between chunks to respect OpenAI's rate limits
         if (chunkIndex < chunks.length - 1) {
-          addLog(`⏳ Waiting ${CHUNK_DELAY/1000}s before next chunk...`);
-          await new Promise(resolve => setTimeout(resolve, CHUNK_DELAY));
+          addLog(`⏳ Waiting ${CHUNK_DELAY / 1000}s before next chunk...`);
+          await new Promise((resolve) => setTimeout(resolve, CHUNK_DELAY));
         }
       }
 
@@ -402,15 +500,27 @@ Respond with only one word: Agent, Vendor, or Contact`;
       });
 
       addLog(`🎯 FAST GPT Classification Complete!`);
-      addLog(`📊 Final Results: ${totalAgents} Agents, ${totalVendors} Vendors, ${totalContacts} Contacts`);
+      addLog(
+        `📊 Final Results: ${totalAgents} Agents, ${totalVendors} Vendors, ${totalContacts} Contacts`
+      );
       if (totalErrors > 0) {
         addLog(`⚠️ ${totalErrors} contacts failed to classify (API errors)`);
       }
-      
-      const actualTimeMinutes = Math.ceil(chunks.length * CHUNK_DELAY / 1000 / 60);
-      const sequentialTimeMinutes = Math.ceil(ungroupedContacts.length * 350 / 1000 / 60);
-      addLog(`⚡ Completed in ~${actualTimeMinutes} minutes (vs ~${sequentialTimeMinutes} minutes sequentially)`);
-      addLog(`🚀 Speed improvement: ~${Math.round(sequentialTimeMinutes / actualTimeMinutes)}x faster!`);
+
+      const actualTimeMinutes = Math.ceil(
+        (chunks.length * CHUNK_DELAY) / 1000 / 60
+      );
+      const sequentialTimeMinutes = Math.ceil(
+        (ungroupedContacts.length * 350) / 1000 / 60
+      );
+      addLog(
+        `⚡ Completed in ~${actualTimeMinutes} minutes (vs ~${sequentialTimeMinutes} minutes sequentially)`
+      );
+      addLog(
+        `🚀 Speed improvement: ~${Math.round(
+          sequentialTimeMinutes / actualTimeMinutes
+        )}x faster!`
+      );
     } catch (error) {
       addLog(`❌ Processing failed: ${error.message}`);
     } finally {
@@ -454,17 +564,21 @@ Respond with only one word: Agent, Vendor, or Contact`;
     // Create a map of classified contacts by name for quick lookup
     const classifiedMap = new Map();
     if (results && results.classifiedContacts.length > 0) {
-      results.classifiedContacts.forEach(contact => {
-        const key = `${contact["First Name"] || ""}_${contact["Last Name"] || ""}`.toLowerCase();
+      results.classifiedContacts.forEach((contact) => {
+        const key = `${contact["First Name"] || ""}_${
+          contact["Last Name"] || ""
+        }`.toLowerCase();
         classifiedMap.set(key, contact);
       });
     }
 
     // Merge original data with classified results
-    const allRecords = ungroupedContacts.map(originalContact => {
-      const key = `${originalContact["First Name"] || ""}_${originalContact["Last Name"] || ""}`.toLowerCase();
+    const allRecords = ungroupedContacts.map((originalContact) => {
+      const key = `${originalContact["First Name"] || ""}_${
+        originalContact["Last Name"] || ""
+      }`.toLowerCase();
       const classifiedContact = classifiedMap.get(key);
-      
+
       if (classifiedContact) {
         // Return the classified version (with updates)
         return classifiedContact;
@@ -474,7 +588,8 @@ Respond with only one word: Agent, Vendor, or Contact`;
         if (!unchangedContact["Category"]) unchangedContact["Category"] = "";
         if (!unchangedContact["Groups"]) unchangedContact["Groups"] = "";
         if (!unchangedContact["Tags"]) unchangedContact["Tags"] = "";
-        if (!unchangedContact["Changes Made"]) unchangedContact["Changes Made"] = "";
+        if (!unchangedContact["Changes Made"])
+          unchangedContact["Changes Made"] = "";
         return unchangedContact;
       }
     });
@@ -486,7 +601,9 @@ Respond with only one word: Agent, Vendor, or Contact`;
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `all_contacts_with_gpt_updates_${new Date().toISOString().split("T")[0]}.csv`
+      `all_contacts_with_gpt_updates_${
+        new Date().toISOString().split("T")[0]
+      }.csv`
     );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
@@ -598,10 +715,15 @@ Respond with only one word: Agent, Vendor, or Contact`;
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-purple-600">
-                  {Math.ceil(Math.ceil(ungroupedContacts.length / 5) * 2000 / 1000 / 60)}m
+                  {Math.ceil(
+                    (Math.ceil(ungroupedContacts.length / 5) * 2000) / 1000 / 60
+                  )}
+                  m
                 </div>
                 <div className="text-sm text-gray-600">Estimated Time</div>
-                <div className="text-xs text-gray-500">parallel processing ⚡</div>
+                <div className="text-xs text-gray-500">
+                  parallel processing ⚡
+                </div>
               </div>
             </div>
 
@@ -609,9 +731,13 @@ Respond with only one word: Agent, Vendor, or Contact`;
               <strong>🚀 Fast Parallel Processing Rules:</strong>
               <ul className="list-disc list-inside mt-2 space-y-1">
                 <li>Only processes contacts with empty "Groups" field</li>
-                <li>Skips contacts with only personal emails (Gmail, Yahoo, etc.)</li>
+                <li>
+                  Skips contacts with only personal emails (Gmail, Yahoo, etc.)
+                </li>
                 <li>Preserves all existing categorizations and data</li>
-                <li>⚡ Processes 5 contacts in parallel per chunk (5x faster!)</li>
+                <li>
+                  ⚡ Processes 5 contacts in parallel per chunk (5x faster!)
+                </li>
                 <li>Smart rate limiting to respect OpenAI API limits</li>
                 <li>Real-time progress tracking with chunk-by-chunk updates</li>
               </ul>
@@ -693,7 +819,9 @@ Respond with only one word: Agent, Vendor, or Contact`;
             <div className="space-y-4">
               {/* Export Buttons */}
               <div className="bg-white border border-gray-200 rounded-lg p-4">
-                <h3 className="text-lg font-semibold mb-3">📥 Export Options</h3>
+                <h3 className="text-lg font-semibold mb-3">
+                  📥 Export Options
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <button
@@ -704,8 +832,7 @@ Respond with only one word: Agent, Vendor, or Contact`;
                     </button>
                     <p className="text-xs text-gray-600">
                       Complete dataset with GPT updates merged in
-                      <br />
-                      ({ungroupedContacts.length} total contacts)
+                      <br />({ungroupedContacts.length} total contacts)
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -717,13 +844,13 @@ Respond with only one word: Agent, Vendor, or Contact`;
                     </button>
                     <p className="text-xs text-gray-600">
                       Only contacts that were classified by GPT
-                      <br />
-                      ({results.classifiedContacts.length} classified contacts)
+                      <br />({results.classifiedContacts.length} classified
+                      contacts)
                     </p>
                   </div>
                 </div>
               </div>
-              
+
               {/* Clear Data Button */}
               <div className="text-center">
                 <button
