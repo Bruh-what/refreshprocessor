@@ -426,80 +426,61 @@ const GPTClassifier = () => {
       groups: contact["Groups"] || contact["Group"] || "",
     };
 
-    const prompt = `Classify this contact as either "Agent", "Vendor", or "Contact" based on their information:
+    const prompt = `You are a real estate industry expert. Classify this contact as Agent, Vendor, or Contact.
 
+CONTACT DATA:
 Name: ${contactInfo.name}
-Company: ${contactInfo.company}
+Company: ${contactInfo.company}  
 Title: ${contactInfo.title}
 Email: ${contactInfo.email}
 Notes: ${contactInfo.notes}
 Tags: ${contactInfo.tags}
 Groups: ${contactInfo.groups}
 
-CLASSIFICATION RULES:
+MANDATORY CLASSIFICATION RULES:
 
-**Agent** = Real estate agent, realtor, broker, or someone who sells/lists properties
-- Titles containing: agent, realtor, broker, sales, listing, buyer's agent, seller's agent
-- Email domains from real estate companies: kw.com, remax.com, coldwellbanker.com, compass.com, sothebysrealty.com, gibsonsir.com, etc.
-- Real estate marketing/tech companies: luxurypresence.com, chime.me, sideinc.com, opcity.com, setschedule.com
-- Companies with "realty", "real estate", "properties" in name
+**Agent** = Anyone who sells/lists real estate
+- Real estate agents, brokers, realtors, team members
+- Anyone at brokerages (Keller Williams, RE/MAX, Compass, Coldwell Banker, etc.)
+- Independent agents with personal websites
+- Email domains like: kw.com, remax.com, compass.com, coldwellbanker.com
+- Business emails from real estate companies
+- If unclear but likely sells real estate → DEFAULT TO AGENT
 
-**Vendor** = Service provider supporting real estate transactions
-- Title companies, escrow companies: containing "title", "escrow", "closing"
-- Legal: attorney, lawyer, legal counsel, law firm
-- Financial: lender, mortgage, loan officer, appraiser
-- Construction/trades: contractor, builder, inspector, architect
-- Marketing/tech vendors: website, marketing, photography, staging
-- Email domains: dfllp.com (law firm), touchstoneclosing.com, carterclosings.com, etc.
+**Vendor** = Service providers to real estate industry
+- Law firms, attorneys, title companies (dfllp.com, touchstoneclosing.com)
+- Marketing/tech platforms (luxurypresence.com, sideinc.com, setschedule.com)  
+- Lenders, mortgage brokers, appraisers
+- Contractors, builders, inspectors, photographers
+- Coaches, consultants, trainers for real estate
+- ANY business serving real estate professionals
 
-**Contact** = General contact, client, prospect, or unclear classification
+**Contact** = ONLY for non-real estate connections
+- Personal contacts with no real estate tie
+- Clearly non-real estate businesses
+- Use SPARINGLY - only when certain NO real estate connection exists
 
-DOMAIN ANALYSIS GUIDELINES:
-Analyze email domains to determine the company type:
+CRITICAL ANALYSIS RULES:
+1. **Domain Research**: Analyze email domains intelligently
+   - cj.com = Likely Coldwell Banker affiliate → AGENT
+   - luxurypresence.com = RE marketing platform → VENDOR
+   - sideinc.com = RE technology platform → VENDOR
+   - Law firm domains → VENDOR
+   - Unknown business domains with RE context → AGENT
 
-**Agent-indicating domains:**
-- Traditional brokerages: kw.com, remax.com, coldwellbanker.com, compass.com, sothebysrealty.com, gibsonsir.com
-- Individual agent websites or team domains
-- Companies that ARE the real estate brokerage/agent
+2. **Default Aggressive Classification**:
+   - Business email + professional name = Likely AGENT or VENDOR
+   - When unsure between Agent/Vendor, choose based on domain/context
+   - Only use Contact if absolutely no real estate connection
 
-**Vendor-indicating domains:**
-- Marketing/website services: luxurypresence.com (real estate marketing services)
-- Technology platforms: sideinc.com (brokerage technology), setschedule.com (lead generation tools)
-- Legal services: law firms, attorneys (dfllp.com = Dalton & Finegold law firm)
-- Title/closing companies: touchstoneclosing.com, carterclosings.com
-- Financial services: lenders, mortgage companies, appraisers
-- Construction/trades: contractors, builders, inspectors
-- Any company that PROVIDES SERVICES TO real estate professionals
+3. **Specific Examples**:
+   - costa.angelakis@cj.com → Business email, likely CJ affiliate → AGENT
+   - drew@luxurypresence.com → Marketing platform → VENDOR  
+   - Professional names with business emails → AGENT (unless clearly vendor)
 
-KEY DISTINCTION:
-- **Agent** = The person who sells real estate or works for a brokerage
-- **Vendor** = Companies/people who provide services TO real estate agents/brokers
+DECISION MANDATE: Be aggressive in finding real estate connections. This is a real estate professional's contact list - most contacts should be Agent or Vendor. Only use Contact for clear non-real estate connections.
 
-Use your knowledge to intelligently classify domains based on what type of business they represent.
-
-INTELLIGENT ANALYSIS INSTRUCTIONS:
-Use your knowledge and reasoning to analyze the contact information:
-
-1. **Research the domain/company**: What type of business does this domain represent?
-2. **Analyze the context clues**: Name, email domain, company name, title, notes
-3. **Apply real estate industry knowledge**: Is this person/company connected to real estate?
-
-DECISION FRAMEWORK:
-- If this person/company SELLS real estate or works for a brokerage → **Agent**
-- If this person/company PROVIDES SERVICES to real estate professionals → **Vendor**  
-- If no clear real estate connection can be determined → **Contact**
-
-EXAMPLES OF REASONING:
-- Someone at a law firm with real estate clients → **Vendor** (legal services)
-- Someone at a title/closing company → **Vendor** (closing services)  
-- Someone at a mortgage/lending company → **Vendor** (financial services)
-- Someone at a real estate marketing company → **Vendor** (marketing services)
-- Someone at a real estate team/brokerage → **Agent** (sells real estate)
-- Someone at a coaching company serving real estate → **Vendor** (training services)
-
-BE AGGRESSIVE in classification - use your intelligence to find real estate connections. Only use "Contact" if you truly cannot find any real estate industry connection after thorough analysis.
-
-Respond with only one word: Agent, Vendor, or Contact`;
+Respond with exactly one word: Agent, Vendor, or Contact`;
 
     // Create a promise that rejects after timeout
     const timeoutPromise = new Promise((_, reject) =>
