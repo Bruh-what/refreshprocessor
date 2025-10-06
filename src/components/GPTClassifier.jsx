@@ -216,7 +216,7 @@ Respond with only one word: Agent, Vendor, or Contact`;
 
     // Create a promise that rejects after timeout
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('API call timeout (30s)')), 30000)
+      setTimeout(() => reject(new Error("API call timeout (30s)")), 30000)
     );
 
     try {
@@ -235,7 +235,7 @@ Respond with only one word: Agent, Vendor, or Contact`;
             temperature: 0.3,
           }),
         }),
-        timeoutPromise
+        timeoutPromise,
       ]);
 
       if (!response.ok) {
@@ -243,14 +243,23 @@ Respond with only one word: Agent, Vendor, or Contact`;
         const errorMessage = `API Error: ${response.status} - ${
           errorData.error?.message || response.statusText
         }`;
-        
+
         // Retry on certain errors
-        if (retryCount < 2 && (response.status === 429 || response.status >= 500)) {
-          addLog(`⏳ Retrying API call (attempt ${retryCount + 1}/3): ${errorMessage}`);
-          await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 2000));
+        if (
+          retryCount < 2 &&
+          (response.status === 429 || response.status >= 500)
+        ) {
+          addLog(
+            `⏳ Retrying API call (attempt ${
+              retryCount + 1
+            }/3): ${errorMessage}`
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, (retryCount + 1) * 2000)
+          );
           return await classifyWithGPT(contact, retryCount + 1);
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -264,12 +273,19 @@ Respond with only one word: Agent, Vendor, or Contact`;
         return null;
       }
     } catch (error) {
-      if (retryCount < 2 && (error.message.includes('timeout') || error.message.includes('network'))) {
-        addLog(`⏳ Retrying API call (attempt ${retryCount + 1}/3): ${error.message}`);
-        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 2000));
+      if (
+        retryCount < 2 &&
+        (error.message.includes("timeout") || error.message.includes("network"))
+      ) {
+        addLog(
+          `⏳ Retrying API call (attempt ${retryCount + 1}/3): ${error.message}`
+        );
+        await new Promise((resolve) =>
+          setTimeout(resolve, (retryCount + 1) * 2000)
+        );
         return await classifyWithGPT(contact, retryCount + 1);
       }
-      
+
       addLog(`❌ GPT API error (final): ${error.message}`);
       throw error;
     }
@@ -279,11 +295,18 @@ Respond with only one word: Agent, Vendor, or Contact`;
   const processContactChunk = async (contacts, chunkIndex, totalChunks) => {
     const results = [];
 
-    addLog(`🔄 [Chunk ${chunkIndex + 1}/${totalChunks}] Starting ${contacts.length} contacts...`);
+    addLog(
+      `🔄 [Chunk ${chunkIndex + 1}/${totalChunks}] Starting ${
+        contacts.length
+      } contacts...`
+    );
 
     // Create timeout for entire chunk (5 minutes max per chunk)
     const chunkTimeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(`Chunk ${chunkIndex + 1} timeout (5 minutes)`)), 300000)
+      setTimeout(
+        () => reject(new Error(`Chunk ${chunkIndex + 1} timeout (5 minutes)`)),
+        300000
+      )
     );
 
     // Process contacts in parallel within the chunk (respecting rate limits)
@@ -297,7 +320,7 @@ Respond with only one word: Agent, Vendor, or Contact`;
         await new Promise((resolve) => setTimeout(resolve, index * 150)); // Increased from 100ms
 
         addLog(`⏳ [Chunk ${chunkIndex + 1}] Processing ${contactName}...`);
-        
+
         const gptResult = await classifyWithGPT(contact);
 
         if (gptResult === "Agent" || gptResult === "Vendor") {
@@ -328,10 +351,12 @@ Respond with only one word: Agent, Vendor, or Contact`;
           };
         }
       } catch (error) {
-        addLog(`❌ [Chunk ${chunkIndex + 1}] ${contactName} failed: ${error.message}`);
+        addLog(
+          `❌ [Chunk ${chunkIndex + 1}] ${contactName} failed: ${error.message}`
+        );
         return {
           contact: null,
-          result: "Contact", 
+          result: "Contact",
           contactName,
           success: false,
           error: error.message,
@@ -339,23 +364,30 @@ Respond with only one word: Agent, Vendor, or Contact`;
       }
     });
 
+    let chunkResults;
     try {
       // Race between chunk processing and timeout
-      const chunkResults = await Promise.race([
+      chunkResults = await Promise.race([
         Promise.all(promises),
-        chunkTimeoutPromise
+        chunkTimeoutPromise,
       ]);
 
-      addLog(`✅ [Chunk ${chunkIndex + 1}/${totalChunks}] All contacts processed successfully`);
-      return chunkResults;
-      
+      addLog(
+        `✅ [Chunk ${
+          chunkIndex + 1
+        }/${totalChunks}] All contacts processed successfully`
+      );
     } catch (error) {
-      addLog(`💥 [Chunk ${chunkIndex + 1}/${totalChunks}] Chunk failed: ${error.message}`);
-      
+      addLog(
+        `💥 [Chunk ${chunkIndex + 1}/${totalChunks}] Chunk failed: ${
+          error.message
+        }`
+      );
+
       // If chunk times out, try to get partial results
       const partialResults = await Promise.allSettled(promises);
-      const processedResults = partialResults.map(result => {
-        if (result.status === 'fulfilled') {
+      chunkResults = partialResults.map((result) => {
+        if (result.status === "fulfilled") {
           return result.value;
         } else {
           return {
@@ -363,20 +395,24 @@ Respond with only one word: Agent, Vendor, or Contact`;
             result: "Contact",
             contactName: "Unknown",
             success: false,
-            error: result.reason?.message || "Unknown error"
+            error: result.reason?.message || "Unknown error",
           };
         }
       });
-      
-      addLog(`⚠️ [Chunk ${chunkIndex + 1}] Recovered ${processedResults.filter(r => r.success).length}/${contacts.length} contacts`);
-      return processedResults;
+
+      addLog(
+        `⚠️ [Chunk ${chunkIndex + 1}] Recovered ${
+          chunkResults.filter((r) => r.success).length
+        }/${contacts.length} contacts`
+      );
     }
 
-    // Process results
+    // Process results and collect classified contacts
+    const classifiedResults = [];
     for (const result of chunkResults) {
       if (result.success) {
         if (result.contact) {
-          results.push(result.contact);
+          classifiedResults.push(result.contact);
           addLog(
             `✅ [Chunk ${chunkIndex + 1}/${totalChunks}] ${
               result.contactName
@@ -399,7 +435,7 @@ Respond with only one word: Agent, Vendor, or Contact`;
     }
 
     return {
-      classifiedContacts: results,
+      classifiedContacts: classifiedResults,
       totalProcessed: chunkResults.length,
       agents: chunkResults.filter((r) => r.result === "Agent").length,
       vendors: chunkResults.filter((r) => r.result === "Vendor").length,
