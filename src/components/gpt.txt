@@ -12,8 +12,6 @@ const GPTClassifier = () => {
   const [ungroupedContacts, setUngroupedContacts] = useState([]);
   const [personalEmailContacts, setPersonalEmailContacts] = useState([]);
   const [estimatedCost, setEstimatedCost] = useState(0);
-  // Store original complete dataset for full export
-  const [originalData, setOriginalData] = useState([]);
 
   const addLog = (message) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -204,9 +202,6 @@ const GPTClassifier = () => {
       Papa.parse(uploadedFile, {
         header: true,
         complete: (results) => {
-          // Store the complete original dataset for full export
-          setOriginalData(results.data);
-          
           testBusinessDomains(); // Test domain classification first
           analyzeUngroupedContacts(results.data);
           analyzePersonalEmailContacts(results.data);
@@ -871,10 +866,7 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
 
   // Export all records including original and classified
   const exportAllRecords = () => {
-    // Use originalData if available, otherwise fall back to ungroupedContacts
-    const dataToExport = originalData.length > 0 ? originalData : ungroupedContacts;
-    
-    if (!dataToExport.length) {
+    if (!ungroupedContacts.length) {
       addLog("❌ No original data available to export");
       return;
     }
@@ -893,7 +885,7 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
     }
 
     // Merge original data with classified results
-    const allRecords = dataToExport.map((originalContact) => {
+    const allRecords = ungroupedContacts.map((originalContact) => {
       const key = `${originalContact["First Name"] || ""}_${
         originalContact["Last Name"] || ""
       }`.toLowerCase();
@@ -936,7 +928,6 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
     addLog(`📊 Export summary: ${allRecords.length} total contacts`);
     addLog(`   ✅ ${classifiedCount} contacts with GPT classifications`);
     addLog(`   ➡️ ${unchangedCount} contacts unchanged`);
-    addLog(`   📋 Includes ALL contacts from original file (grouped + ungrouped)`);
   };
 
   // Clear data
@@ -945,7 +936,6 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
     setResults(null);
     setUngroupedContacts([]);
     setPersonalEmailContacts([]);
-    setOriginalData([]);
     setEstimatedCost(0);
     setProgress(0);
     setLogs([]);
@@ -1155,7 +1145,7 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
                     </button>
                     <p className="text-xs text-gray-600">
                       Complete dataset with GPT updates merged in
-                      <br />({originalData.length > 0 ? originalData.length : ungroupedContacts.length} total contacts - includes ALL original data)
+                      <br />({ungroupedContacts.length} total contacts)
                     </p>
                   </div>
                   <div className="space-y-2">
