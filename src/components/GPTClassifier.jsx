@@ -63,18 +63,18 @@ const GPTClassifier = () => {
     const emails = [];
     const emailFields = [
       "Email",
-      "Personal Email", 
+      "Personal Email",
       "Email Address",
       "Primary Email",
       "Work Email",
-      "Business Email", 
+      "Business Email",
       "Home Email",
       "Other Email",
       "Email 1",
-      "Email 2", 
+      "Email 2",
       "Email 3",
       "Email 4",
-      "Email 5", 
+      "Email 5",
       "Email 6",
       "Primary Work Email",
       "Primary Personal Email",
@@ -83,19 +83,19 @@ const GPTClassifier = () => {
       "Primary Custom Email",
       "Primary work Email",
       "work Email",
-      "Primary personal Email", 
+      "Primary personal Email",
       "other Email 2",
       "other Email 3",
       "Personal Email 2",
       "home Email",
       "Personal Email 3",
       "Personal Email 4",
-      "home Email 2", 
+      "home Email 2",
       "personal Email",
       "work Email 2",
       "other Email 4",
       "Custom Email 2",
-      "Custom Email"
+      "Custom Email",
     ];
 
     // Check standard email fields
@@ -217,10 +217,14 @@ const GPTClassifier = () => {
   const analyzeUngroupedContacts = (data) => {
     addLog(`🔍 Starting analysis of ${data.length} total contacts...`);
 
-    // Debug: Check CSV parsing and Groups values  
-    addLog(`🔍 CSV Column Headers: ${Object.keys(data[0] || {}).slice(0, 15).join(", ")}...`);
+    // Debug: Check CSV parsing and Groups values
+    addLog(
+      `🔍 CSV Column Headers: ${Object.keys(data[0] || {})
+        .slice(0, 15)
+        .join(", ")}...`
+    );
     addLog(`🔍 Total columns in CSV: ${Object.keys(data[0] || {}).length}`);
-    
+
     // Debug: Check first few contacts to see their Groups values
     addLog(`🔍 Sample Groups values from first 10 contacts:`);
     data.slice(0, 10).forEach((contact, idx) => {
@@ -229,7 +233,7 @@ const GPTClassifier = () => {
         `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim() ||
         "Unknown";
       addLog(`   ${idx + 1}. ${name}: Groups="${groups}"`);
-      
+
       // Also check Tags vs Groups columns for first few contacts
       if (idx < 5) {
         const tags = (contact["Tags"] || "").trim();
@@ -473,7 +477,27 @@ KEY DISTINCTION:
 
 Use your knowledge to intelligently classify domains based on what type of business they represent.
 
-Be more aggressive in classification - if there are ANY real estate indicators, classify accordingly.
+INTELLIGENT ANALYSIS INSTRUCTIONS:
+Use your knowledge and reasoning to analyze the contact information:
+
+1. **Research the domain/company**: What type of business does this domain represent?
+2. **Analyze the context clues**: Name, email domain, company name, title, notes
+3. **Apply real estate industry knowledge**: Is this person/company connected to real estate?
+
+DECISION FRAMEWORK:
+- If this person/company SELLS real estate or works for a brokerage → **Agent**
+- If this person/company PROVIDES SERVICES to real estate professionals → **Vendor**  
+- If no clear real estate connection can be determined → **Contact**
+
+EXAMPLES OF REASONING:
+- Someone at a law firm with real estate clients → **Vendor** (legal services)
+- Someone at a title/closing company → **Vendor** (closing services)  
+- Someone at a mortgage/lending company → **Vendor** (financial services)
+- Someone at a real estate marketing company → **Vendor** (marketing services)
+- Someone at a real estate team/brokerage → **Agent** (sells real estate)
+- Someone at a coaching company serving real estate → **Vendor** (training services)
+
+BE AGGRESSIVE in classification - use your intelligence to find real estate connections. Only use "Contact" if you truly cannot find any real estate industry connection after thorough analysis.
 
 Respond with only one word: Agent, Vendor, or Contact`;
 
