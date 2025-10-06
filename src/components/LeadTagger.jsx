@@ -132,7 +132,11 @@ const LeadTagger = () => {
     const category = (contact["Category"] || "").trim();
     
     // Consider "ALL CONTACTS" as not categorized since it's just a default
-    return (groups !== "" && groups !== "ALL CONTACTS") || category !== "";
+    // Also consider empty categories as not categorized
+    const hasRealGroup = groups !== "" && groups !== "ALL CONTACTS";
+    const hasRealCategory = category !== "" && category !== "Contact";
+    
+    return hasRealGroup || hasRealCategory;
   };
 
   // Handle file upload
@@ -162,17 +166,40 @@ const LeadTagger = () => {
   const analyzeContacts = (data) => {
     addLog(`🔍 Analyzing ${data.length} total contacts...`);
 
+    // Debug: Check first few contacts to see their structure
+    addLog(`🔍 Debugging first 5 contacts:`);
+    data.slice(0, 5).forEach((contact, idx) => {
+      const groups = (contact["Groups"] || contact["Group"] || "").trim();
+      const category = (contact["Category"] || "").trim();
+      const name = `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim();
+      const emails = getAllEmails(contact);
+      
+      addLog(`   ${idx + 1}. ${name || 'No Name'}`);
+      addLog(`      Groups: "${groups}"`);
+      addLog(`      Category: "${category}"`);
+      addLog(`      Emails: ${emails.length > 0 ? emails.join(', ') : 'NONE'}`);
+      addLog(`      Is Categorized: ${isAlreadyCategorized(contact)}`);
+      addLog(`      ---`);
+    });
+
     let alreadyCategorized = 0;
     let businessEmailUncategorized = 0;
     let personalEmailOnly = 0;
     let noEmailToDelete = 0;
 
-    data.forEach((contact) => {
+    data.forEach((contact, index) => {
       const emails = getAllEmails(contact);
       const name = `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim();
       
       if (isAlreadyCategorized(contact)) {
         alreadyCategorized++;
+        
+        // Debug: Log first few categorized contacts
+        if (alreadyCategorized <= 3) {
+          const groups = (contact["Groups"] || contact["Group"] || "").trim();
+          const category = (contact["Category"] || "").trim();
+          addLog(`🔍 Already categorized example: ${name} - Groups:"${groups}" Category:"${category}"`);
+        }
       } else if (emails.length === 0 && !name) {
         noEmailToDelete++;
       } else if (hasOnlyPersonalEmails(emails)) {
