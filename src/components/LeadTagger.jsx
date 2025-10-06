@@ -130,12 +130,12 @@ const LeadTagger = () => {
   const isAlreadyCategorized = (contact) => {
     const groups = (contact["Groups"] || contact["Group"] || "").trim();
     const category = (contact["Category"] || "").trim();
-    
+
     // Consider "ALL CONTACTS" as not categorized since it's just a default
     // Also consider empty categories as not categorized
     const hasRealGroup = groups !== "" && groups !== "ALL CONTACTS";
     const hasRealCategory = category !== "" && category !== "Contact";
-    
+
     return hasRealGroup || hasRealCategory;
   };
 
@@ -171,13 +171,15 @@ const LeadTagger = () => {
     data.slice(0, 5).forEach((contact, idx) => {
       const groups = (contact["Groups"] || contact["Group"] || "").trim();
       const category = (contact["Category"] || "").trim();
-      const name = `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim();
+      const name = `${contact["First Name"] || ""} ${
+        contact["Last Name"] || ""
+      }`.trim();
       const emails = getAllEmails(contact);
-      
-      addLog(`   ${idx + 1}. ${name || 'No Name'}`);
+
+      addLog(`   ${idx + 1}. ${name || "No Name"}`);
       addLog(`      Groups: "${groups}"`);
       addLog(`      Category: "${category}"`);
-      addLog(`      Emails: ${emails.length > 0 ? emails.join(', ') : 'NONE'}`);
+      addLog(`      Emails: ${emails.length > 0 ? emails.join(", ") : "NONE"}`);
       addLog(`      Is Categorized: ${isAlreadyCategorized(contact)}`);
       addLog(`      ---`);
     });
@@ -189,35 +191,43 @@ const LeadTagger = () => {
 
     data.forEach((contact, index) => {
       const emails = getAllEmails(contact);
-      const name = `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim();
-      
+      const name = `${contact["First Name"] || ""} ${
+        contact["Last Name"] || ""
+      }`.trim();
+
       if (isAlreadyCategorized(contact)) {
         alreadyCategorized++;
-        
+
         // Debug: Log first few categorized contacts
         if (alreadyCategorized <= 3) {
           const groups = (contact["Groups"] || contact["Group"] || "").trim();
           const category = (contact["Category"] || "").trim();
-          addLog(`🔍 Already categorized example: ${name} - Groups:"${groups}" Category:"${category}"`);
+          addLog(
+            `🔍 Already categorized example: ${name} - Groups:"${groups}" Category:"${category}"`
+          );
         }
-      } else if (emails.length === 0 && !name) {
+      } else if (emails.length === 0) {
+        // No email = delete (regardless of name)
         noEmailToDelete++;
       } else if (hasOnlyPersonalEmails(emails)) {
         personalEmailOnly++;
       } else if (hasBusinessEmail(emails)) {
         businessEmailUncategorized++;
-      } else if (emails.length === 0 && name) {
-        // Has name but no email - treat as personal lead
-        personalEmailOnly++;
       }
     });
 
     addLog(`📊 Analysis Results:`);
     addLog(`   ✅ Already categorized: ${alreadyCategorized}`);
-    addLog(`   🏢 Business emails (will tag "Uncategorized"): ${businessEmailUncategorized}`);
-    addLog(`   👤 Personal emails only (will tag "Leads"): ${personalEmailOnly}`);
+    addLog(
+      `   🏢 Business emails (will tag "Uncategorized"): ${businessEmailUncategorized}`
+    );
+    addLog(
+      `   👤 Personal emails only (will tag "Leads"): ${personalEmailOnly}`
+    );
     addLog(`   🗑️ No email/name (will delete): ${noEmailToDelete}`);
-    addLog(`   📝 Total contacts after processing: ${data.length - noEmailToDelete}`);
+    addLog(
+      `   📝 Total contacts after processing: ${data.length - noEmailToDelete}`
+    );
   };
 
   // Process the contacts
@@ -240,15 +250,17 @@ const LeadTagger = () => {
     for (let i = 0; i < originalData.length; i++) {
       const contact = { ...originalData[i] };
       const emails = getAllEmails(contact);
-      const name = `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim();
-      
+      const name = `${contact["First Name"] || ""} ${
+        contact["Last Name"] || ""
+      }`.trim();
+
       // Update progress
       setProgress((i / originalData.length) * 100);
 
-      // Skip contacts with no email and no name (delete them)
-      if (emails.length === 0 && !name) {
+      // Skip contacts with no email (delete them) - regardless of name
+      if (emails.length === 0) {
         deletedCount++;
-        addLog(`🗑️ Deleted: No email or name`);
+        addLog(`🗑️ Deleted: No email (${name || "No name"})`);
         continue;
       }
 
@@ -265,38 +277,42 @@ const LeadTagger = () => {
       // Business emails that are uncategorized -> Add "Uncategorized" tag
       if (hasBusinessEmail(emails)) {
         const currentTags = contact["Tags"] || "";
-        const newTags = currentTags 
+        const newTags = currentTags
           ? `${currentTags}, Uncategorized`
           : "Uncategorized";
-        
+
         contact["Tags"] = newTags;
         contact["Changes Made"] = contact["Changes Made"]
           ? `${contact["Changes Made"]}; Tagged as Uncategorized (business email)`
           : "Tagged as Uncategorized (business email)";
-        
+
         uncategorizedTagged++;
         wasModified = true;
-        addLog(`🏢 Tagged as Uncategorized: ${name || 'Unknown'} (${emails.join(', ')})`);
+        addLog(
+          `🏢 Tagged as Uncategorized: ${name || "Unknown"} (${emails.join(
+            ", "
+          )})`
+        );
       }
-      // Personal emails only OR name with no email -> Add to "Leads" group
-      else if (hasOnlyPersonalEmails(emails) || (name && emails.length === 0)) {
+      // Personal emails only -> Add to "Leads" group
+      else if (hasOnlyPersonalEmails(emails)) {
         contact["Groups"] = "Leads";
         contact["Changes Made"] = contact["Changes Made"]
           ? `${contact["Changes Made"]}; Added to Leads group`
           : "Added to Leads group";
-        
+
         leadsTagged++;
         wasModified = true;
-        
-        const emailInfo = emails.length > 0 ? emails.join(', ') : 'No email';
-        addLog(`👤 Added to Leads: ${name || 'Unknown'} (${emailInfo})`);
+
+        const emailInfo = emails.length > 0 ? emails.join(", ") : "No email";
+        addLog(`👤 Added to Leads: ${name || "Unknown"} (${emailInfo})`);
       }
 
       processedContacts.push(contact);
     }
 
     setProgress(100);
-    
+
     const finalResults = {
       processedContacts,
       stats: {
@@ -306,11 +322,11 @@ const LeadTagger = () => {
         alreadyCategorizedCount,
         uncategorizedTagged,
         leadsTagged,
-      }
+      },
     };
 
     setResults(finalResults);
-    
+
     addLog(`✅ Lead Tagger processing complete!`);
     addLog(`📊 Final Statistics:`);
     addLog(`   📥 Original contacts: ${originalData.length}`);
@@ -366,13 +382,16 @@ const LeadTagger = () => {
             🏷️ Lead Tagger
           </h1>
           <p className="text-gray-600 mb-8">
-            Automatically organize your contacts: Tag business emails as "Uncategorized", 
-            personal emails as "Leads", and clean up records without contact info
+            Automatically organize your contacts: Tag business emails as
+            "Uncategorized", personal emails as "Leads", and clean up records
+            without contact info
           </p>
 
           {/* File Upload Section */}
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">📁 Upload Contact File</h2>
+            <h2 className="text-xl font-semibold mb-4">
+              📁 Upload Contact File
+            </h2>
             <div className="mb-4">
               <input
                 type="file"
@@ -381,7 +400,9 @@ const LeadTagger = () => {
                 className="w-full p-3 border rounded-lg"
               />
               {file && (
-                <p className="text-sm text-gray-600 mt-2">📄 File: {file.name}</p>
+                <p className="text-sm text-gray-600 mt-2">
+                  📄 File: {file.name}
+                </p>
               )}
             </div>
           </div>
@@ -392,23 +413,30 @@ const LeadTagger = () => {
             <div className="space-y-3 text-sm">
               <div className="flex items-start space-x-3">
                 <span className="text-green-600 font-bold">✅</span>
-                <span><strong>Already Categorized:</strong> Contacts with existing Groups or Categories are left unchanged</span>
+                <span>
+                  <strong>Already Categorized:</strong> Contacts with existing
+                  Groups or Categories are left unchanged
+                </span>
               </div>
               <div className="flex items-start space-x-3">
                 <span className="text-blue-600 font-bold">🏢</span>
-                <span><strong>Business Emails:</strong> Uncategorized contacts with business emails get "Uncategorized" tag</span>
+                <span>
+                  <strong>Business Emails:</strong> Uncategorized contacts with
+                  business emails get "Uncategorized" tag
+                </span>
               </div>
               <div className="flex items-start space-x-3">
                 <span className="text-purple-600 font-bold">👤</span>
-                <span><strong>Personal Emails:</strong> Contacts with only personal emails (Gmail, Yahoo, etc.) go to "Leads" group</span>
+                <span>
+                  <strong>Personal Emails:</strong> Contacts with only personal
+                  emails (Gmail, Yahoo, etc.) go to "Leads" group
+                </span>
               </div>
               <div className="flex items-start space-x-3">
-                <span className="text-purple-600 font-bold">📝</span>
-                <span><strong>Name Only:</strong> Contacts with names but no email also go to "Leads" group</span>
-              </div>
-              <div className="flex items-start space-x-3">
-                <span className="text-red-600 font-bold">🗑️</span>
-                <span><strong>No Contact Info:</strong> Records without name or email are deleted</span>
+                <span className="text-red-600 font-bold">�️</span>
+                <span>
+                  <strong>No Email:</strong> Records without email addresses are deleted (regardless of name)
+                </span>
               </div>
             </div>
           </div>
@@ -416,8 +444,10 @@ const LeadTagger = () => {
           {/* Process Button */}
           {originalData.length > 0 && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4">🚀 Ready to Process</h2>
-              
+              <h2 className="text-xl font-semibold mb-4">
+                🚀 Ready to Process
+              </h2>
+
               <button
                 onClick={processContacts}
                 disabled={processing || !file}
@@ -437,7 +467,9 @@ const LeadTagger = () => {
           {/* Progress Section */}
           {processing && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4">⏳ Processing Progress</h2>
+              <h2 className="text-xl font-semibold mb-4">
+                ⏳ Processing Progress
+              </h2>
               <div className="mb-4">
                 <div className="bg-gray-200 rounded-full h-3">
                   <div
@@ -455,8 +487,10 @@ const LeadTagger = () => {
           {/* Results Section */}
           {results && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4">✅ Processing Complete</h2>
-              
+              <h2 className="text-xl font-semibold mb-4">
+                ✅ Processing Complete
+              </h2>
+
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600">
@@ -480,13 +514,17 @@ const LeadTagger = () => {
                   <div className="text-2xl font-bold text-gray-600">
                     {results.stats.alreadyCategorizedCount}
                   </div>
-                  <div className="text-sm text-gray-600">Already Categorized</div>
+                  <div className="text-sm text-gray-600">
+                    Already Categorized
+                  </div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-orange-600">
                     {results.stats.uncategorizedTagged}
                   </div>
-                  <div className="text-sm text-gray-600">Tagged "Uncategorized"</div>
+                  <div className="text-sm text-gray-600">
+                    Tagged "Uncategorized"
+                  </div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-purple-600">
@@ -504,7 +542,7 @@ const LeadTagger = () => {
                 >
                   📥 Export Processed Contacts
                 </button>
-                
+
                 <div className="text-center">
                   <button
                     onClick={clearData}
