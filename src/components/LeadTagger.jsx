@@ -435,7 +435,8 @@ const LeadTagger = () => {
               <div className="flex items-start space-x-3">
                 <span className="text-red-600 font-bold">�️</span>
                 <span>
-                  <strong>No Email:</strong> Records without email addresses are deleted (regardless of name)
+                  <strong>No Email:</strong> Records without email addresses are
+                  deleted (regardless of name)
                 </span>
               </div>
             </div>
@@ -509,6 +510,7 @@ const LeadTagger = () => {
                     {results.stats.deletedCount}
                   </div>
                   <div className="text-sm text-gray-600">Deleted Records</div>
+                  <div className="text-xs text-gray-500">(No email found)</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-gray-600">
@@ -517,6 +519,7 @@ const LeadTagger = () => {
                   <div className="text-sm text-gray-600">
                     Already Categorized
                   </div>
+                  <div className="text-xs text-gray-500">(Has groups/category)</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-orange-600">
@@ -525,12 +528,14 @@ const LeadTagger = () => {
                   <div className="text-sm text-gray-600">
                     Tagged "Uncategorized"
                   </div>
+                  <div className="text-xs text-gray-500">(Business emails)</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-purple-600">
                     {results.stats.leadsTagged}
                   </div>
                   <div className="text-sm text-gray-600">Added to "Leads"</div>
+                  <div className="text-xs text-gray-500">(Personal emails only)</div>
                 </div>
               </div>
 
