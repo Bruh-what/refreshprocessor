@@ -93,23 +93,23 @@ const PhoneConsolidator = () => {
 
   const normalizePhoneNumber = (phone) => {
     if (!phone || typeof phone !== "string") return null;
-    
+
     // Remove all non-digit characters
     const digits = phone.replace(/\D/g, "");
-    
+
     // Must be at least 10 digits
     if (digits.length < 10) return null;
-    
+
     // Handle US numbers with country code
     if (digits.length === 11 && digits.startsWith("1")) {
       return digits.substring(1);
     }
-    
+
     // Return 10-digit US number
     if (digits.length === 10) {
       return digits;
     }
-    
+
     // For longer numbers, take the last 10 digits
     return digits.slice(-10);
   };
@@ -150,7 +150,8 @@ const PhoneConsolidator = () => {
     // Scan all fields for email patterns
     for (const [key, value] of Object.entries(contact)) {
       if (typeof value === "string" && value.includes("@")) {
-        const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+        const emailRegex =
+          /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
         const foundEmails = value.match(emailRegex);
         if (foundEmails) {
           foundEmails.forEach((email) => {
@@ -176,7 +177,7 @@ const PhoneConsolidator = () => {
     if (file) {
       setCompassFile(file);
       addLog(`Compass file uploaded: ${file.name}`);
-      
+
       Papa.parse(file, {
         header: true,
         complete: (results) => {
@@ -195,7 +196,7 @@ const PhoneConsolidator = () => {
     if (file) {
       setPhoneFile(file);
       addLog(`Phone file uploaded: ${file.name}`);
-      
+
       Papa.parse(file, {
         header: true,
         complete: (results) => {
@@ -222,7 +223,7 @@ const PhoneConsolidator = () => {
 
     try {
       // Filter Compass contacts that have names
-      const compassWithNames = compassData.filter(contact => {
+      const compassWithNames = compassData.filter((contact) => {
         const firstName = (contact["First Name"] || "").trim();
         const lastName = (contact["Last Name"] || "").trim();
         return firstName || lastName;
@@ -231,20 +232,30 @@ const PhoneConsolidator = () => {
       addLog(`📋 Found ${compassWithNames.length} Compass contacts with names`);
 
       // Find Compass contacts missing phone numbers
-      const compassContactsMissingPhones = compassWithNames.filter(contact => {
-        return getAllPhoneNumbers(contact).length === 0;
-      });
+      const compassContactsMissingPhones = compassWithNames.filter(
+        (contact) => {
+          return getAllPhoneNumbers(contact).length === 0;
+        }
+      );
 
-      addLog(`📞 Found ${compassContactsMissingPhones.length} Compass contacts missing phone numbers`);
+      addLog(
+        `📞 Found ${compassContactsMissingPhones.length} Compass contacts missing phone numbers`
+      );
 
       // Create lookup map for contacts missing phones
       const keysToLookFor = new Set();
       const keyToContactMap = new Map();
 
       for (const compassContact of compassContactsMissingPhones) {
-        const firstName = (compassContact["First Name"] || "").toLowerCase().trim();
-        const lastName = (compassContact["Last Name"] || "").toLowerCase().trim();
-        const emails = getAllEmails(compassContact).map(e => normalizeEmail(e));
+        const firstName = (compassContact["First Name"] || "")
+          .toLowerCase()
+          .trim();
+        const lastName = (compassContact["Last Name"] || "")
+          .toLowerCase()
+          .trim();
+        const emails = getAllEmails(compassContact).map((e) =>
+          normalizeEmail(e)
+        );
 
         for (const email of emails) {
           if (email) {
@@ -270,16 +281,26 @@ const PhoneConsolidator = () => {
 
       for (let chunkIndex = 0; chunkIndex < phoneChunks.length; chunkIndex++) {
         const chunk = phoneChunks[chunkIndex];
-        
-        addLog(`📦 Processing phone chunk ${chunkIndex + 1}/${phoneChunks.length} (${chunk.length} records)`);
+
+        addLog(
+          `📦 Processing phone chunk ${chunkIndex + 1}/${phoneChunks.length} (${
+            chunk.length
+          } records)`
+        );
 
         for (const phoneContact of chunk) {
           const phoneNumbers = getAllPhoneNumbers(phoneContact);
           if (phoneNumbers.length === 0) continue;
 
-          const firstName = (phoneContact["First Name"] || "").toLowerCase().trim();
-          const lastName = (phoneContact["Last Name"] || "").toLowerCase().trim();
-          const emails = getAllEmails(phoneContact).map(e => normalizeEmail(e));
+          const firstName = (phoneContact["First Name"] || "")
+            .toLowerCase()
+            .trim();
+          const lastName = (phoneContact["Last Name"] || "")
+            .toLowerCase()
+            .trim();
+          const emails = getAllEmails(phoneContact).map((e) =>
+            normalizeEmail(e)
+          );
 
           // Try to match by name + email
           let matchFound = false;
@@ -288,32 +309,34 @@ const PhoneConsolidator = () => {
               const key = `${firstName}|${lastName}|${email}`;
               if (keysToLookFor.has(key)) {
                 const compassContact = keyToContactMap.get(key);
-                
+
                 // Add phone numbers to empty fields
                 const phoneFields = [
                   "Mobile Phone",
-                  "Home Phone", 
+                  "Home Phone",
                   "Work Phone",
                   "Phone",
                   "Primary Mobile Phone",
-                  "Primary Home Phone"
+                  "Primary Home Phone",
                 ];
 
                 for (const phoneNumber of phoneNumbers) {
                   const formattedPhone = formatPhoneNumber(phoneNumber);
-                  
+
                   for (const field of phoneFields) {
                     if (!compassContact[field]) {
                       compassContact[field] = formattedPhone;
-                      
+
                       if (!compassContact["Changes Made"]) {
                         compassContact["Changes Made"] = "";
                       }
                       if (compassContact["Changes Made"]) {
                         compassContact["Changes Made"] += "; ";
                       }
-                      compassContact["Changes Made"] += `Added phone number: ${formattedPhone}`;
-                      
+                      compassContact[
+                        "Changes Made"
+                      ] += `Added phone number: ${formattedPhone}`;
+
                       phonesAddedCount++;
                       matchFound = true;
                       break;
@@ -321,10 +344,14 @@ const PhoneConsolidator = () => {
                   }
                   if (matchFound) break;
                 }
-                
+
                 if (matchFound) {
                   contactsUpdatedCount++;
-                  addLog(`✅ Added phone to ${firstName} ${lastName}: ${phoneNumbers.map(formatPhoneNumber).join(", ")}`);
+                  addLog(
+                    `✅ Added phone to ${firstName} ${lastName}: ${phoneNumbers
+                      .map(formatPhoneNumber)
+                      .join(", ")}`
+                  );
                   break;
                 }
               }
@@ -334,60 +361,75 @@ const PhoneConsolidator = () => {
 
         // Update progress
         setProgress(((chunkIndex + 1) / phoneChunks.length) * 100);
-        
+
         // Small delay to keep UI responsive
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
       // Try name-only matching for contacts that still need phones
       addLog("🔍 Trying name-only matching for remaining contacts...");
-      
-      const stillMissingPhones = updatedContacts.filter(contact => {
+
+      const stillMissingPhones = updatedContacts.filter((contact) => {
         return getAllPhoneNumbers(contact).length === 0;
       });
 
-      addLog(`📞 ${stillMissingPhones.length} contacts still missing phones, trying name-only matching`);
+      addLog(
+        `📞 ${stillMissingPhones.length} contacts still missing phones, trying name-only matching`
+      );
 
       for (const compassContact of stillMissingPhones) {
-        const compassFirstName = (compassContact["First Name"] || "").toLowerCase().trim();
-        const compassLastName = (compassContact["Last Name"] || "").toLowerCase().trim();
-        
+        const compassFirstName = (compassContact["First Name"] || "")
+          .toLowerCase()
+          .trim();
+        const compassLastName = (compassContact["Last Name"] || "")
+          .toLowerCase()
+          .trim();
+
         if (!compassFirstName || !compassLastName) continue;
 
         for (const phoneContact of phoneData) {
           const phoneNumbers = getAllPhoneNumbers(phoneContact);
           if (phoneNumbers.length === 0) continue;
 
-          const phoneFirstName = (phoneContact["First Name"] || "").toLowerCase().trim();
-          const phoneLastName = (phoneContact["Last Name"] || "").toLowerCase().trim();
+          const phoneFirstName = (phoneContact["First Name"] || "")
+            .toLowerCase()
+            .trim();
+          const phoneLastName = (phoneContact["Last Name"] || "")
+            .toLowerCase()
+            .trim();
 
-          if (compassFirstName === phoneFirstName && compassLastName === phoneLastName) {
+          if (
+            compassFirstName === phoneFirstName &&
+            compassLastName === phoneLastName
+          ) {
             // Add phone numbers
             const phoneFields = [
               "Mobile Phone",
-              "Home Phone", 
+              "Home Phone",
               "Work Phone",
               "Phone",
               "Primary Mobile Phone",
-              "Primary Home Phone"
+              "Primary Home Phone",
             ];
 
             let phoneAdded = false;
             for (const phoneNumber of phoneNumbers) {
               const formattedPhone = formatPhoneNumber(phoneNumber);
-              
+
               for (const field of phoneFields) {
                 if (!compassContact[field]) {
                   compassContact[field] = formattedPhone;
-                  
+
                   if (!compassContact["Changes Made"]) {
                     compassContact["Changes Made"] = "";
                   }
                   if (compassContact["Changes Made"]) {
                     compassContact["Changes Made"] += "; ";
                   }
-                  compassContact["Changes Made"] += `Added phone number (name match): ${formattedPhone}`;
-                  
+                  compassContact[
+                    "Changes Made"
+                  ] += `Added phone number (name match): ${formattedPhone}`;
+
                   phonesAddedCount++;
                   phoneAdded = true;
                   break;
@@ -395,10 +437,14 @@ const PhoneConsolidator = () => {
               }
               if (phoneAdded) break;
             }
-            
+
             if (phoneAdded) {
               contactsUpdatedCount++;
-              addLog(`✅ Added phone (name match) to ${compassFirstName} ${compassLastName}: ${phoneNumbers.map(formatPhoneNumber).join(", ")}`);
+              addLog(
+                `✅ Added phone (name match) to ${compassFirstName} ${compassLastName}: ${phoneNumbers
+                  .map(formatPhoneNumber)
+                  .join(", ")}`
+              );
               break;
             }
           }
@@ -414,8 +460,9 @@ const PhoneConsolidator = () => {
       });
 
       addLog("🎯 Phone consolidation complete!");
-      addLog(`📊 Results: ${phonesAddedCount} phone numbers added to ${contactsUpdatedCount} contacts`);
-      
+      addLog(
+        `📊 Results: ${phonesAddedCount} phone numbers added to ${contactsUpdatedCount} contacts`
+      );
     } catch (error) {
       addLog(`❌ Error during consolidation: ${error.message}`);
     } finally {
@@ -438,7 +485,9 @@ const PhoneConsolidator = () => {
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `compass_with_consolidated_phones_${new Date().toISOString().split("T")[0]}.csv`
+      `compass_with_consolidated_phones_${
+        new Date().toISOString().split("T")[0]
+      }.csv`
     );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
@@ -455,8 +504,11 @@ const PhoneConsolidator = () => {
       return;
     }
 
-    const updatedContacts = results.updatedContacts.filter(contact => {
-      return contact["Changes Made"] && contact["Changes Made"].includes("Added phone number");
+    const updatedContacts = results.updatedContacts.filter((contact) => {
+      return (
+        contact["Changes Made"] &&
+        contact["Changes Made"].includes("Added phone number")
+      );
     });
 
     if (updatedContacts.length === 0) {
@@ -478,7 +530,9 @@ const PhoneConsolidator = () => {
     link.click();
     document.body.removeChild(link);
 
-    addLog(`📁 Exported ${updatedContacts.length} contacts with added phone numbers`);
+    addLog(
+      `📁 Exported ${updatedContacts.length} contacts with added phone numbers`
+    );
   };
 
   // Clear all data
@@ -553,7 +607,7 @@ const PhoneConsolidator = () => {
                 <li>Preserves all existing Compass data</li>
               </ul>
             </div>
-            
+
             <button
               onClick={consolidatePhones}
               disabled={processing}
@@ -563,10 +617,9 @@ const PhoneConsolidator = () => {
                   : "bg-blue-500 hover:bg-blue-700 text-white"
               }`}
             >
-              {processing 
+              {processing
                 ? `Processing... (${Math.floor(progress)}%)`
-                : "🚀 Start Phone Consolidation"
-              }
+                : "🚀 Start Phone Consolidation"}
             </button>
           </div>
         )}
@@ -574,7 +627,9 @@ const PhoneConsolidator = () => {
         {/* Progress Section */}
         {processing && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">⏳ Processing Progress</h2>
+            <h2 className="text-xl font-semibold mb-4">
+              ⏳ Processing Progress
+            </h2>
             <div className="mb-4">
               <div className="bg-gray-200 rounded-full h-3">
                 <div
@@ -592,8 +647,10 @@ const PhoneConsolidator = () => {
         {/* Results Section */}
         {results && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">🎯 Consolidation Results</h2>
-            
+            <h2 className="text-xl font-semibold mb-4">
+              🎯 Consolidation Results
+            </h2>
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">
@@ -601,11 +658,13 @@ const PhoneConsolidator = () => {
                 </div>
                 <div className="text-sm text-gray-600">Total Contacts</div>
               </div>
-              <div className="text-center">  
+              <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">
                   {results.originalMissingPhones}
                 </div>
-                <div className="text-sm text-gray-600">Originally Missing Phones</div>
+                <div className="text-sm text-gray-600">
+                  Originally Missing Phones
+                </div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-green-600">

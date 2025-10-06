@@ -99,9 +99,19 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
+              marginRight: "1rem",
             }}
           >
             Phone Consolidator
+          </Link>
+          <Link
+            to="/lead-tagger"
+            style={{
+              color: "white",
+              textDecoration: "none",
+            }}
+          >
+            Lead Tagger
           </Link>
         </div>
       </div>

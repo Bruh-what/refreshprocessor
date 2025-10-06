@@ -8,6 +8,7 @@ import SimpleDuplicateTagger from "./components/SimpleDuplicateTagger.jsx";
 import ContactCategorizer from "./components/ContactCategorizer.jsx";
 import GPTClassifier from "./components/GPTClassifier.jsx";
 import PhoneConsolidator from "./components/PhoneConsolidator.jsx";
+import LeadTagger from "./components/LeadTagger.jsx";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -24,6 +25,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/contact-categorizer" element={<ContactCategorizer />} />
         <Route path="/gpt-classifier" element={<GPTClassifier />} />
         <Route path="/phone-consolidator" element={<PhoneConsolidator />} />
+        <Route path="/lead-tagger" element={<LeadTagger />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

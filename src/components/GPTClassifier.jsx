@@ -206,7 +206,7 @@ const GPTClassifier = () => {
         complete: (results) => {
           // Store the complete original dataset for full export
           setOriginalData(results.data);
-          
+
           testBusinessDomains(); // Test domain classification first
           analyzeUngroupedContacts(results.data);
           analyzePersonalEmailContacts(results.data);
@@ -872,8 +872,9 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
   // Export all records including original and classified
   const exportAllRecords = () => {
     // Use originalData if available, otherwise fall back to ungroupedContacts
-    const dataToExport = originalData.length > 0 ? originalData : ungroupedContacts;
-    
+    const dataToExport =
+      originalData.length > 0 ? originalData : ungroupedContacts;
+
     if (!dataToExport.length) {
       addLog("❌ No original data available to export");
       return;
@@ -936,7 +937,9 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
     addLog(`📊 Export summary: ${allRecords.length} total contacts`);
     addLog(`   ✅ ${classifiedCount} contacts with GPT classifications`);
     addLog(`   ➡️ ${unchangedCount} contacts unchanged`);
-    addLog(`   📋 Includes ALL contacts from original file (grouped + ungrouped)`);
+    addLog(
+      `   📋 Includes ALL contacts from original file (grouped + ungrouped)`
+    );
   };
 
   // Clear data
@@ -1155,7 +1158,11 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
                     </button>
                     <p className="text-xs text-gray-600">
                       Complete dataset with GPT updates merged in
-                      <br />({originalData.length > 0 ? originalData.length : ungroupedContacts.length} total contacts - includes ALL original data)
+                      <br />(
+                      {originalData.length > 0
+                        ? originalData.length
+                        : ungroupedContacts.length}{" "}
+                      total contacts - includes ALL original data)
                     </p>
                   </div>
                   <div className="space-y-2">
