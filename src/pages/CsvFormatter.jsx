@@ -987,21 +987,7 @@ function CsvFormatter() {
                   firstName: lastName.toLowerCase(),
                   lastName: firstPart.toLowerCase(), // Use just the first word of the first name
                 },
-                // First letter matching for nicknames
-                {
-                  type: "firstletter",
-                  firstLetter: firstName.toLowerCase().charAt(0),
-                  lastName: lastName.toLowerCase(),
-                },
-                // Full name format
-                { type: "fullname", fullName: buyerName.trim().toLowerCase() },
-                // Full name reversed
-                {
-                  type: "fullname-reversed",
-                  fullName: `${lastName} ${firstName}`.toLowerCase(),
-                },
-                // Last name only for uncommon last names
-                { type: "lastname-only", lastName: lastName.toLowerCase() },
+
               ],
             };
           } else {
@@ -1028,6 +1014,15 @@ function CsvFormatter() {
         saLastName = (saLastName || "").trim().toLowerCase();
         saCompany = (saCompany || "").trim().toLowerCase();
 
+        // Skip matching if either first or last name is missing or too short
+        if (!saFirstName || !saLastName || saFirstName.length < 2 || saLastName.length < 2) {
+          return {
+            matched: false,
+            matchType: "insufficient-name-data",
+            details: "Skipped due to missing or insufficient name data"
+          };
+        }
+
         // Create simplified versions of the names (without middle names/initials)
         const saFullName = `${saFirstName} ${saLastName}`;
         const saSimplifiedName = simplifyName(saFullName).toLowerCase();
@@ -1037,17 +1032,6 @@ function CsvFormatter() {
           saSimplifiedParts.length > 1
             ? saSimplifiedParts[saSimplifiedParts.length - 1]
             : "";
-
-        // Generate different initial variations for more flexible matching
-        // This creates both first initial + last name and first name + last initial patterns
-        const firstInitial = saFirstName.charAt(0).toLowerCase();
-        const lastInitial = saLastName.charAt(0).toLowerCase();
-        const initialVariations = [
-          `${firstInitial} ${saLastName}`.toLowerCase(), // First initial + last name
-          `${saFirstName} ${lastInitial}`.toLowerCase(), // First name + last initial
-          `${firstInitial}${saLastName}`.toLowerCase(), // First initial attached to last name
-          `${saFirstName}${lastInitial}`.toLowerCase(), // First name with attached last initial
-        ];
 
         // If it's a company, do company matching
         if (nameInfo.isCompany) {
@@ -1134,13 +1118,12 @@ function CsvFormatter() {
         // For comma-separated names (Last,First format)
         if (nameInfo.lastName && nameInfo.firstName) {
           // 1. Exact match on both first and last - highest confidence
-          const exactMatch =
-            saPrimaryFirst === nameInfo.firstName.toLowerCase() &&
-            (saPrimaryLast === nameInfo.lastName.toLowerCase() ||
-              saActualLast === nameInfo.lastName.toLowerCase());
+          const exactFirstMatch = saPrimaryFirst === nameInfo.firstName.toLowerCase();
+          const exactLastMatch = 
+            saPrimaryLast === nameInfo.lastName.toLowerCase() ||
+            saActualLast === nameInfo.lastName.toLowerCase();
 
-          // If we have an exact match, return immediately - no need to try less confident methods
-          if (exactMatch) {
+          if (exactFirstMatch && exactLastMatch) {
             return {
               matched: true,
               matchType: "exact-name-match",
@@ -1148,7 +1131,7 @@ function CsvFormatter() {
             };
           }
 
-          // Simplified name match - using the simplifyName function to handle middle names/initials
+          // 2. Simplified name match - using the simplifyName function to handle middle names/initials
           const simplifiedBuyerName = simplifyName(
             `${nameInfo.firstName} ${nameInfo.lastName}`
           ).toLowerCase();
@@ -1159,12 +1142,11 @@ function CsvFormatter() {
               ? simplifiedBuyerParts[simplifiedBuyerParts.length - 1]
               : "";
 
-          // Standard simplified match
-          const simplifiedMatch =
-            simplifiedBuyerFirst === saSimplifiedFirstName &&
-            simplifiedBuyerLast === saSimplifiedLastName;
+          // BOTH simplified names must match
+          const simplifiedFirstMatch = simplifiedBuyerFirst === saSimplifiedFirstName;
+          const simplifiedLastMatch = simplifiedBuyerLast === saSimplifiedLastName;
 
-          if (simplifiedMatch) {
+          if (simplifiedFirstMatch && simplifiedLastMatch) {
             return {
               matched: true,
               matchType: "simplified-name-match",
@@ -1172,28 +1154,7 @@ function CsvFormatter() {
             };
           }
 
-          // Generate buyer initial variations
-          const buyerFirstInitial = nameInfo.firstName.charAt(0).toLowerCase();
-          const buyerLastInitial = nameInfo.lastName.charAt(0).toLowerCase();
-          const buyerInitialVariations = [
-            `${buyerFirstInitial} ${nameInfo.lastName}`.toLowerCase(), // First initial + last name
-            `${nameInfo.firstName} ${buyerLastInitial}`.toLowerCase(), // First name + last initial
-            `${buyerFirstInitial}${nameInfo.lastName}`.toLowerCase(), // First initial attached to last name
-            `${nameInfo.firstName}${buyerLastInitial}`.toLowerCase(), // First name with attached last initial
-          ];
 
-          // Check if any initial variations match
-          for (const variation of buyerInitialVariations) {
-            for (const saVariation of initialVariations) {
-              if (variation === saVariation) {
-                return {
-                  matched: true,
-                  matchType: "initial-variation-match",
-                  details: `Matched using initial variation: "${variation}" with "${saVariation}"`,
-                };
-              }
-            }
-          }
 
           // Also try direct comparison of simplified names
           if (simplifiedBuyerName === saSimplifiedName) {
@@ -1243,13 +1204,11 @@ function CsvFormatter() {
             };
           }
 
-          // NEW: First+Last core name match - ignores middle names completely
-          // This helps with cases like "Ethan Goldstein" vs "Ethan Gutmann Goldstein"
-          const coreNameMatch =
-            saBasicFirstName === nameInfo.firstName.toLowerCase() &&
-            saBasicLastName === nameInfo.lastName.toLowerCase();
+          // 3. Core name match - ignores middle names completely
+          const coreFirstMatch = saBasicFirstName === nameInfo.firstName.toLowerCase();
+          const coreLastMatch = saBasicLastName === nameInfo.lastName.toLowerCase();
 
-          if (coreNameMatch) {
+          if (coreFirstMatch && coreLastMatch) {
             return {
               matched: true,
               matchType: "core-name-match",
@@ -1257,17 +1216,14 @@ function CsvFormatter() {
             };
           }
 
-          // 2. Middle name handling in last name - for cases like "Smith" vs "Smith Jones" or "Goldstein" vs "Gutmann Goldstein"
+          // 4. Middle name handling in last name - REQUIRES EXACT FIRST NAME MATCH
           const lastNameMiddleMatch =
-            saPrimaryFirst === nameInfo.firstName.toLowerCase() && // Exact first name match required
-            saLastName
-              .toLowerCase()
-              .includes(nameInfo.lastName.toLowerCase()) &&
-            // Ensure the last name is a complete word OR at the end of the string (boundary matching)
+            exactFirstMatch && // Must have exact first name match
+            saLastName.toLowerCase().includes(nameInfo.lastName.toLowerCase()) &&
+            // Ensure the last name is a complete word OR at the end of the string
             (new RegExp(`\\b${nameInfo.lastName.toLowerCase()}\\b`).test(
               saLastName.toLowerCase()
             ) ||
-              // Also match if it's at the end of the string (e.g., "Gutmann Goldstein" should match "Goldstein")
               new RegExp(`\\b${nameInfo.lastName.toLowerCase()}$`).test(
                 saLastName.toLowerCase()
               ));
@@ -1276,16 +1232,14 @@ function CsvFormatter() {
             return {
               matched: true,
               matchType: "last-name-with-middle",
-              details: `First name exact match "${nameInfo.firstName}" and last name "${nameInfo.lastName}" found within compound last name "${saLastName}" (using improved boundary matching)`,
+              details: `First name exact match "${nameInfo.firstName}" and last name "${nameInfo.lastName}" found within compound last name "${saLastName}"`,
             };
           }
 
-          // 3. Handle first name with middle - e.g., "John" vs "John Michael"
+          // 5. Handle first name with middle - REQUIRES EXACT LAST NAME MATCH
           const firstNameMiddleMatch =
-            saLastName.toLowerCase() === nameInfo.lastName.toLowerCase() && // Exact last name match required
-            saFirstName
-              .toLowerCase()
-              .includes(nameInfo.firstName.toLowerCase()) &&
+            exactLastMatch && // Must have exact last name match
+            saFirstName.toLowerCase().includes(nameInfo.firstName.toLowerCase()) &&
             // Make sure first name is a complete word in first name with middle
             new RegExp(`\\b${nameInfo.firstName.toLowerCase()}\\b`).test(
               saFirstName.toLowerCase()
@@ -1299,9 +1253,9 @@ function CsvFormatter() {
             };
           }
 
-          // 4. Hyphenated last name handling - e.g., "Smith" vs "Smith-Jones"
+          // 6. Hyphenated last name handling - REQUIRES EXACT FIRST NAME MATCH
           const hyphenatedLastNameMatch =
-            saPrimaryFirst === nameInfo.firstName.toLowerCase() && // Exact first name match required
+            exactFirstMatch && // Must have exact first name match
             (saLastName.includes("-") || saLastName.includes(" ")) &&
             saLastName
               .toLowerCase()
@@ -1317,18 +1271,16 @@ function CsvFormatter() {
           }
         }
 
-        // Check each format for specific matching patterns - MUCH STRICTER NOW
+        // Check each format for specific matching patterns - STRICTER NOW
         for (const format of nameInfo.formats) {
           if (format.type === "standard") {
-            // Standard matching (Last, First)
+            // Standard matching (Last, First) - BOTH names must match exactly
             const lastNameMatch =
               format.lastName === saPrimaryLast ||
               format.lastName === saActualLast;
-
-            // First name matching - prefer exact matches
             const exactFirstNameMatch = format.firstName === saPrimaryFirst;
 
-            // If we have an exact match on both first and last name, return immediately
+            // BOTH must match for a positive result
             if (lastNameMatch && exactFirstNameMatch) {
               return {
                 matched: true,
@@ -1337,7 +1289,7 @@ function CsvFormatter() {
               };
             }
 
-            // NEW: First+Last core name match for standard format - ignores middle names
+            // Core name match for standard format - BOTH must match
             const coreNameMatch =
               format.firstName === saBasicFirstName &&
               format.lastName === saBasicLastName;
@@ -1350,14 +1302,13 @@ function CsvFormatter() {
               };
             }
 
-            // Middle name handling - requires exact first name match and last name must be a complete word or at the end
+            // Middle name handling - requires BOTH exact first name match AND proper last name matching
             const middleNameMatch =
               exactFirstNameMatch &&
               saLastName.toLowerCase().includes(format.lastName) &&
               (new RegExp(`\\b${format.lastName}\\b`).test(
                 saLastName.toLowerCase()
               ) ||
-                // Also match if it's at the end of the string (e.g., "Gutmann Goldstein" should match "Goldstein")
                 new RegExp(`\\b${format.lastName}$`).test(
                   saLastName.toLowerCase()
                 ));
@@ -1366,11 +1317,11 @@ function CsvFormatter() {
               return {
                 matched: true,
                 matchType: "standard-middle-name",
-                details: `Standard format with middle/compound name: exact first name "${format.firstName}" and last name "${format.lastName}" found in "${saLastName}" (using improved boundary matching)`,
+                details: `Standard format with middle/compound name: exact first name "${format.firstName}" and last name "${format.lastName}" found in "${saLastName}"`,
               };
             }
 
-            // Hyphenated or compound last name handling
+            // Hyphenated or compound last name handling - requires exact first name match
             if (
               exactFirstNameMatch &&
               (saLastName.includes("-") || saLastName.includes(" ")) &&
