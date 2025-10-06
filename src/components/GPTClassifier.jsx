@@ -10,6 +10,7 @@ const GPTClassifier = () => {
   const [results, setResults] = useState(null);
   const [logs, setLogs] = useState([]);
   const [ungroupedContacts, setUngroupedContacts] = useState([]);
+  const [personalEmailContacts, setPersonalEmailContacts] = useState([]);
   const [estimatedCost, setEstimatedCost] = useState(0);
 
   const addLog = (message) => {
@@ -96,6 +97,15 @@ const GPTClassifier = () => {
     });
   };
 
+  // Check if contact has at least one business email
+  const hasBusinessEmail = (emails) => {
+    if (emails.length === 0) return false;
+    return emails.some((email) => {
+      const domain = getEmailDomain(email);
+      return !PERSONAL_DOMAINS.includes(domain);
+    });
+  };
+
   // Test API key validity
   const testApiKey = async (key) => {
     try {
@@ -150,6 +160,7 @@ const GPTClassifier = () => {
         header: true,
         complete: (results) => {
           analyzeUngroupedContacts(results.data);
+          analyzePersonalEmailContacts(results.data);
         },
         error: (error) => {
           addLog(`❌ File parsing error: ${error.message}`);
@@ -167,8 +178,8 @@ const GPTClassifier = () => {
       // Must be ungrouped
       if (groups !== "") return false;
 
-      // Must have business email (not personal only)
-      if (hasOnlyPersonalEmails(emails)) return false;
+      // Must have at least one business email (not only personal)
+      if (!hasBusinessEmail(emails)) return false;
 
       // Must have some contact info
       const name = `${contact["First Name"] || ""} ${
@@ -182,6 +193,31 @@ const GPTClassifier = () => {
     setUngroupedContacts(ungrouped);
     setEstimatedCost(ungrouped.length * 0.001); // Rough estimate
     addLog(`Found ${ungrouped.length} ungrouped contacts with business emails`);
+  };
+
+  // Analyze ungrouped contacts with only personal emails (for Leads)
+  const analyzePersonalEmailContacts = (data) => {
+    const personalEmailContacts = data.filter((contact) => {
+      const groups = (contact["Groups"] || contact["Group"] || "").trim();
+      const emails = getAllEmails(contact);
+
+      // Must be ungrouped
+      if (groups !== "") return false;
+
+      // Must have ONLY personal emails (no business emails)
+      if (!hasOnlyPersonalEmails(emails)) return false;
+
+      // Must have some contact info
+      const name = `${contact["First Name"] || ""} ${
+        contact["Last Name"] || ""
+      }`.trim();
+      if (!name && emails.length === 0) return false;
+
+      return true;
+    });
+
+    setPersonalEmailContacts(personalEmailContacts);
+    addLog(`Found ${personalEmailContacts.length} ungrouped contacts with only personal emails (for Leads group)`);
   };
 
   // Classify contact with ChatGPT (with timeout and retry)
@@ -659,6 +695,7 @@ Respond with only one word: Agent, Vendor, or Contact`;
     setFile(null);
     setResults(null);
     setUngroupedContacts([]);
+    setPersonalEmailContacts([]);
     setEstimatedCost(0);
     setProgress(0);
     setLogs([]);
