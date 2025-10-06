@@ -516,6 +516,64 @@
   color: #6b7280;
 }
 
+/* Processing Indicator */
+.processing-indicator {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.progress-text {
+  font-weight: 600;
+  color: #0369a1;
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+}
+
+.progress-warning {
+  font-size: 0.875rem;
+  color: #dc2626;
+  margin: 0;
+  font-weight: 500;
+}
+
+.process-button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .csv-formatter-main {

@@ -23,6 +23,9 @@ function CsvFormatter() {
     downloadReady: false,
     matchedCount: 0,
     newEntriesCount: 0,
+    isProcessing: false,
+    progress: 0,
+    currentOperation: "",
   });
 
   // Helper function to parse CSV using PapaParse
@@ -544,11 +547,21 @@ function CsvFormatter() {
   };
 
   // Step 3: Process and merge data
-  const processAndMergeData = () => {
+  const processAndMergeData = async () => {
     if (!step2Data.homeAnniversaryCsv || !step2Data.streamAppCsv) {
       alert("Please upload both CSV files before processing.");
       return;
     }
+
+    // Set processing state
+    setStep3Data((prev) => ({
+      ...prev,
+      isProcessing: true,
+      progress: 0,
+      currentOperation: "Initializing processing...",
+      processedData: null,
+      downloadReady: false,
+    }));
 
     // Prepare to track changes for detailed reporting
     const changeLog = [];
@@ -561,945 +574,1371 @@ function CsvFormatter() {
     // Track unique log entries to avoid duplicate logs
     const uniqueLogEntries = new Set();
 
-    // Prepare home anniversary data (filtered CSV)
-    const haRows = step2Data.homeAnniversaryCsv.rows;
-    const haHeaders = step2Data.homeAnniversaryCsv.headers;
+    // Helper function to delay execution and allow UI updates
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    // Find relevant columns in filtered CSV
-    const haBuyerNameCol = haHeaders.find(
-      (h) =>
-        h &&
-        h.toLowerCase().includes("buyer") &&
-        h.toLowerCase().includes("name")
-    );
-    const haSellerNameCol = haHeaders.find(
-      (h) =>
-        h &&
-        h.toLowerCase().includes("seller") &&
-        h.toLowerCase().includes("name")
-    );
-    const haAddressCol = haHeaders.find((h) =>
-      h.toLowerCase().includes("address")
-    );
-    const haAnnivCol = haHeaders.find(
-      (h) =>
-        h.toLowerCase().includes("anniversary") ||
-        h.toLowerCase().includes("date")
-    );
-    const haSellingAgentCol = haHeaders.find(
-      (h) =>
-        h &&
-        h.toLowerCase().includes("selling") &&
-        h.toLowerCase().includes("agent")
-    );
-
-    if (!haBuyerNameCol || !haAnnivCol) {
-      alert(
-        "Could not find buyer name or anniversary date columns in the home anniversary CSV."
-      );
-      return;
-    }
-
-    // Prepare stream app data
-    const saRows = step2Data.streamAppCsv.rows;
-    const saHeaders = step2Data.streamAppCsv.headers;
-
-    // Find relevant columns in stream app CSV
-    const saFirstNameCol = saHeaders.find(
-      (h) => h.toLowerCase().replace(/\s/g, "") === "firstname"
-    );
-    const saLastNameCol = saHeaders.find(
-      (h) => h.toLowerCase().replace(/\s/g, "") === "lastname"
-    );
-
-    if (!saFirstNameCol || !saLastNameCol) {
-      alert(
-        "Could not find first name or last name columns in the Compass contacts CSV."
-      );
-      return;
-    }
-
-    // Check if Home Anniversary column exists, if not we'll create it
-    let saHomeAnnivCol = saHeaders.find((h) =>
-      h.toLowerCase().includes("home anniversary")
-    );
-
-    // Create a deep copy of the stream app rows to modify
-    const updatedSaRows = JSON.parse(JSON.stringify(saRows));
-
-    // If Home Anniversary column doesn't exist, add it to headers and all rows
-    if (!saHomeAnnivCol) {
-      saHomeAnnivCol = "Home Anniversary";
-      saHeaders.push(saHomeAnnivCol);
-      updatedSaRows.forEach((row) => {
-        row[saHomeAnnivCol] = "";
-      });
-    }
-
-    // Ensure 'Groups', 'Tags', and 'Notes' columns are added to headers
-    if (!saHeaders.includes("Groups")) {
-      saHeaders.push("Groups");
-    }
-    if (!saHeaders.includes("Tags")) {
-      saHeaders.push("Tags");
-    }
-    if (!saHeaders.includes("Notes")) {
-      saHeaders.push("Notes");
-    }
-
-    // Initialize Notes column for all existing rows
-    updatedSaRows.forEach((row) => {
-      if (!row["Groups"]) {
-        row["Groups"] = "";
+    // Helper function to process data in chunks
+    const processInChunks = async (items, chunkSize, processor) => {
+      const chunks = [];
+      for (let i = 0; i < items.length; i += chunkSize) {
+        chunks.push(items.slice(i, i + chunkSize));
       }
-      if (!row["Tags"]) {
-        row["Tags"] = "";
-      }
-      if (!row["Notes"]) {
-        row["Notes"] = "";
-      }
-    });
 
-    // Helper function to detect if a name is likely a company name
-    // Function to clean names for output - remove initials completely
-    const cleanNameForOutput = (name, isFirstName = true) => {
-      if (!name || typeof name !== "string") return name;
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        await processor(chunk, i, chunks.length);
 
-      // For first names, get just the first word (ignoring middle names/initials)
-      if (isFirstName) {
-        // If it contains multiple words, just take the first one
-        const parts = name.trim().split(/\s+/);
-        return parts[0];
-      }
-      // For last names, handle initials that might appear at the beginning
-      else {
-        const parts = name.trim().split(/\s+/);
+        // Update progress
+        const progress = Math.round(((i + 1) / chunks.length) * 100);
+        setStep3Data((prev) => ({
+          ...prev,
+          progress: progress,
+          currentOperation: `Processing chunk ${i + 1} of ${chunks.length}...`,
+        }));
 
-        // If there's only one part, just return it
-        if (parts.length <= 1) return name;
-
-        // Check if the first part is an initial (single letter possibly with period)
-        if (
-          parts[0].length === 1 ||
-          (parts[0].length === 2 && parts[0].endsWith("."))
-        ) {
-          // Remove the initial and return the rest
-          return parts.slice(1).join(" ");
-        }
-
-        return name;
+        // Allow UI to update by yielding control
+        await delay(10);
       }
     };
 
-    const isLikelyCompany = (name) => {
-      // List of business identifiers/suffixes
-      const businessTerms = [
-        "llc",
-        "inc",
-        "ltd",
-        "corp",
-        "corporation",
-        "holdings",
-        "enterprises",
-        "group",
-        "associates",
-        "partners",
-        "properties",
-        "realty",
-        "management",
-        "services",
-        "solutions",
-        "trust",
-        "investments",
-        "fund",
-        "capital",
-      ];
+    try {
+      // Prepare home anniversary data (filtered CSV)
+      const haRows = step2Data.homeAnniversaryCsv.rows;
+      const haHeaders = step2Data.homeAnniversaryCsv.headers;
 
-      const lowerName = name.toLowerCase();
+      // Find relevant columns in filtered CSV
+      const haBuyerNameCol = haHeaders.find(
+        (h) =>
+          h &&
+          h.toLowerCase().includes("buyer") &&
+          h.toLowerCase().includes("name")
+      );
+      const haSellerNameCol = haHeaders.find(
+        (h) =>
+          h &&
+          h.toLowerCase().includes("seller") &&
+          h.toLowerCase().includes("name")
+      );
+      const haAddressCol = haHeaders.find((h) =>
+        h.toLowerCase().includes("address")
+      );
+      const haAnnivCol = haHeaders.find(
+        (h) =>
+          h.toLowerCase().includes("anniversary") ||
+          h.toLowerCase().includes("date")
+      );
+      const haSellingAgentCol = haHeaders.find(
+        (h) =>
+          h &&
+          h.toLowerCase().includes("selling") &&
+          h.toLowerCase().includes("agent")
+      );
 
-      // Check for business identifiers
-      for (const term of businessTerms) {
-        if (lowerName.includes(term)) {
-          return true;
-        }
+      if (!haBuyerNameCol || !haAnnivCol) {
+        alert(
+          "Could not find buyer name or anniversary date columns in the home anniversary CSV."
+        );
+        return;
       }
 
-      // Check for multiple words without comma (likely a company name)
-      if (!name.includes(",") && name.split(/\s+/).length > 2) {
-        return true;
+      // Prepare stream app data
+      const saRows = step2Data.streamAppCsv.rows;
+      const saHeaders = step2Data.streamAppCsv.headers;
+
+      // Find relevant columns in stream app CSV
+      const saFirstNameCol = saHeaders.find(
+        (h) => h.toLowerCase().replace(/\s/g, "") === "firstname"
+      );
+      const saLastNameCol = saHeaders.find(
+        (h) => h.toLowerCase().replace(/\s/g, "") === "lastname"
+      );
+
+      if (!saFirstNameCol || !saLastNameCol) {
+        alert(
+          "Could not find first name or last name columns in the Compass contacts CSV."
+        );
+        return;
       }
 
-      return false;
-    };
+      // Check if Home Anniversary column exists, if not we'll create it
+      let saHomeAnnivCol = saHeaders.find((h) =>
+        h.toLowerCase().includes("home anniversary")
+      );
 
-    // Pre-process buyer name to avoid splitting trusts and businesses incorrectly
-    // Also handle pipe separators (|) that might be in the data
-    const preprocessBuyerName = (buyerNameRaw) => {
-      if (!buyerNameRaw) return [];
+      // Create a deep copy of the stream app rows to modify
+      const updatedSaRows = JSON.parse(JSON.stringify(saRows));
 
-      // Trim extra whitespace and normalize
-      const normalizedName = buyerNameRaw.trim().replace(/\s+/g, " ");
-
-      // If it's a likely business/trust that contains "&", keep it as one entity
-      if (isLikelyCompany(normalizedName) && normalizedName.includes("&")) {
-        return [normalizedName];
-      }
-
-      // First split by pipe (|) if present, which takes precedence over ampersands
-      if (normalizedName.includes("|")) {
-        return normalizedName.split(/\s*\|\s*/).flatMap((name) => {
-          // Then split each pipe-separated part by "&" if needed
-          if (name.includes("&") && !isLikelyCompany(name)) {
-            return name.split(/\s*&\s*/);
-          }
-          return [name.trim()];
+      // If Home Anniversary column doesn't exist, add it to headers and all rows
+      if (!saHomeAnnivCol) {
+        saHomeAnnivCol = "Home Anniversary";
+        saHeaders.push(saHomeAnnivCol);
+        updatedSaRows.forEach((row) => {
+          row[saHomeAnnivCol] = "";
         });
       }
 
-      // Split by "&" as normal
-      return normalizedName.split(/\s*&\s*/).map((name) => name.trim());
-    };
-
-    // Process each row in home anniversaries CSV
-    haRows.forEach((haRow, rowIndex) => {
-      const buyerNameRaw = haRow[haBuyerNameCol];
-      const sellerNameRaw = haSellerNameCol ? haRow[haSellerNameCol] : null;
-      const anniversaryDate = haRow[haAnnivCol] || "";
-      const address = haRow[haAddressCol] || "";
-      const sellingAgent = haRow[haSellingAgentCol] || "";
-
-      // Get the main agent name we saved in step 2
-      const mainAgentName = step2Data.mainSellingAgent.toLowerCase();
-
-      // Determine if this is a buyer or seller based on whether selling agent matches main agent
-      const isBuyer =
-        sellingAgent.trim() !== "" &&
-        sellingAgent.toLowerCase().includes(mainAgentName);
-
-      // Choose which name to process based on agent matching
-      const nameToProcess = isBuyer ? buyerNameRaw : sellerNameRaw;
-
-      if (!nameToProcess || !anniversaryDate) return; // Skip if no appropriate name or anniversary date
-
-      // Parse names - they may have multiple people separated by &
-      // Format: "Last Name, First Name & Last Name, First Name" or "Company Name & Company Name"
-      const contactNames = preprocessBuyerName(nameToProcess);
-
-      if (isBuyer) {
-        totalBuyersProcessed += contactNames.length;
-      } else {
-        // Count as seller
-        totalSellersProcessed += contactNames.length;
+      // Ensure 'Groups', 'Tags', and 'Notes' columns are added to headers
+      if (!saHeaders.includes("Groups")) {
+        saHeaders.push("Groups");
+      }
+      if (!saHeaders.includes("Tags")) {
+        saHeaders.push("Tags");
+      }
+      if (!saHeaders.includes("Notes")) {
+        saHeaders.push("Notes");
       }
 
-      // Helper function to simplify names by removing middle names/initials
-      // This more advanced version detects and removes initials whether they're
-      // attached to first or last name
-      const simplifyName = (name) => {
-        if (!name) return "";
-
-        // First normalize the name - remove extra spaces, trim
-        const normalizedName = name.trim().replace(/\s+/g, " ");
-
-        // Function to identify if a part is likely an initial
-        const isLikelyInitial = (part) => {
-          return (
-            part.length === 1 || // Single character
-            (part.length === 2 && part.endsWith(".")) || // Single character with period
-            (part.length <= 3 && part.includes("."))
-          ); // Short abbreviation with period
-        };
-
-        // Function to extract the core name (non-initial parts)
-        const extractCoreName = (nameParts) => {
-          // If we have 2 or fewer parts, return as is
-          if (nameParts.length <= 2) return nameParts;
-
-          // For more complex names, try to identify initials and remove them
-          const firstPart = nameParts[0];
-          const lastPart = nameParts[nameParts.length - 1];
-
-          // Find non-initial parts for the main name
-          const nonInitialParts = nameParts.filter(
-            (part) => !isLikelyInitial(part)
-          );
-
-          // If we have at least 2 non-initial parts, use first and last of those
-          if (nonInitialParts.length >= 2) {
-            return [
-              nonInitialParts[0],
-              nonInitialParts[nonInitialParts.length - 1],
-            ];
-          }
-
-          // Otherwise, just use first and last parts regardless of initials
-          return [firstPart, lastPart];
-        };
-
-        // Check if it's a comma-separated name (Last, First)
-        if (normalizedName.includes(",")) {
-          const parts = normalizedName.split(",").map((part) => part.trim());
-
-          if (parts.length < 2 || !parts[1]) {
-            return parts[0]; // Just return the last name if that's all we have
-          }
-
-          // Split the last name and first name into parts
-          const lastNameParts = parts[0].split(" ");
-          const firstNameParts = parts[1].split(" ");
-
-          // Extract core name parts
-          const coreLastName = extractCoreName(lastNameParts);
-          const coreFirstName = extractCoreName(firstNameParts);
-
-          // Use the main parts (first of first name, last of last name if multiple)
-          return `${coreLastName[0]}, ${coreFirstName[0]}`;
+      // Initialize Notes column for all existing rows
+      updatedSaRows.forEach((row) => {
+        if (!row["Groups"]) {
+          row["Groups"] = "";
         }
-        // Otherwise assume it's First Last format
+        if (!row["Tags"]) {
+          row["Tags"] = "";
+        }
+        if (!row["Notes"]) {
+          row["Notes"] = "";
+        }
+      });
+
+      // Helper function to detect if a name is likely a company name
+      // Function to clean names for output - remove initials completely
+      const cleanNameForOutput = (name, isFirstName = true) => {
+        if (!name || typeof name !== "string") return name;
+
+        // For first names, get just the first word (ignoring middle names/initials)
+        if (isFirstName) {
+          // If it contains multiple words, just take the first one
+          const parts = name.trim().split(/\s+/);
+          return parts[0];
+        }
+        // For last names, handle initials that might appear at the beginning
         else {
-          const parts = normalizedName.split(" ");
+          const parts = name.trim().split(/\s+/);
 
-          // Extract core name parts
-          const coreParts = extractCoreName(parts);
+          // If there's only one part, just return it
+          if (parts.length <= 1) return name;
 
-          // Return first and last as core name
-          return coreParts.join(" ");
+          // Check if the first part is an initial (single letter possibly with period)
+          if (
+            parts[0].length === 1 ||
+            (parts[0].length === 2 && parts[0].endsWith("."))
+          ) {
+            // Remove the initial and return the rest
+            return parts.slice(1).join(" ");
+          }
+
+          return name;
         }
       };
 
-      // Helper function to generate different name formats to try for matching
-      const generateNameMatchFormats = (buyerName) => {
-        const formats = [];
+      const isLikelyCompany = (name) => {
+        // List of business identifiers/suffixes
+        const businessTerms = [
+          "llc",
+          "inc",
+          "ltd",
+          "corp",
+          "corporation",
+          "holdings",
+          "enterprises",
+          "group",
+          "associates",
+          "partners",
+          "properties",
+          "realty",
+          "management",
+          "services",
+          "solutions",
+          "trust",
+          "investments",
+          "fund",
+          "capital",
+        ];
 
-        // Handle empty or invalid input
-        if (!buyerName || typeof buyerName !== "string") {
-          return {
-            isCompany: false,
-            singleName: "unknown",
-            formats: [],
-          };
-        }
+        const lowerName = name.toLowerCase();
 
-        // Check if it's likely a company (no need for name variations)
-        if (isLikelyCompany(buyerName)) {
-          return {
-            isCompany: true,
-            companyName: buyerName.trim(),
-            formats: [],
-          };
-        }
-
-        // If name has comma "Last, First" format
-        if (buyerName.includes(",")) {
-          const [lastName, firstName] = buyerName
-            .split(",")
-            .map((part) => part.trim());
-
-          // Handle potential middle names in both first and last name parts
-          let primaryFirstName = firstName;
-          let firstNameMiddle = "";
-
-          if (firstName.includes(" ")) {
-            const firstNameParts = firstName.split(/\s+/);
-            primaryFirstName = firstNameParts[0];
-            firstNameMiddle = firstNameParts.slice(1).join(" ");
-          }
-
-          let primaryLastName = lastName;
-          let lastNameMiddle = "";
-          let lastWordOfLastName = lastName;
-
-          if (lastName.includes(" ")) {
-            const lastNameParts = lastName.split(/\s+/);
-            primaryLastName = lastNameParts[0];
-            lastNameMiddle = lastNameParts.slice(1, -1).join(" ");
-            lastWordOfLastName = lastNameParts[lastNameParts.length - 1];
-          }
-
-          // Combine middle parts
-          const combinedMiddle = [lastNameMiddle, firstNameMiddle]
-            .filter(Boolean)
-            .join(" ");
-
-          return {
-            isCompany: false,
-            firstName: primaryFirstName,
-            lastName: lastWordOfLastName, // Use the last word as the core last name for matching
-            originalLastName: lastName, // Keep original for reference
-            combinedMiddle: combinedMiddle,
-            fullLastFirst: `${lastName}, ${firstName}`,
-            fullFirstLast: `${firstName} ${lastName}`,
-            formats: [
-              // Standard format
-              {
-                type: "standard",
-                firstName: primaryFirstName.toLowerCase(),
-                lastName: primaryLastName.toLowerCase(),
-              },
-              // Reversed format (in case data was entered in wrong order)
-              {
-                type: "reversed",
-                firstName: primaryLastName.toLowerCase(),
-                lastName: primaryFirstName.toLowerCase(),
-              },
-              // Full name format (in case searching across fields)
-              {
-                type: "fullname",
-                fullName: `${firstName} ${lastName}`.toLowerCase(),
-              },
-            ],
-          };
-        }
-        // If name doesn't have comma, try to guess the format
-        else {
-          // First check for pipe separator and handle pipe-separated names
-          if (buyerName.includes("|")) {
-            // Just take the first part before the pipe for matching
-            const firstPart = buyerName.split("|")[0].trim();
-            return generateNameMatchFormats(firstPart);
-          }
-
-          const parts = buyerName.trim().split(/\s+/);
-
-          if (parts.length >= 2) {
-            // Assume "First Last" format
-            const lastName = parts.pop(); // Last word is the last name
-            const firstPart = parts[0]; // First word is the primary first name
-            const middleParts = parts.slice(1).join(" "); // Everything else is middle
-            const firstName = parts.join(" "); // Keep the whole first part for compatibility
-
-            return {
-              isCompany: false,
-              firstName: firstPart, // Just the first word as core first name
-              lastName: lastName, // Just the last word as core last name
-              originalFirstName: firstName, // Keep the full first part with middle names
-              fullFirstLast: buyerName.trim(),
-              formats: [
-                // Standard format (assuming First Last)
-                {
-                  type: "standard",
-                  firstName: firstPart.toLowerCase(), // Use just the first word of the first name
-                  lastName: lastName.toLowerCase(),
-                },
-                // Reversed format (in case it's actually Last First)
-                {
-                  type: "reversed",
-                  firstName: lastName.toLowerCase(),
-                  lastName: firstPart.toLowerCase(), // Use just the first word of the first name
-                },
-
-              ],
-            };
-          } else {
-            // Single word name - can't really determine format
-            return {
-              isCompany: false,
-              singleName: buyerName.trim(),
-              formats: [
-                { type: "single", name: buyerName.trim().toLowerCase() },
-              ],
-            };
+        // Check for business identifiers
+        for (const term of businessTerms) {
+          if (lowerName.includes(term)) {
+            return true;
           }
         }
+
+        // Check for multiple words without comma (likely a company name)
+        if (!name.includes(",") && name.split(/\s+/).length > 2) {
+          return true;
+        }
+
+        return false;
       };
 
-      // Enhanced matching function to check if a contact matches the buyer
-      const isNameMatch = (
-        nameInfo,
-        saFirstName,
-        saLastName,
-        saCompany = ""
-      ) => {
-        saFirstName = (saFirstName || "").trim().toLowerCase();
-        saLastName = (saLastName || "").trim().toLowerCase();
-        saCompany = (saCompany || "").trim().toLowerCase();
+      // Pre-process buyer name to avoid splitting trusts and businesses incorrectly
+      // Also handle pipe separators (|) that might be in the data
+      const preprocessBuyerName = (buyerNameRaw) => {
+        if (!buyerNameRaw) return [];
 
-        // Skip matching if either first or last name is missing or too short
-        if (!saFirstName || !saLastName || saFirstName.length < 2 || saLastName.length < 2) {
-          return {
-            matched: false,
-            matchType: "insufficient-name-data",
-            details: "Skipped due to missing or insufficient name data"
-          };
+        // Trim extra whitespace and normalize
+        const normalizedName = buyerNameRaw.trim().replace(/\s+/g, " ");
+
+        // If it's a likely business/trust that contains "&", keep it as one entity
+        if (isLikelyCompany(normalizedName) && normalizedName.includes("&")) {
+          return [normalizedName];
         }
 
-        // Create simplified versions of the names (without middle names/initials)
-        const saFullName = `${saFirstName} ${saLastName}`;
-        const saSimplifiedName = simplifyName(saFullName).toLowerCase();
-        const saSimplifiedParts = saSimplifiedName.split(/\s+/);
-        const saSimplifiedFirstName = saSimplifiedParts[0];
-        const saSimplifiedLastName =
-          saSimplifiedParts.length > 1
-            ? saSimplifiedParts[saSimplifiedParts.length - 1]
-            : "";
-
-        // If it's a company, do company matching
-        if (nameInfo.isCompany) {
-          const companyName = nameInfo.companyName.toLowerCase();
-
-          // Normalized versions for company name matching
-          const normalizedCompanyName = companyName.replace(/[^\w\s]/g, "");
-          const normalizedFullName = `${saFirstName} ${saLastName}`.replace(
-            /[^\w\s]/g,
-            ""
-          );
-          const normalizedSaCompany = saCompany.replace(/[^\w\s]/g, "");
-
-          // Check for strict boundary match - MUCH more precise
-          const boundaryMatch =
-            new RegExp(`\\b${companyName}\\b`).test(
-              `${saFirstName} ${saLastName}`
-            ) ||
-            (saCompany && new RegExp(`\\b${companyName}\\b`).test(saCompany));
-
-          // Only return true for exact boundary matches - prevents over-matching
-          return {
-            matched: boundaryMatch,
-            matchType: boundaryMatch ? "company-boundary-match" : null,
-            details: boundaryMatch
-              ? `Company "${companyName}" found in "${saFirstName} ${saLastName}${
-                  saCompany ? " or " + saCompany : ""
-                }"`
-              : null,
-          };
+        // First split by pipe (|) if present, which takes precedence over ampersands
+        if (normalizedName.includes("|")) {
+          return normalizedName.split(/\s*\|\s*/).flatMap((name) => {
+            // Then split each pipe-separated part by "&" if needed
+            if (name.includes("&") && !isLikelyCompany(name)) {
+              return name.split(/\s*&\s*/);
+            }
+            return [name.trim()];
+          });
         }
 
-        // If it's a single name (without comma or multiple parts)
-        if (nameInfo.singleName) {
-          // Single names need to match exactly to prevent over-matching
-          const singleName = nameInfo.singleName.toLowerCase();
-          const firstNameMatch = saFirstName === singleName;
-          const lastNameMatch = saLastName === singleName;
+        // Split by "&" as normal
+        return normalizedName.split(/\s*&\s*/).map((name) => name.trim());
+      };
 
-          return {
-            matched: firstNameMatch || lastNameMatch,
-            matchType: firstNameMatch
-              ? "single-name-first-match"
-              : lastNameMatch
-              ? "single-name-last-match"
-              : null,
-            details: firstNameMatch
-              ? `Single name "${singleName}" matched first name`
-              : lastNameMatch
-              ? `Single name "${singleName}" matched last name`
-              : null,
-          };
-        }
+      // Process each row in home anniversaries CSV using chunked processing
+      const CHUNK_SIZE = 50; // Process 50 rows at a time
 
-        // Parse contact's name parts
-        const saFirstParts = saFirstName.split(/\s+/);
-        const saPrimaryFirst = saFirstParts[0]; // First word of first name
-        const saFirstMiddle =
-          saFirstParts.length > 1 ? saFirstParts.slice(1).join(" ") : "";
+      await processInChunks(
+        haRows,
+        CHUNK_SIZE,
+        async (chunk, chunkIndex, totalChunks) => {
+          setStep3Data((prev) => ({
+            ...prev,
+            currentOperation: `Processing home anniversary data (chunk ${
+              chunkIndex + 1
+            }/${totalChunks})...`,
+          }));
 
-        const saLastParts = saLastName.split(/\s+/);
-        const saPrimaryLast = saLastParts[0]; // First word of last name
-        const saLastMiddle =
-          saLastParts.length > 1 ? saLastParts.slice(1, -1).join(" ") : "";
-        const saActualLast = saLastParts[saLastParts.length - 1]; // Last word of last name
+          chunk.forEach((haRow, rowIndex) => {
+            const buyerNameRaw = haRow[haBuyerNameCol];
+            const sellerNameRaw = haSellerNameCol
+              ? haRow[haSellerNameCol]
+              : null;
+            const anniversaryDate = haRow[haAnnivCol] || "";
+            const address = haRow[haAddressCol] || "";
+            const sellingAgent = haRow[haSellingAgentCol] || "";
 
-        // NEW: Extract just the primary first and last names for more flexible matching
-        // This helps with middle name variations like "Ethan Goldstein" vs "Ethan Gutmann Goldstein"
-        const saBasicFirstName = saPrimaryFirst.toLowerCase();
-        const saBasicLastName = saActualLast.toLowerCase();
+            // Get the main agent name we saved in step 2
+            const mainAgentName = step2Data.mainSellingAgent.toLowerCase();
 
-        // Combine middle parts
-        const saCombinedMiddle = [saFirstMiddle, saLastMiddle]
-          .filter(Boolean)
-          .join(" ");
+            // Determine if this is a buyer or seller based on whether selling agent matches main agent
+            const isBuyer =
+              sellingAgent.trim() !== "" &&
+              sellingAgent.toLowerCase().includes(mainAgentName);
 
-        // Enhanced name matching logic - STRICT with proper middle name handling
-        console.log(
-          `Attempting to match: ${JSON.stringify(
-            nameInfo
-          )} with ${saFirstName} ${saLastName} (Core: ${saBasicFirstName} ${saBasicLastName})`
-        );
+            // Choose which name to process based on agent matching
+            const nameToProcess = isBuyer ? buyerNameRaw : sellerNameRaw;
 
-        // For comma-separated names (Last,First format)
-        if (nameInfo.lastName && nameInfo.firstName) {
-          // 1. Exact match on both first and last - highest confidence
-          const exactFirstMatch = saPrimaryFirst === nameInfo.firstName.toLowerCase();
-          const exactLastMatch = 
-            saPrimaryLast === nameInfo.lastName.toLowerCase() ||
-            saActualLast === nameInfo.lastName.toLowerCase();
+            if (!nameToProcess || !anniversaryDate) return; // Skip if no appropriate name or anniversary date
 
-          if (exactFirstMatch && exactLastMatch) {
-            return {
-              matched: true,
-              matchType: "exact-name-match",
-              details: `Exact match: "${nameInfo.firstName} ${nameInfo.lastName}" with "${saPrimaryFirst} ${saLastName}"`,
-            };
-          }
+            // Parse names - they may have multiple people separated by &
+            // Format: "Last Name, First Name & Last Name, First Name" or "Company Name & Company Name"
+            const contactNames = preprocessBuyerName(nameToProcess);
 
-          // 2. Simplified name match - using the simplifyName function to handle middle names/initials
-          const simplifiedBuyerName = simplifyName(
-            `${nameInfo.firstName} ${nameInfo.lastName}`
-          ).toLowerCase();
-          const simplifiedBuyerParts = simplifiedBuyerName.split(/\s+/);
-          const simplifiedBuyerFirst = simplifiedBuyerParts[0];
-          const simplifiedBuyerLast =
-            simplifiedBuyerParts.length > 1
-              ? simplifiedBuyerParts[simplifiedBuyerParts.length - 1]
-              : "";
-
-          // BOTH simplified names must match
-          const simplifiedFirstMatch = simplifiedBuyerFirst === saSimplifiedFirstName;
-          const simplifiedLastMatch = simplifiedBuyerLast === saSimplifiedLastName;
-
-          if (simplifiedFirstMatch && simplifiedLastMatch) {
-            return {
-              matched: true,
-              matchType: "simplified-name-match",
-              details: `Simplified name match (ignoring middle names/initials): "${simplifiedBuyerFirst} ${simplifiedBuyerLast}" matches "${saSimplifiedFirstName} ${saSimplifiedLastName}"`,
-            };
-          }
-
-
-
-          // Also try direct comparison of simplified names
-          if (simplifiedBuyerName === saSimplifiedName) {
-            return {
-              matched: true,
-              matchType: "direct-simplified-match",
-              details: `Direct simplified name match: "${simplifiedBuyerName}" with "${saSimplifiedName}"`,
-            };
-          }
-
-          // Handle special case where an initial is part of the first or last name
-          // For example: "John A Smith" vs "John Smith" or "Smith J" vs "Smith"
-          const firstNameWithInitial = saFirstName.match(
-            /^(\w+)\s+[A-Za-z]\.?$/i
-          );
-          const lastNameWithInitial = saLastName.match(
-            /^[A-Za-z]\.?\s+(\w+)$/i
-          );
-
-          let initialMatch = false;
-          let initialMatchDetails = null;
-
-          if (
-            firstNameWithInitial &&
-            firstNameWithInitial[1].toLowerCase() ===
-              nameInfo.firstName.toLowerCase()
-          ) {
-            initialMatch = true;
-            initialMatchDetails = `Matched name with initial in first name: "${firstNameWithInitial[1]}" extracted from "${saFirstName}" matched with "${nameInfo.firstName}"`;
-          }
-
-          if (
-            !initialMatch &&
-            lastNameWithInitial &&
-            lastNameWithInitial[1].toLowerCase() ===
-              nameInfo.lastName.toLowerCase()
-          ) {
-            initialMatch = true;
-            initialMatchDetails = `Matched name with initial in last name: "${lastNameWithInitial[1]}" extracted from "${saLastName}" matched with "${nameInfo.lastName}"`;
-          }
-
-          if (initialMatch) {
-            return {
-              matched: true,
-              matchType: "name-with-initial-match",
-              details: initialMatchDetails,
-            };
-          }
-
-          // 3. Core name match - ignores middle names completely
-          const coreFirstMatch = saBasicFirstName === nameInfo.firstName.toLowerCase();
-          const coreLastMatch = saBasicLastName === nameInfo.lastName.toLowerCase();
-
-          if (coreFirstMatch && coreLastMatch) {
-            return {
-              matched: true,
-              matchType: "core-name-match",
-              details: `Core name match ignoring middle names: "${nameInfo.firstName} ${nameInfo.lastName}" matches "${saBasicFirstName} ${saBasicLastName}" in "${saFirstName} ${saLastName}"`,
-            };
-          }
-
-          // 4. Middle name handling in last name - REQUIRES EXACT FIRST NAME MATCH
-          const lastNameMiddleMatch =
-            exactFirstMatch && // Must have exact first name match
-            saLastName.toLowerCase().includes(nameInfo.lastName.toLowerCase()) &&
-            // Ensure the last name is a complete word OR at the end of the string
-            (new RegExp(`\\b${nameInfo.lastName.toLowerCase()}\\b`).test(
-              saLastName.toLowerCase()
-            ) ||
-              new RegExp(`\\b${nameInfo.lastName.toLowerCase()}$`).test(
-                saLastName.toLowerCase()
-              ));
-
-          if (lastNameMiddleMatch) {
-            return {
-              matched: true,
-              matchType: "last-name-with-middle",
-              details: `First name exact match "${nameInfo.firstName}" and last name "${nameInfo.lastName}" found within compound last name "${saLastName}"`,
-            };
-          }
-
-          // 5. Handle first name with middle - REQUIRES EXACT LAST NAME MATCH
-          const firstNameMiddleMatch =
-            exactLastMatch && // Must have exact last name match
-            saFirstName.toLowerCase().includes(nameInfo.firstName.toLowerCase()) &&
-            // Make sure first name is a complete word in first name with middle
-            new RegExp(`\\b${nameInfo.firstName.toLowerCase()}\\b`).test(
-              saFirstName.toLowerCase()
-            );
-
-          if (firstNameMiddleMatch) {
-            return {
-              matched: true,
-              matchType: "first-name-with-middle",
-              details: `Last name exact match "${nameInfo.lastName}" and first name "${nameInfo.firstName}" found within "${saFirstName}"`,
-            };
-          }
-
-          // 6. Hyphenated last name handling - REQUIRES EXACT FIRST NAME MATCH
-          const hyphenatedLastNameMatch =
-            exactFirstMatch && // Must have exact first name match
-            (saLastName.includes("-") || saLastName.includes(" ")) &&
-            saLastName
-              .toLowerCase()
-              .split(/[-\s]/)
-              .includes(nameInfo.lastName.toLowerCase());
-
-          if (hyphenatedLastNameMatch) {
-            return {
-              matched: true,
-              matchType: "hyphenated-last-name",
-              details: `First name exact match "${nameInfo.firstName}" and last name "${nameInfo.lastName}" found as part of hyphenated/compound last name "${saLastName}"`,
-            };
-          }
-        }
-
-        // Check each format for specific matching patterns - STRICTER NOW
-        for (const format of nameInfo.formats) {
-          if (format.type === "standard") {
-            // Standard matching (Last, First) - BOTH names must match exactly
-            const lastNameMatch =
-              format.lastName === saPrimaryLast ||
-              format.lastName === saActualLast;
-            const exactFirstNameMatch = format.firstName === saPrimaryFirst;
-
-            // BOTH must match for a positive result
-            if (lastNameMatch && exactFirstNameMatch) {
-              return {
-                matched: true,
-                matchType: "standard-exact-match",
-                details: `Standard format exact match: "${format.firstName} ${format.lastName}" with "${saPrimaryFirst} ${saLastName}"`,
-              };
+            if (isBuyer) {
+              totalBuyersProcessed += contactNames.length;
+            } else {
+              // Count as seller
+              totalSellersProcessed += contactNames.length;
             }
 
-            // Core name match for standard format - BOTH must match
-            const coreNameMatch =
-              format.firstName === saBasicFirstName &&
-              format.lastName === saBasicLastName;
+            // Helper function to simplify names by removing middle names/initials
+            // This more advanced version detects and removes initials whether they're
+            // attached to first or last name
+            const simplifyName = (name) => {
+              if (!name) return "";
 
-            if (coreNameMatch) {
-              return {
-                matched: true,
-                matchType: "standard-core-match",
-                details: `Standard format core name match (ignoring middle names): "${format.firstName} ${format.lastName}" matches "${saBasicFirstName} ${saBasicLastName}" in "${saFirstName} ${saLastName}"`,
+              // First normalize the name - remove extra spaces, trim
+              const normalizedName = name.trim().replace(/\s+/g, " ");
+
+              // Function to identify if a part is likely an initial
+              const isLikelyInitial = (part) => {
+                return (
+                  part.length === 1 || // Single character
+                  (part.length === 2 && part.endsWith(".")) || // Single character with period
+                  (part.length <= 3 && part.includes("."))
+                ); // Short abbreviation with period
               };
-            }
 
-            // Middle name handling - requires BOTH exact first name match AND proper last name matching
-            const middleNameMatch =
-              exactFirstNameMatch &&
-              saLastName.toLowerCase().includes(format.lastName) &&
-              (new RegExp(`\\b${format.lastName}\\b`).test(
-                saLastName.toLowerCase()
-              ) ||
-                new RegExp(`\\b${format.lastName}$`).test(
-                  saLastName.toLowerCase()
-                ));
+              // Function to extract the core name (non-initial parts)
+              const extractCoreName = (nameParts) => {
+                // If we have 2 or fewer parts, return as is
+                if (nameParts.length <= 2) return nameParts;
 
-            if (middleNameMatch) {
-              return {
-                matched: true,
-                matchType: "standard-middle-name",
-                details: `Standard format with middle/compound name: exact first name "${format.firstName}" and last name "${format.lastName}" found in "${saLastName}"`,
+                // For more complex names, try to identify initials and remove them
+                const firstPart = nameParts[0];
+                const lastPart = nameParts[nameParts.length - 1];
+
+                // Find non-initial parts for the main name
+                const nonInitialParts = nameParts.filter(
+                  (part) => !isLikelyInitial(part)
+                );
+
+                // If we have at least 2 non-initial parts, use first and last of those
+                if (nonInitialParts.length >= 2) {
+                  return [
+                    nonInitialParts[0],
+                    nonInitialParts[nonInitialParts.length - 1],
+                  ];
+                }
+
+                // Otherwise, just use first and last parts regardless of initials
+                return [firstPart, lastPart];
               };
-            }
 
-            // Hyphenated or compound last name handling - requires exact first name match
-            if (
-              exactFirstNameMatch &&
-              (saLastName.includes("-") || saLastName.includes(" ")) &&
-              saLastName.toLowerCase().split(/[-\s]/).includes(format.lastName)
-            ) {
-              return {
-                matched: true,
-                matchType: "standard-compound-last",
-                details: `Standard format with compound last name: exact first name "${format.firstName}" and last name "${format.lastName}" found in "${saLastName}"`,
-              };
-            } else if (format.type === "reversed") {
-              // Reversed matching (in case the data was entered in reversed order)
-              // Require both to match exactly to avoid false positives
-              const reversedLastMatch = format.lastName === saPrimaryFirst;
-              const reversedFirstMatch = format.firstName === saPrimaryLast;
+              // Check if it's a comma-separated name (Last, First)
+              if (normalizedName.includes(",")) {
+                const parts = normalizedName
+                  .split(",")
+                  .map((part) => part.trim());
 
-              if (reversedLastMatch && reversedFirstMatch) {
+                if (parts.length < 2 || !parts[1]) {
+                  return parts[0]; // Just return the last name if that's all we have
+                }
+
+                // Split the last name and first name into parts
+                const lastNameParts = parts[0].split(" ");
+                const firstNameParts = parts[1].split(" ");
+
+                // Extract core name parts
+                const coreLastName = extractCoreName(lastNameParts);
+                const coreFirstName = extractCoreName(firstNameParts);
+
+                // Use the main parts (first of first name, last of last name if multiple)
+                return `${coreLastName[0]}, ${coreFirstName[0]}`;
+              }
+              // Otherwise assume it's First Last format
+              else {
+                const parts = normalizedName.split(" ");
+
+                // Extract core name parts
+                const coreParts = extractCoreName(parts);
+
+                // Return first and last as core name
+                return coreParts.join(" ");
+              }
+            };
+
+            // Helper function to generate different name formats to try for matching
+            const generateNameMatchFormats = (buyerName) => {
+              const formats = [];
+
+              // Handle empty or invalid input
+              if (!buyerName || typeof buyerName !== "string") {
                 return {
-                  matched: true,
-                  matchType: "reversed-name-match",
-                  details: `Reversed name format match: "${format.firstName} ${format.lastName}" with "${saPrimaryFirst} ${saLastName}" (reversed)`,
+                  isCompany: false,
+                  singleName: "unknown",
+                  formats: [],
                 };
               }
-            }
-          } else if (format.type === "reversed") {
-            // Reversed matching (in case the data was entered in reversed order)
-            // Require both to match exactly to avoid false positives
-            const reversedLastMatch = format.lastName === saPrimaryFirst;
-            const reversedFirstMatch = format.firstName === saPrimaryLast;
 
-            if (reversedLastMatch && reversedFirstMatch) {
-              return {
-                matched: true,
-                matchType: "reversed-name-match",
-                details: `Reversed name format match: "${format.firstName} ${format.lastName}" with "${saPrimaryFirst} ${saLastName}" (reversed)`,
-              };
-            }
-          }
-          // Removed the following overly permissive matchers:
-          // - fullname (too broad, caused over-matching)
-          // - fullname-reversed (too broad)
-          // - firstletter (too many false positives)
-          // - lastname-only (too many false positives)
-        }
+              // Check if it's likely a company (no need for name variations)
+              if (isLikelyCompany(buyerName)) {
+                return {
+                  isCompany: true,
+                  companyName: buyerName.trim(),
+                  formats: [],
+                };
+              }
 
-        // No match found
-        return {
-          matched: false,
-          matchType: null,
-          details: null,
-        };
-      };
+              // If name has comma "Last, First" format
+              if (buyerName.includes(",")) {
+                const [lastName, firstName] = buyerName
+                  .split(",")
+                  .map((part) => part.trim());
 
-      contactNames.forEach((contactName) => {
-        // Skip empty contact names
-        if (!contactName.trim()) {
-          return;
-        }
+                // Handle potential middle names in both first and last name parts
+                let primaryFirstName = firstName;
+                let firstNameMiddle = "";
 
-        // Generate name matching formats
-        const nameInfo = generateNameMatchFormats(contactName);
+                if (firstName.includes(" ")) {
+                  const firstNameParts = firstName.split(/\s+/);
+                  primaryFirstName = firstNameParts[0];
+                  firstNameMiddle = firstNameParts.slice(1).join(" ");
+                }
 
-        // Handle company names
-        if (nameInfo.isCompany) {
-          const companyName = nameInfo.companyName;
+                let primaryLastName = lastName;
+                let lastNameMiddle = "";
+                let lastWordOfLastName = lastName;
 
-          // Look for company name matches in compass contacts
-          let matchFound = false;
+                if (lastName.includes(" ")) {
+                  const lastNameParts = lastName.split(/\s+/);
+                  primaryLastName = lastNameParts[0];
+                  lastNameMiddle = lastNameParts.slice(1, -1).join(" ");
+                  lastWordOfLastName = lastNameParts[lastNameParts.length - 1];
+                }
 
-          updatedSaRows.forEach((saRow, saIndex) => {
-            // Check in both First Name and Last Name fields
-            const saFirstName = (saRow[saFirstNameCol] || "").trim();
-            const saLastName = (saRow[saLastNameCol] || "").trim();
+                // Combine middle parts
+                const combinedMiddle = [lastNameMiddle, firstNameMiddle]
+                  .filter(Boolean)
+                  .join(" ");
 
-            // Also check the Company field if it exists
-            const saCompanyField = saHeaders.find((h) =>
-              h.toLowerCase().includes("company")
-            );
-            const saCompany = saCompanyField
-              ? (saRow[saCompanyField] || "").trim()
-              : "";
+                return {
+                  isCompany: false,
+                  firstName: primaryFirstName,
+                  lastName: lastWordOfLastName, // Use the last word as the core last name for matching
+                  originalLastName: lastName, // Keep original for reference
+                  combinedMiddle: combinedMiddle,
+                  fullLastFirst: `${lastName}, ${firstName}`,
+                  fullFirstLast: `${firstName} ${lastName}`,
+                  formats: [
+                    // Standard format
+                    {
+                      type: "standard",
+                      firstName: primaryFirstName.toLowerCase(),
+                      lastName: primaryLastName.toLowerCase(),
+                    },
+                    // Reversed format (in case data was entered in wrong order)
+                    {
+                      type: "reversed",
+                      firstName: primaryLastName.toLowerCase(),
+                      lastName: primaryFirstName.toLowerCase(),
+                    },
+                    // Full name format (in case searching across fields)
+                    {
+                      type: "fullname",
+                      fullName: `${firstName} ${lastName}`.toLowerCase(),
+                    },
+                  ],
+                };
+              }
+              // If name doesn't have comma, try to guess the format
+              else {
+                // First check for pipe separator and handle pipe-separated names
+                if (buyerName.includes("|")) {
+                  // Just take the first part before the pipe for matching
+                  const firstPart = buyerName.split("|")[0].trim();
+                  return generateNameMatchFormats(firstPart);
+                }
 
-            // Check if this contact matches the company name
-            const matchResult = isNameMatch(
+                const parts = buyerName.trim().split(/\s+/);
+
+                if (parts.length >= 2) {
+                  // Assume "First Last" format
+                  const lastName = parts.pop(); // Last word is the last name
+                  const firstPart = parts[0]; // First word is the primary first name
+                  const middleParts = parts.slice(1).join(" "); // Everything else is middle
+                  const firstName = parts.join(" "); // Keep the whole first part for compatibility
+
+                  return {
+                    isCompany: false,
+                    firstName: firstPart, // Just the first word as core first name
+                    lastName: lastName, // Just the last word as core last name
+                    originalFirstName: firstName, // Keep the full first part with middle names
+                    fullFirstLast: buyerName.trim(),
+                    formats: [
+                      // Standard format (assuming First Last)
+                      {
+                        type: "standard",
+                        firstName: firstPart.toLowerCase(), // Use just the first word of the first name
+                        lastName: lastName.toLowerCase(),
+                      },
+                      // Reversed format (in case it's actually Last First)
+                      {
+                        type: "reversed",
+                        firstName: lastName.toLowerCase(),
+                        lastName: firstPart.toLowerCase(), // Use just the first word of the first name
+                      },
+                    ],
+                  };
+                } else {
+                  // Single word name - can't really determine format
+                  return {
+                    isCompany: false,
+                    singleName: buyerName.trim(),
+                    formats: [
+                      { type: "single", name: buyerName.trim().toLowerCase() },
+                    ],
+                  };
+                }
+              }
+            };
+
+            // Enhanced matching function to check if a contact matches the buyer
+            const isNameMatch = (
               nameInfo,
               saFirstName,
               saLastName,
-              saCompany
-            );
-            if (matchResult.matched) {
-              matchFound = true;
+              saCompany = ""
+            ) => {
+              saFirstName = (saFirstName || "").trim().toLowerCase();
+              saLastName = (saLastName || "").trim().toLowerCase();
+              saCompany = (saCompany || "").trim().toLowerCase();
 
-              // Only count this as a match if we haven't updated this contact before
-              const contactKey = `${saFirstName}-${saLastName}`;
-              if (!uniqueContactsUpdated.has(contactKey)) {
-                uniqueContactsUpdated.add(contactKey);
-                matchedCount++;
+              // Skip matching if either first or last name is missing or too short
+              if (
+                !saFirstName ||
+                !saLastName ||
+                saFirstName.length < 2 ||
+                saLastName.length < 2
+              ) {
+                return {
+                  matched: false,
+                  matchType: "insufficient-name-data",
+                  details: "Skipped due to missing or insufficient name data",
+                };
               }
 
-              // Update the Home Anniversary field
-              const oldValue = saRow[saHomeAnnivCol] || "";
-              updatedSaRows[saIndex][saHomeAnnivCol] = anniversaryDate;
+              // Helper function to detect if a name looks like an initial
+              const looksLikeInitial = (name) => {
+                return /^[A-Za-z]\.?$/.test(name.trim()); // Single letter with optional period
+              };
 
-              // Extract year from anniversary date for the sold date tag
-              const anniversaryYear = anniversaryDate
-                ? new Date(anniversaryDate).getFullYear()
-                : "";
+              // Helper function to detect if a name contains initials
+              const containsInitials = (name) => {
+                const parts = name.trim().split(/\s+/);
+                return parts.some((part) => looksLikeInitial(part));
+              };
 
-              // Create different tags based on whether this is a buyer or seller
-              const tagsToAdd = isBuyer
-                ? [
-                    "CRM Refresh: Home Anniversary",
-                    "Buyer",
-                    anniversaryYear ? `${anniversaryYear}` : null,
-                  ].filter(Boolean) // Remove null values
-                : [
-                    "CRM REFRESH CLOSED DATE",
-                    "SELLER-CRMREFRESH",
-                    anniversaryYear ? `${anniversaryYear}` : null,
-                  ].filter(Boolean); // Remove null values
+              // Create simplified versions of the names (without middle names/initials)
+              const saFullName = `${saFirstName} ${saLastName}`;
+              const saSimplifiedName = simplifyName(saFullName).toLowerCase();
+              const saSimplifiedParts = saSimplifiedName.split(/\s+/);
+              const saSimplifiedFirstName = saSimplifiedParts[0];
+              const saSimplifiedLastName =
+                saSimplifiedParts.length > 1
+                  ? saSimplifiedParts[saSimplifiedParts.length - 1]
+                  : "";
 
-              // Update or add the Tags field with consistent formatting
-              const existingTags = updatedSaRows[saIndex]["Tags"] || "";
-              let existingTagsArray = existingTags
-                ? existingTags.split(",").map((t) => t.trim())
-                : [];
+              // If it's a company, do company matching
+              if (nameInfo.isCompany) {
+                const companyName = nameInfo.companyName.toLowerCase();
 
-              // Remove old format CRM Refresh tags to ensure consistency
-              existingTagsArray = existingTagsArray.filter(
-                (tag) =>
-                  !tag.toLowerCase().includes("crm refresh") ||
-                  !tag.toLowerCase().includes("home anniversary")
+                // Normalized versions for company name matching
+                const normalizedCompanyName = companyName.replace(
+                  /[^\w\s]/g,
+                  ""
+                );
+                const normalizedFullName =
+                  `${saFirstName} ${saLastName}`.replace(/[^\w\s]/g, "");
+                const normalizedSaCompany = saCompany.replace(/[^\w\s]/g, "");
+
+                // Check for strict boundary match - MUCH more precise
+                const boundaryMatch =
+                  new RegExp(`\\b${companyName}\\b`).test(
+                    `${saFirstName} ${saLastName}`
+                  ) ||
+                  (saCompany &&
+                    new RegExp(`\\b${companyName}\\b`).test(saCompany));
+
+                // Only return true for exact boundary matches - prevents over-matching
+                return {
+                  matched: boundaryMatch,
+                  matchType: boundaryMatch ? "company-boundary-match" : null,
+                  details: boundaryMatch
+                    ? `Company "${companyName}" found in "${saFirstName} ${saLastName}${
+                        saCompany ? " or " + saCompany : ""
+                      }"`
+                    : null,
+                };
+              }
+
+              // If it's a single name (without comma or multiple parts)
+              if (nameInfo.singleName) {
+                // Single names need to match exactly to prevent over-matching
+                const singleName = nameInfo.singleName.toLowerCase();
+                const firstNameMatch = saFirstName === singleName;
+                const lastNameMatch = saLastName === singleName;
+
+                return {
+                  matched: firstNameMatch || lastNameMatch,
+                  matchType: firstNameMatch
+                    ? "single-name-first-match"
+                    : lastNameMatch
+                    ? "single-name-last-match"
+                    : null,
+                  details: firstNameMatch
+                    ? `Single name "${singleName}" matched first name`
+                    : lastNameMatch
+                    ? `Single name "${singleName}" matched last name`
+                    : null,
+                };
+              }
+
+              // Parse contact's name parts
+              const saFirstParts = saFirstName.split(/\s+/);
+              const saPrimaryFirst = saFirstParts[0]; // First word of first name
+              const saFirstMiddle =
+                saFirstParts.length > 1 ? saFirstParts.slice(1).join(" ") : "";
+
+              const saLastParts = saLastName.split(/\s+/);
+              const saPrimaryLast = saLastParts[0]; // First word of last name
+              const saLastMiddle =
+                saLastParts.length > 1
+                  ? saLastParts.slice(1, -1).join(" ")
+                  : "";
+              const saActualLast = saLastParts[saLastParts.length - 1]; // Last word of last name
+
+              // NEW: Extract just the primary first and last names for more flexible matching
+              // This helps with middle name variations like "Ethan Goldstein" vs "Ethan Gutmann Goldstein"
+              const saBasicFirstName = saPrimaryFirst.toLowerCase();
+              const saBasicLastName = saActualLast.toLowerCase();
+
+              // Combine middle parts
+              const saCombinedMiddle = [saFirstMiddle, saLastMiddle]
+                .filter(Boolean)
+                .join(" ");
+
+              // Enhanced name matching logic - STRICT with proper middle name handling
+              console.log(
+                `Attempting to match: ${JSON.stringify(
+                  nameInfo
+                )} with ${saFirstName} ${saLastName} (Core: ${saBasicFirstName} ${saBasicLastName})`
               );
 
-              // Add new tags that don't already exist
-              const addedTags = [];
-              tagsToAdd.forEach((tag) => {
-                if (!existingTagsArray.includes(tag)) {
-                  existingTagsArray.push(tag);
-                  addedTags.push(tag);
+              // For comma-separated names (Last,First format)
+              if (nameInfo.lastName && nameInfo.firstName) {
+                // Check if one side has initials and the other doesn't - if so, be very strict
+                const buyerHasInitials =
+                  containsInitials(nameInfo.firstName) ||
+                  containsInitials(nameInfo.lastName);
+                const contactHasInitials =
+                  containsInitials(saFirstName) || containsInitials(saLastName);
+
+                // If only one side has initials, require perfect matches
+                if (buyerHasInitials !== contactHasInitials) {
+                  // Only allow exact matches when initials are involved on one side
+                  const exactFirstMatch =
+                    saPrimaryFirst === nameInfo.firstName.toLowerCase();
+                  const exactLastMatch =
+                    saPrimaryLast === nameInfo.lastName.toLowerCase() ||
+                    saActualLast === nameInfo.lastName.toLowerCase();
+
+                  if (exactFirstMatch && exactLastMatch) {
+                    return {
+                      matched: true,
+                      matchType: "exact-name-match-with-initials",
+                      details: `Exact match with initials involved: "${nameInfo.firstName} ${nameInfo.lastName}" with "${saPrimaryFirst} ${saLastName}"`,
+                    };
+                  } else {
+                    // Don't allow fuzzy matching when initials are involved
+                    return {
+                      matched: false,
+                      matchType: "initial-mismatch-rejected",
+                      details: `Rejected: One side has initials (${
+                        buyerHasInitials ? "buyer" : "contact"
+                      }) but names don't match exactly`,
+                    };
+                  }
+                }
+                // 1. Exact match on both first and last - highest confidence
+                const exactFirstMatch =
+                  saPrimaryFirst === nameInfo.firstName.toLowerCase();
+                const exactLastMatch =
+                  saPrimaryLast === nameInfo.lastName.toLowerCase() ||
+                  saActualLast === nameInfo.lastName.toLowerCase();
+
+                if (exactFirstMatch && exactLastMatch) {
+                  return {
+                    matched: true,
+                    matchType: "exact-name-match",
+                    details: `Exact match: "${nameInfo.firstName} ${nameInfo.lastName}" with "${saPrimaryFirst} ${saLastName}"`,
+                  };
+                }
+
+                // 2. Simplified name match - using the simplifyName function to handle middle names/initials
+                const simplifiedBuyerName = simplifyName(
+                  `${nameInfo.firstName} ${nameInfo.lastName}`
+                ).toLowerCase();
+                const simplifiedBuyerParts = simplifiedBuyerName.split(/\s+/);
+                const simplifiedBuyerFirst = simplifiedBuyerParts[0];
+                const simplifiedBuyerLast =
+                  simplifiedBuyerParts.length > 1
+                    ? simplifiedBuyerParts[simplifiedBuyerParts.length - 1]
+                    : "";
+
+                // BOTH simplified names must match
+                const simplifiedFirstMatch =
+                  simplifiedBuyerFirst === saSimplifiedFirstName;
+                const simplifiedLastMatch =
+                  simplifiedBuyerLast === saSimplifiedLastName;
+
+                if (simplifiedFirstMatch && simplifiedLastMatch) {
+                  return {
+                    matched: true,
+                    matchType: "simplified-name-match",
+                    details: `Simplified name match (ignoring middle names/initials): "${simplifiedBuyerFirst} ${simplifiedBuyerLast}" matches "${saSimplifiedFirstName} ${saSimplifiedLastName}"`,
+                  };
+                }
+
+                // Also try direct comparison of simplified names
+                if (simplifiedBuyerName === saSimplifiedName) {
+                  return {
+                    matched: true,
+                    matchType: "direct-simplified-match",
+                    details: `Direct simplified name match: "${simplifiedBuyerName}" with "${saSimplifiedName}"`,
+                  };
+                }
+
+                // 3. Core name match - ignores middle names completely
+                const coreFirstMatch =
+                  saBasicFirstName === nameInfo.firstName.toLowerCase();
+                const coreLastMatch =
+                  saBasicLastName === nameInfo.lastName.toLowerCase();
+
+                if (coreFirstMatch && coreLastMatch) {
+                  return {
+                    matched: true,
+                    matchType: "core-name-match",
+                    details: `Core name match ignoring middle names: "${nameInfo.firstName} ${nameInfo.lastName}" matches "${saBasicFirstName} ${saBasicLastName}" in "${saFirstName} ${saLastName}"`,
+                  };
+                }
+
+                // 4. Middle name handling in last name - REQUIRES EXACT FIRST NAME MATCH
+                const lastNameMiddleMatch =
+                  exactFirstMatch && // Must have exact first name match
+                  saLastName
+                    .toLowerCase()
+                    .includes(nameInfo.lastName.toLowerCase()) &&
+                  // Ensure the last name is a complete word OR at the end of the string
+                  (new RegExp(`\\b${nameInfo.lastName.toLowerCase()}\\b`).test(
+                    saLastName.toLowerCase()
+                  ) ||
+                    new RegExp(`\\b${nameInfo.lastName.toLowerCase()}$`).test(
+                      saLastName.toLowerCase()
+                    ));
+
+                if (lastNameMiddleMatch) {
+                  return {
+                    matched: true,
+                    matchType: "last-name-with-middle",
+                    details: `First name exact match "${nameInfo.firstName}" and last name "${nameInfo.lastName}" found within compound last name "${saLastName}"`,
+                  };
+                }
+
+                // 5. Handle first name with middle - REQUIRES EXACT LAST NAME MATCH
+                const firstNameMiddleMatch =
+                  exactLastMatch && // Must have exact last name match
+                  saFirstName
+                    .toLowerCase()
+                    .includes(nameInfo.firstName.toLowerCase()) &&
+                  // Make sure first name is a complete word in first name with middle
+                  new RegExp(`\\b${nameInfo.firstName.toLowerCase()}\\b`).test(
+                    saFirstName.toLowerCase()
+                  );
+
+                if (firstNameMiddleMatch) {
+                  return {
+                    matched: true,
+                    matchType: "first-name-with-middle",
+                    details: `Last name exact match "${nameInfo.lastName}" and first name "${nameInfo.firstName}" found within "${saFirstName}"`,
+                  };
+                }
+
+                // 6. Hyphenated last name handling - REQUIRES EXACT FIRST NAME MATCH
+                const hyphenatedLastNameMatch =
+                  exactFirstMatch && // Must have exact first name match
+                  (saLastName.includes("-") || saLastName.includes(" ")) &&
+                  saLastName
+                    .toLowerCase()
+                    .split(/[-\s]/)
+                    .includes(nameInfo.lastName.toLowerCase());
+
+                if (hyphenatedLastNameMatch) {
+                  return {
+                    matched: true,
+                    matchType: "hyphenated-last-name",
+                    details: `First name exact match "${nameInfo.firstName}" and last name "${nameInfo.lastName}" found as part of hyphenated/compound last name "${saLastName}"`,
+                  };
+                }
+              }
+
+              // Check each format for specific matching patterns - STRICTER NOW
+              for (const format of nameInfo.formats) {
+                if (format.type === "standard") {
+                  // Standard matching (Last, First) - BOTH names must match exactly
+                  const lastNameMatch =
+                    format.lastName === saPrimaryLast ||
+                    format.lastName === saActualLast;
+                  const exactFirstNameMatch =
+                    format.firstName === saPrimaryFirst;
+
+                  // BOTH must match for a positive result
+                  if (lastNameMatch && exactFirstNameMatch) {
+                    return {
+                      matched: true,
+                      matchType: "standard-exact-match",
+                      details: `Standard format exact match: "${format.firstName} ${format.lastName}" with "${saPrimaryFirst} ${saLastName}"`,
+                    };
+                  }
+
+                  // Core name match for standard format - BOTH must match
+                  const coreNameMatch =
+                    format.firstName === saBasicFirstName &&
+                    format.lastName === saBasicLastName;
+
+                  if (coreNameMatch) {
+                    return {
+                      matched: true,
+                      matchType: "standard-core-match",
+                      details: `Standard format core name match (ignoring middle names): "${format.firstName} ${format.lastName}" matches "${saBasicFirstName} ${saBasicLastName}" in "${saFirstName} ${saLastName}"`,
+                    };
+                  }
+
+                  // Middle name handling - requires BOTH exact first name match AND proper last name matching
+                  const middleNameMatch =
+                    exactFirstNameMatch &&
+                    saLastName.toLowerCase().includes(format.lastName) &&
+                    (new RegExp(`\\b${format.lastName}\\b`).test(
+                      saLastName.toLowerCase()
+                    ) ||
+                      new RegExp(`\\b${format.lastName}$`).test(
+                        saLastName.toLowerCase()
+                      ));
+
+                  if (middleNameMatch) {
+                    return {
+                      matched: true,
+                      matchType: "standard-middle-name",
+                      details: `Standard format with middle/compound name: exact first name "${format.firstName}" and last name "${format.lastName}" found in "${saLastName}"`,
+                    };
+                  }
+
+                  // Hyphenated or compound last name handling - requires exact first name match
+                  if (
+                    exactFirstNameMatch &&
+                    (saLastName.includes("-") || saLastName.includes(" ")) &&
+                    saLastName
+                      .toLowerCase()
+                      .split(/[-\s]/)
+                      .includes(format.lastName)
+                  ) {
+                    return {
+                      matched: true,
+                      matchType: "standard-compound-last",
+                      details: `Standard format with compound last name: exact first name "${format.firstName}" and last name "${format.lastName}" found in "${saLastName}"`,
+                    };
+                  } else if (format.type === "reversed") {
+                    // Reversed matching (in case the data was entered in reversed order)
+                    // Require both to match exactly to avoid false positives
+                    const reversedLastMatch =
+                      format.lastName === saPrimaryFirst;
+                    const reversedFirstMatch =
+                      format.firstName === saPrimaryLast;
+
+                    if (reversedLastMatch && reversedFirstMatch) {
+                      return {
+                        matched: true,
+                        matchType: "reversed-name-match",
+                        details: `Reversed name format match: "${format.firstName} ${format.lastName}" with "${saPrimaryFirst} ${saLastName}" (reversed)`,
+                      };
+                    }
+                  }
+                } else if (format.type === "reversed") {
+                  // Reversed matching (in case the data was entered in reversed order)
+                  // Require both to match exactly to avoid false positives
+                  const reversedLastMatch = format.lastName === saPrimaryFirst;
+                  const reversedFirstMatch = format.firstName === saPrimaryLast;
+
+                  if (reversedLastMatch && reversedFirstMatch) {
+                    return {
+                      matched: true,
+                      matchType: "reversed-name-match",
+                      details: `Reversed name format match: "${format.firstName} ${format.lastName}" with "${saPrimaryFirst} ${saLastName}" (reversed)`,
+                    };
+                  }
+                }
+                // Removed the following overly permissive matchers:
+                // - fullname (too broad, caused over-matching)
+                // - fullname-reversed (too broad)
+                // - firstletter (too many false positives)
+                // - lastname-only (too many false positives)
+              }
+
+              // No match found
+              return {
+                matched: false,
+                matchType: null,
+                details: null,
+              };
+            };
+
+            contactNames.forEach((contactName) => {
+              // Skip empty contact names
+              if (!contactName.trim()) {
+                return;
+              }
+
+              // Generate name matching formats
+              const nameInfo = generateNameMatchFormats(contactName);
+
+              // Handle company names
+              if (nameInfo.isCompany) {
+                const companyName = nameInfo.companyName;
+
+                // Look for company name matches in compass contacts
+                let matchFound = false;
+
+                updatedSaRows.forEach((saRow, saIndex) => {
+                  // Check in both First Name and Last Name fields
+                  const saFirstName = (saRow[saFirstNameCol] || "").trim();
+                  const saLastName = (saRow[saLastNameCol] || "").trim();
+
+                  // Also check the Company field if it exists
+                  const saCompanyField = saHeaders.find((h) =>
+                    h.toLowerCase().includes("company")
+                  );
+                  const saCompany = saCompanyField
+                    ? (saRow[saCompanyField] || "").trim()
+                    : "";
+
+                  // Check if this contact matches the company name
+                  const matchResult = isNameMatch(
+                    nameInfo,
+                    saFirstName,
+                    saLastName,
+                    saCompany
+                  );
+                  if (matchResult.matched) {
+                    matchFound = true;
+
+                    // Only count this as a match if we haven't updated this contact before
+                    const contactKey = `${saFirstName}-${saLastName}`;
+                    if (!uniqueContactsUpdated.has(contactKey)) {
+                      uniqueContactsUpdated.add(contactKey);
+                      matchedCount++;
+                    }
+
+                    // Update the Home Anniversary field
+                    const oldValue = saRow[saHomeAnnivCol] || "";
+                    updatedSaRows[saIndex][saHomeAnnivCol] = anniversaryDate;
+
+                    // Extract year from anniversary date for the sold date tag
+                    const anniversaryYear = anniversaryDate
+                      ? new Date(anniversaryDate).getFullYear()
+                      : "";
+
+                    // Create different tags based on whether this is a buyer or seller
+                    const tagsToAdd = isBuyer
+                      ? [
+                          "CRM Refresh: Home Anniversary",
+                          "Buyer",
+                          anniversaryYear ? `${anniversaryYear}` : null,
+                        ].filter(Boolean) // Remove null values
+                      : [
+                          "CRM REFRESH CLOSED DATE",
+                          "SELLER-CRMREFRESH",
+                          anniversaryYear ? `${anniversaryYear}` : null,
+                        ].filter(Boolean); // Remove null values
+
+                    // Update or add the Tags field with consistent formatting
+                    const existingTags = updatedSaRows[saIndex]["Tags"] || "";
+                    let existingTagsArray = existingTags
+                      ? existingTags.split(",").map((t) => t.trim())
+                      : [];
+
+                    // Remove old format CRM Refresh tags to ensure consistency
+                    existingTagsArray = existingTagsArray.filter(
+                      (tag) =>
+                        !tag.toLowerCase().includes("crm refresh") ||
+                        !tag.toLowerCase().includes("home anniversary")
+                    );
+
+                    // Add new tags that don't already exist
+                    const addedTags = [];
+                    tagsToAdd.forEach((tag) => {
+                      if (!existingTagsArray.includes(tag)) {
+                        existingTagsArray.push(tag);
+                        addedTags.push(tag);
+                      }
+                    });
+
+                    updatedSaRows[saIndex]["Tags"] =
+                      existingTagsArray.join(", ");
+
+                    // Add notes about what was done
+                    const contactType = isBuyer ? "buyer" : "seller";
+                    const notes = `Updated existing contact as ${contactType}: Added home anniversary date (${anniversaryDate}). Tags added: ${addedTags.join(
+                      ", "
+                    )}`;
+                    updatedSaRows[saIndex]["Notes"] = notes;
+
+                    // Create a unique log entry key
+                    const logKey = `${companyName}-${address}`;
+
+                    // Only log if we haven't already logged this combination
+                    if (!uniqueLogEntries.has(logKey)) {
+                      uniqueLogEntries.add(logKey);
+
+                      // Log the change
+                      changeLog.push({
+                        type: "company_match",
+                        contactType: contactType,
+                        contactName: companyName,
+                        rowIndex: saIndex,
+                        oldValue: oldValue,
+                        newValue: anniversaryDate,
+                        address: address,
+                        matchType: matchResult.matchType,
+                        matchDetails: matchResult.details,
+                      });
+                    }
+                  }
+                });
+
+                // If no match was found, add a new row for the company
+                if (!matchFound) {
+                  newEntriesCount++;
+
+                  // Extract year from anniversary date for the sold date tag
+                  const anniversaryYear = anniversaryDate
+                    ? new Date(anniversaryDate).getFullYear()
+                    : "";
+
+                  // Create different tags based on whether this is a buyer or seller
+                  const contactType = isBuyer ? "buyer" : "seller";
+                  const newEntryTags = isBuyer
+                    ? [
+                        "CRM Refresh: Home Anniversary",
+                        "Buyer",
+                        anniversaryYear ? `${anniversaryYear}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(", ")
+                    : [
+                        "CRM REFRESH CLOSED DATE",
+                        "Seller",
+                        anniversaryYear ? `${anniversaryYear}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(", ");
+
+                  // Add the company as a new row - preserve address components
+                  const newRow = {
+                    [saFirstNameCol]: companyName || "", // First Name (we'll put the company name here)
+                    [saLastNameCol]: "", // Last Name
+                    // Preserve address components from the original row if they exist
+                    ["Home Address Line 1"]:
+                      haRow["Home Address Line 1"] || address || "",
+                    ["Home Address Line 2"]: haRow["Home Address Line 2"] || "",
+                    ["Home Address City"]: haRow["Home Address City"] || "",
+                    ["Home Address State"]: haRow["Home Address State"] || "",
+                    ["Home Address Zip"]: haRow["Home Address Zip"] || "",
+                    [saHomeAnnivCol]: anniversaryDate || "", // Home Anniversary Date
+                    ["Groups"]: "Past clients", // Groups column value
+                    ["Tags"]: newEntryTags, // Tags column value
+                    ["Notes"]: `New ${contactType} company contact added: ${companyName}. Anniversary date: ${anniversaryDate}. Tags added: ${newEntryTags}`,
+                  };
+                  updatedSaRows.push(newRow);
+
+                  changeLog.push({
+                    type: "no_match_company_added",
+                    contactType: contactType,
+                    contactName: companyName,
+                    anniversaryDate: anniversaryDate,
+                    address: address,
+                  });
+                }
+
+                return;
+              }
+
+              // Handle single names (without comma) that aren't companies
+              if (nameInfo.singleName) {
+                // Skip single names to prevent false matches
+                changeLog.push({
+                  type: "skipped_single_name",
+                  contactName: nameInfo.singleName,
+                  contactType: isBuyer ? "buyer" : "seller",
+                  reason:
+                    "Single name without last name - too ambiguous to match safely",
+                  address: address,
+                  anniversaryDate: anniversaryDate,
+                });
+                return;
+              }
+
+              // For comma-separated names or multiple word names without comma
+              let firstName, lastName;
+
+              if (contactName.includes(",")) {
+                const parts = contactName.split(",").map((part) => part.trim());
+                lastName = parts[0];
+                firstName = parts[1];
+
+                // Clean the names to remove middle initials/names
+                lastName = cleanNameForOutput(lastName, false);
+                firstName = cleanNameForOutput(firstName, true);
+
+                // Skip entries where first name is empty or too short
+                if (!firstName || firstName.trim().length < 2) {
+                  changeLog.push({
+                    type: "skipped_incomplete",
+                    contactName: contactName,
+                    contactType: isBuyer ? "buyer" : "seller",
+                    reason:
+                      "First name is too short or missing - may cause over-matching",
+                    address: address,
+                    anniversaryDate: anniversaryDate,
+                  });
+                  return;
+                }
+              } else {
+                // For "First Last" format
+                const parts = contactName.trim().split(/\s+/);
+                if (parts.length >= 2) {
+                  lastName = parts.pop();
+                  // Clean the first name to get just the first word
+                  firstName = cleanNameForOutput(parts.join(" "), true);
+                  // Clean the last name in case it has initials at the beginning
+                  lastName = cleanNameForOutput(lastName, false);
+                } else {
+                  // This shouldn't happen due to our earlier check, but just in case
+                  changeLog.push({
+                    type: "parse_error",
+                    contactName: contactName,
+                    contactType: isBuyer ? "buyer" : "seller",
+                    reason: "Could not parse contact name format",
+                    address: address,
+                  });
+                  return;
+                }
+              }
+
+              // Look for matches in the Compass contacts
+              let matchFound = false;
+              updatedSaRows.forEach((saRow, saIndex) => {
+                const saFirstName = (saRow[saFirstNameCol] || "").trim();
+                const saLastName = (saRow[saLastNameCol] || "").trim();
+
+                // Skip rows with missing first or last names in Compass contacts
+                if (!saFirstName || !saLastName) {
+                  return;
+                }
+
+                // Check if this contact matches using our enhanced matching function
+                const matchResult = isNameMatch(
+                  nameInfo,
+                  saFirstName,
+                  saLastName
+                );
+                if (matchResult.matched) {
+                  matchFound = true;
+
+                  // Only count this as a match if we haven't updated this contact before
+                  const contactKey = `${saFirstName}-${saLastName}`;
+                  if (!uniqueContactsUpdated.has(contactKey)) {
+                    uniqueContactsUpdated.add(contactKey);
+                    matchedCount++;
+                  }
+
+                  // Update the Home Anniversary field
+                  const oldValue = saRow[saHomeAnnivCol] || "";
+                  updatedSaRows[saIndex][saHomeAnnivCol] = anniversaryDate;
+
+                  // Extract year from anniversary date for the sold date tag
+                  const anniversaryYear = anniversaryDate
+                    ? new Date(anniversaryDate).getFullYear()
+                    : "";
+
+                  // Create different tags based on whether this is a buyer or seller
+                  const tagsToAdd = isBuyer
+                    ? [
+                        "CRM: Home Anniversary", // Changed from "CRM Refresh: Home Anniversary"
+                        "Buyer",
+                        anniversaryYear ? `${anniversaryYear}` : null,
+                      ].filter(Boolean) // Remove null values
+                    : [
+                        "CRM: Closed Date", // Changed from "CRM REFRESH CLOSED DATE"
+                        "Seller",
+                        anniversaryYear ? `${anniversaryYear}` : null,
+                      ].filter(Boolean); // Remove null values            // Update or add the Tags field with consistent formatting
+                  const existingTags = updatedSaRows[saIndex]["Tags"] || "";
+                  let existingTagsArray = existingTags
+                    ? existingTags.split(",").map((t) => t.trim())
+                    : [];
+
+                  // Remove old format CRM Refresh tags to ensure consistency
+                  existingTagsArray = existingTagsArray.filter(
+                    (tag) =>
+                      !tag.toLowerCase().includes("crm refresh") ||
+                      !tag.toLowerCase().includes("home anniversary")
+                  );
+
+                  // Add new tags that don't already exist
+                  const addedTags = [];
+                  tagsToAdd.forEach((tag) => {
+                    if (!existingTagsArray.includes(tag)) {
+                      existingTagsArray.push(tag);
+                      addedTags.push(tag);
+                    }
+                  });
+
+                  updatedSaRows[saIndex]["Tags"] = existingTagsArray.join(", ");
+
+                  // Add notes about what was done
+                  const contactType = isBuyer ? "buyer" : "seller";
+                  const notes = `Updated existing contact as ${contactType}: Added home anniversary date (${anniversaryDate}). Tags added: ${addedTags.join(
+                    ", "
+                  )}`;
+                  updatedSaRows[saIndex]["Notes"] = notes;
+
+                  // Create a unique log entry key
+                  const logKey = `${firstName} ${lastName}-${address}`;
+
+                  // Only log if we haven't already logged this combination
+                  if (!uniqueLogEntries.has(logKey)) {
+                    uniqueLogEntries.add(logKey);
+
+                    // Log the change
+                    changeLog.push({
+                      type: "match",
+                      contactType: contactType,
+                      contactName: `${firstName} ${lastName}`,
+                      rowIndex: saIndex,
+                      oldValue: oldValue,
+                      newValue: anniversaryDate,
+                      address: address,
+                      matchType: matchResult.matchType,
+                      matchDetails: matchResult.details,
+                    });
+                  }
                 }
               });
 
-              updatedSaRows[saIndex]["Tags"] = existingTagsArray.join(", ");
+              // If no match was found, add a new row for unmatched buyers
+              if (!matchFound) {
+                newEntriesCount++;
 
-              // Add notes about what was done
-              const contactType = isBuyer ? "buyer" : "seller";
-              const notes = `Updated existing contact as ${contactType}: Added home anniversary date (${anniversaryDate}). Tags added: ${addedTags.join(
-                ", "
-              )}`;
-              updatedSaRows[saIndex]["Notes"] = notes;
+                // Extract year from anniversary date for the sold date tag
+                const anniversaryYear = anniversaryDate
+                  ? new Date(anniversaryDate).getFullYear()
+                  : "";
 
-              // Create a unique log entry key
-              const logKey = `${companyName}-${address}`;
+                // Create different tags based on whether this is a buyer or seller
+                const contactType = isBuyer ? "buyer" : "seller";
+                const newEntryTags = isBuyer
+                  ? [
+                      "CRM Refresh: Home Anniversary",
+                      "Buyer",
+                      anniversaryYear ? `${anniversaryYear}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")
+                  : [
+                      "CRM REFRESH CLOSED DATE",
+                      "Seller",
+                      anniversaryYear ? `${anniversaryYear}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(", ");
 
-              // Only log if we haven't already logged this combination
-              if (!uniqueLogEntries.has(logKey)) {
-                uniqueLogEntries.add(logKey);
+                // Clean first and last names - remove any middle initials/names
+                const cleanedFirstName = cleanNameForOutput(firstName, true);
+                const cleanedLastName = cleanNameForOutput(lastName, false);
 
-                // Log the change
+                const newRow = {
+                  [saFirstNameCol]: cleanedFirstName || "", // First Name (without middle names/initials)
+                  [saLastNameCol]: cleanedLastName || "", // Last Name (without initials at beginning)
+                  // Preserve address components from the original row if they exist
+                  ["Home Address Line 1"]:
+                    haRow["Home Address Line 1"] || address || "",
+                  ["Home Address Line 2"]: haRow["Home Address Line 2"] || "",
+                  ["Home Address City"]: haRow["Home Address City"] || "",
+                  ["Home Address State"]: haRow["Home Address State"] || "",
+                  ["Home Address Zip"]: haRow["Home Address Zip"] || "",
+                  [saHomeAnnivCol]: anniversaryDate || "", // Home Anniversary Date
+                  ["Groups"]: "Past clients", // Groups column value
+                  ["Tags"]: newEntryTags, // Tags column value
+                  ["Notes"]: `New ${contactType} contact added: ${firstName} ${lastName} (cleaned to ${cleanedFirstName} ${cleanedLastName}). Anniversary date: ${anniversaryDate}. Tags added: ${newEntryTags}`,
+                };
+                updatedSaRows.push(newRow);
+
                 changeLog.push({
-                  type: "company_match",
+                  type: "no_match_added",
                   contactType: contactType,
-                  contactName: companyName,
-                  rowIndex: saIndex,
-                  oldValue: oldValue,
-                  newValue: anniversaryDate,
+                  contactName: `${firstName} ${lastName}`,
+                  anniversaryDate: anniversaryDate,
                   address: address,
-                  matchType: matchResult.matchType,
-                  matchDetails: matchResult.details,
                 });
               }
-            }
+            });
           });
+        }
+      );
 
-          // If no match was found, add a new row for the company
-          if (!matchFound) {
-            newEntriesCount++;
+      // Track which entries from the home anniversaries file were processed
+      const processedEntries = new Set();
+      changeLog.forEach((log) => {
+        if (log.address && log.anniversaryDate) {
+          processedEntries.add(`${log.address}-${log.anniversaryDate}`);
+        }
+      });
+
+      // Make sure all entries from the home anniversaries file are included
+      // If any were missed during the matching process, add them as new entries
+      setStep3Data((prev) => ({
+        ...prev,
+        currentOperation: "Processing fallback entries...",
+        progress: 90,
+      }));
+
+      await processInChunks(
+        haRows,
+        CHUNK_SIZE,
+        async (chunk, chunkIndex, totalChunks) => {
+          setStep3Data((prev) => ({
+            ...prev,
+            currentOperation: `Processing fallback entries (chunk ${
+              chunkIndex + 1
+            }/${totalChunks})...`,
+          }));
+
+          chunk.forEach((haRow) => {
+            const buyerNameRaw = haRow[haBuyerNameCol];
+            const sellerNameRaw = haSellerNameCol
+              ? haRow[haSellerNameCol]
+              : null;
+            const anniversaryDate = haRow[haAnnivCol] || "";
+            const address = haRow[haAddressCol] || "";
+            const sellingAgent = haRow[haSellingAgentCol] || "";
+
+            // Skip if no anniversary date or address
+            if (!anniversaryDate || !address) return;
+
+            // Check if this entry was already processed
+            const entryKey = `${address}-${anniversaryDate}`;
+            if (processedEntries.has(entryKey)) return;
+
+            // If we get here, this entry wasn't processed yet
+            // Get the main agent name we saved in step 2
+            const mainAgentName = step2Data.mainSellingAgent.toLowerCase();
+
+            // Determine if this is a buyer or seller based on whether selling agent matches main agent
+            const isBuyer =
+              sellingAgent.trim() !== "" &&
+              sellingAgent.toLowerCase().includes(mainAgentName);
+
+            // Choose which name to process based on agent matching
+            const nameToProcess = isBuyer ? buyerNameRaw : sellerNameRaw;
+            if (!nameToProcess) return; // Skip if no appropriate name
+
+            // Create a new entry for this unprocessed record
+            const contactType = isBuyer ? "buyer" : "seller";
+
+            // Try to parse the name
+            let firstName, lastName;
+            if (nameToProcess.includes(",")) {
+              const parts = nameToProcess.split(",").map((part) => part.trim());
+              lastName = parts[0];
+              firstName = parts[1] || "";
+            } else {
+              const parts = nameToProcess.split(/\s+/);
+              if (parts.length >= 2) {
+                lastName = parts.pop();
+                firstName = parts.join(" ");
+              } else {
+                // Single name, just use it as first name
+                firstName = nameToProcess;
+                lastName = "";
+              }
+            }
 
             // Extract year from anniversary date for the sold date tag
             const anniversaryYear = anniversaryDate
@@ -1507,7 +1946,6 @@ function CsvFormatter() {
               : "";
 
             // Create different tags based on whether this is a buyer or seller
-            const contactType = isBuyer ? "buyer" : "seller";
             const newEntryTags = isBuyer
               ? [
                   "CRM Refresh: Home Anniversary",
@@ -1524,393 +1962,86 @@ function CsvFormatter() {
                   .filter(Boolean)
                   .join(", ");
 
-            // Add the company as a new row - preserve address components
+            // Clean first and last names - remove any middle initials/names
+            const cleanedFirstName = cleanNameForOutput(firstName, true);
+            const cleanedLastName = cleanNameForOutput(lastName, false);
+
+            // Create the new row - preserve address components if they exist in the original data
             const newRow = {
-              [saFirstNameCol]: companyName || "", // First Name (we'll put the company name here)
-              [saLastNameCol]: "", // Last Name
+              [saFirstNameCol]: cleanedFirstName || "",
+              [saLastNameCol]: cleanedLastName || "",
               // Preserve address components from the original row if they exist
-              ["Home Address Line 1"]: haRow["Home Address Line 1"] || address || "",
+              ["Home Address Line 1"]:
+                haRow["Home Address Line 1"] || address || "",
               ["Home Address Line 2"]: haRow["Home Address Line 2"] || "",
               ["Home Address City"]: haRow["Home Address City"] || "",
               ["Home Address State"]: haRow["Home Address State"] || "",
               ["Home Address Zip"]: haRow["Home Address Zip"] || "",
-              [saHomeAnnivCol]: anniversaryDate || "", // Home Anniversary Date
-              ["Groups"]: "Past clients", // Groups column value
-              ["Tags"]: newEntryTags, // Tags column value
-              ["Notes"]: `New ${contactType} company contact added: ${companyName}. Anniversary date: ${anniversaryDate}. Tags added: ${newEntryTags}`,
+              [saHomeAnnivCol]: anniversaryDate || "",
+              ["Groups"]: "Past clients",
+              ["Tags"]: newEntryTags,
+              ["Notes"]: `New ${contactType} contact added (fallback processing): ${firstName} ${lastName} (cleaned to ${cleanedFirstName} ${cleanedLastName}). Anniversary date: ${anniversaryDate}. Tags added: ${newEntryTags}`,
             };
+
             updatedSaRows.push(newRow);
+            newEntriesCount++;
 
+            // Add to change log
             changeLog.push({
-              type: "no_match_company_added",
+              type: "fallback_entry_added",
               contactType: contactType,
-              contactName: companyName,
+              contactName: `${firstName} ${lastName}`,
               anniversaryDate: anniversaryDate,
               address: address,
             });
-          }
 
-          return;
-        }
-
-        // Handle single names (without comma) that aren't companies
-        if (nameInfo.singleName) {
-          // Skip single names to prevent false matches
-          changeLog.push({
-            type: "skipped_single_name",
-            contactName: nameInfo.singleName,
-            contactType: isBuyer ? "buyer" : "seller",
-            reason:
-              "Single name without last name - too ambiguous to match safely",
-            address: address,
-            anniversaryDate: anniversaryDate,
-          });
-          return;
-        }
-
-        // For comma-separated names or multiple word names without comma
-        let firstName, lastName;
-
-        if (contactName.includes(",")) {
-          const parts = contactName.split(",").map((part) => part.trim());
-          lastName = parts[0];
-          firstName = parts[1];
-
-          // Clean the names to remove middle initials/names
-          lastName = cleanNameForOutput(lastName, false);
-          firstName = cleanNameForOutput(firstName, true);
-
-          // Skip entries where first name is empty or too short
-          if (!firstName || firstName.trim().length < 2) {
-            changeLog.push({
-              type: "skipped_incomplete",
-              contactName: contactName,
-              contactType: isBuyer ? "buyer" : "seller",
-              reason:
-                "First name is too short or missing - may cause over-matching",
-              address: address,
-              anniversaryDate: anniversaryDate,
-            });
-            return;
-          }
-        } else {
-          // For "First Last" format
-          const parts = contactName.trim().split(/\s+/);
-          if (parts.length >= 2) {
-            lastName = parts.pop();
-            // Clean the first name to get just the first word
-            firstName = cleanNameForOutput(parts.join(" "), true);
-            // Clean the last name in case it has initials at the beginning
-            lastName = cleanNameForOutput(lastName, false);
-          } else {
-            // This shouldn't happen due to our earlier check, but just in case
-            changeLog.push({
-              type: "parse_error",
-              contactName: contactName,
-              contactType: isBuyer ? "buyer" : "seller",
-              reason: "Could not parse contact name format",
-              address: address,
-            });
-            return;
-          }
-        }
-
-        // Look for matches in the Compass contacts
-        let matchFound = false;
-        updatedSaRows.forEach((saRow, saIndex) => {
-          const saFirstName = (saRow[saFirstNameCol] || "").trim();
-          const saLastName = (saRow[saLastNameCol] || "").trim();
-
-          // Skip rows with missing first or last names in Compass contacts
-          if (!saFirstName || !saLastName) {
-            return;
-          }
-
-          // Check if this contact matches using our enhanced matching function
-          const matchResult = isNameMatch(nameInfo, saFirstName, saLastName);
-          if (matchResult.matched) {
-            matchFound = true;
-
-            // Only count this as a match if we haven't updated this contact before
-            const contactKey = `${saFirstName}-${saLastName}`;
-            if (!uniqueContactsUpdated.has(contactKey)) {
-              uniqueContactsUpdated.add(contactKey);
-              matchedCount++;
-            }
-
-            // Update the Home Anniversary field
-            const oldValue = saRow[saHomeAnnivCol] || "";
-            updatedSaRows[saIndex][saHomeAnnivCol] = anniversaryDate;
-
-            // Extract year from anniversary date for the sold date tag
-            const anniversaryYear = anniversaryDate
-              ? new Date(anniversaryDate).getFullYear()
-              : "";
-
-            // Create different tags based on whether this is a buyer or seller
-            const tagsToAdd = isBuyer
-              ? [
-                  "CRM: Home Anniversary", // Changed from "CRM Refresh: Home Anniversary"
-                  "Buyer",
-                  anniversaryYear ? `${anniversaryYear}` : null,
-                ].filter(Boolean) // Remove null values
-              : [
-                  "CRM: Closed Date", // Changed from "CRM REFRESH CLOSED DATE"
-                  "Seller",
-                  anniversaryYear ? `${anniversaryYear}` : null,
-                ].filter(Boolean); // Remove null values            // Update or add the Tags field with consistent formatting
-            const existingTags = updatedSaRows[saIndex]["Tags"] || "";
-            let existingTagsArray = existingTags
-              ? existingTags.split(",").map((t) => t.trim())
-              : [];
-
-            // Remove old format CRM Refresh tags to ensure consistency
-            existingTagsArray = existingTagsArray.filter(
-              (tag) =>
-                !tag.toLowerCase().includes("crm refresh") ||
-                !tag.toLowerCase().includes("home anniversary")
-            );
-
-            // Add new tags that don't already exist
-            const addedTags = [];
-            tagsToAdd.forEach((tag) => {
-              if (!existingTagsArray.includes(tag)) {
-                existingTagsArray.push(tag);
-                addedTags.push(tag);
-              }
-            });
-
-            updatedSaRows[saIndex]["Tags"] = existingTagsArray.join(", ");
-
-            // Add notes about what was done
-            const contactType = isBuyer ? "buyer" : "seller";
-            const notes = `Updated existing contact as ${contactType}: Added home anniversary date (${anniversaryDate}). Tags added: ${addedTags.join(
-              ", "
-            )}`;
-            updatedSaRows[saIndex]["Notes"] = notes;
-
-            // Create a unique log entry key
-            const logKey = `${firstName} ${lastName}-${address}`;
-
-            // Only log if we haven't already logged this combination
-            if (!uniqueLogEntries.has(logKey)) {
-              uniqueLogEntries.add(logKey);
-
-              // Log the change
-              changeLog.push({
-                type: "match",
-                contactType: contactType,
-                contactName: `${firstName} ${lastName}`,
-                rowIndex: saIndex,
-                oldValue: oldValue,
-                newValue: anniversaryDate,
-                address: address,
-                matchType: matchResult.matchType,
-                matchDetails: matchResult.details,
-              });
-            }
-          }
-        });
-
-        // If no match was found, add a new row for unmatched buyers
-        if (!matchFound) {
-          newEntriesCount++;
-
-          // Extract year from anniversary date for the sold date tag
-          const anniversaryYear = anniversaryDate
-            ? new Date(anniversaryDate).getFullYear()
-            : "";
-
-          // Create different tags based on whether this is a buyer or seller
-          const contactType = isBuyer ? "buyer" : "seller";
-          const newEntryTags = isBuyer
-            ? [
-                "CRM Refresh: Home Anniversary",
-                "Buyer",
-                anniversaryYear ? `${anniversaryYear}` : null,
-              ]
-                .filter(Boolean)
-                .join(", ")
-            : [
-                "CRM REFRESH CLOSED DATE",
-                "Seller",
-                anniversaryYear ? `${anniversaryYear}` : null,
-              ]
-                .filter(Boolean)
-                .join(", ");
-
-          // Clean first and last names - remove any middle initials/names
-          const cleanedFirstName = cleanNameForOutput(firstName, true);
-          const cleanedLastName = cleanNameForOutput(lastName, false);
-
-          const newRow = {
-            [saFirstNameCol]: cleanedFirstName || "", // First Name (without middle names/initials)
-            [saLastNameCol]: cleanedLastName || "", // Last Name (without initials at beginning)
-            // Preserve address components from the original row if they exist
-            ["Home Address Line 1"]: haRow["Home Address Line 1"] || address || "",
-            ["Home Address Line 2"]: haRow["Home Address Line 2"] || "",
-            ["Home Address City"]: haRow["Home Address City"] || "",
-            ["Home Address State"]: haRow["Home Address State"] || "",
-            ["Home Address Zip"]: haRow["Home Address Zip"] || "",
-            [saHomeAnnivCol]: anniversaryDate || "", // Home Anniversary Date
-            ["Groups"]: "Past clients", // Groups column value
-            ["Tags"]: newEntryTags, // Tags column value
-            ["Notes"]: `New ${contactType} contact added: ${firstName} ${lastName} (cleaned to ${cleanedFirstName} ${cleanedLastName}). Anniversary date: ${anniversaryDate}. Tags added: ${newEntryTags}`,
-          };
-          updatedSaRows.push(newRow);
-
-          changeLog.push({
-            type: "no_match_added",
-            contactType: contactType,
-            contactName: `${firstName} ${lastName}`,
-            anniversaryDate: anniversaryDate,
-            address: address,
+            // Mark as processed
+            processedEntries.add(entryKey);
           });
         }
-      });
-    });
+      );
 
-    // Track which entries from the home anniversaries file were processed
-    const processedEntries = new Set();
-    changeLog.forEach((log) => {
-      if (log.address && log.anniversaryDate) {
-        processedEntries.add(`${log.address}-${log.anniversaryDate}`);
-      }
-    });
-
-    // Make sure all entries from the home anniversaries file are included
-    // If any were missed during the matching process, add them as new entries
-    haRows.forEach((haRow) => {
-      const buyerNameRaw = haRow[haBuyerNameCol];
-      const sellerNameRaw = haSellerNameCol ? haRow[haSellerNameCol] : null;
-      const anniversaryDate = haRow[haAnnivCol] || "";
-      const address = haRow[haAddressCol] || "";
-      const sellingAgent = haRow[haSellingAgentCol] || "";
-
-      // Skip if no anniversary date or address
-      if (!anniversaryDate || !address) return;
-
-      // Check if this entry was already processed
-      const entryKey = `${address}-${anniversaryDate}`;
-      if (processedEntries.has(entryKey)) return;
-
-      // If we get here, this entry wasn't processed yet
-      // Get the main agent name we saved in step 2
-      const mainAgentName = step2Data.mainSellingAgent.toLowerCase();
-
-      // Determine if this is a buyer or seller based on whether selling agent matches main agent
-      const isBuyer =
-        sellingAgent.trim() !== "" &&
-        sellingAgent.toLowerCase().includes(mainAgentName);
-
-      // Choose which name to process based on agent matching
-      const nameToProcess = isBuyer ? buyerNameRaw : sellerNameRaw;
-      if (!nameToProcess) return; // Skip if no appropriate name
-
-      // Create a new entry for this unprocessed record
-      const contactType = isBuyer ? "buyer" : "seller";
-
-      // Try to parse the name
-      let firstName, lastName;
-      if (nameToProcess.includes(",")) {
-        const parts = nameToProcess.split(",").map((part) => part.trim());
-        lastName = parts[0];
-        firstName = parts[1] || "";
-      } else {
-        const parts = nameToProcess.split(/\s+/);
-        if (parts.length >= 2) {
-          lastName = parts.pop();
-          firstName = parts.join(" ");
-        } else {
-          // Single name, just use it as first name
-          firstName = nameToProcess;
-          lastName = "";
-        }
-      }
-
-      // Extract year from anniversary date for the sold date tag
-      const anniversaryYear = anniversaryDate
-        ? new Date(anniversaryDate).getFullYear()
-        : "";
-
-      // Create different tags based on whether this is a buyer or seller
-      const newEntryTags = isBuyer
-        ? [
-            "CRM Refresh: Home Anniversary",
-            "Buyer",
-            anniversaryYear ? `${anniversaryYear}` : null,
-          ]
-            .filter(Boolean)
-            .join(", ")
-        : [
-            "CRM REFRESH CLOSED DATE",
-            "Seller",
-            anniversaryYear ? `${anniversaryYear}` : null,
-          ]
-            .filter(Boolean)
-            .join(", ");
-
-      // Clean first and last names - remove any middle initials/names
-      const cleanedFirstName = cleanNameForOutput(firstName, true);
-      const cleanedLastName = cleanNameForOutput(lastName, false);
-
-      // Create the new row - preserve address components if they exist in the original data
-      const newRow = {
-        [saFirstNameCol]: cleanedFirstName || "",
-        [saLastNameCol]: cleanedLastName || "",
-        // Preserve address components from the original row if they exist
-        ["Home Address Line 1"]: haRow["Home Address Line 1"] || address || "",
-        ["Home Address Line 2"]: haRow["Home Address Line 2"] || "",
-        ["Home Address City"]: haRow["Home Address City"] || "",
-        ["Home Address State"]: haRow["Home Address State"] || "",
-        ["Home Address Zip"]: haRow["Home Address Zip"] || "",
-        [saHomeAnnivCol]: anniversaryDate || "",
-        ["Groups"]: "Past clients",
-        ["Tags"]: newEntryTags,
-        ["Notes"]: `New ${contactType} contact added (fallback processing): ${firstName} ${lastName} (cleaned to ${cleanedFirstName} ${cleanedLastName}). Anniversary date: ${anniversaryDate}. Tags added: ${newEntryTags}`,
+      // Create the output CSV with updated headers and rows
+      const processedData = {
+        headers: saHeaders,
+        rows: updatedSaRows,
       };
 
-      updatedSaRows.push(newRow);
-      newEntriesCount++;
+      // Generate detailed stats for the user
+      console.log(`Total change log entries: ${changeLog.length}`);
 
-      // Add to change log
-      changeLog.push({
-        type: "fallback_entry_added",
-        contactType: contactType,
-        contactName: `${firstName} ${lastName}`,
-        anniversaryDate: anniversaryDate,
-        address: address,
+      // Create a log distribution summary to help troubleshoot
+      const logTypeCounts = {};
+      changeLog.forEach((log) => {
+        logTypeCounts[log.type] = (logTypeCounts[log.type] || 0) + 1;
       });
+      console.log("Change log entry types:", logTypeCounts);
 
-      // Mark as processed
-      processedEntries.add(entryKey);
-    });
+      setStep3Data({
+        processedData: processedData,
+        downloadReady: true,
+        matchedCount: matchedCount,
+        newEntriesCount: newEntriesCount,
+        totalBuyersProcessed: totalBuyersProcessed,
+        totalSellersProcessed: totalSellersProcessed,
+        changeLog: changeLog,
+        isProcessing: false,
+        progress: 100,
+        currentOperation: "Processing complete!",
+      });
+    } catch (error) {
+      console.error("Error processing data:", error);
+      alert(
+        "An error occurred while processing the data. Please try again with a smaller file or check the console for details."
+      );
 
-    // Create the output CSV with updated headers and rows
-    const processedData = {
-      headers: saHeaders,
-      rows: updatedSaRows,
-    };
-
-    // Generate detailed stats for the user
-    console.log(`Total change log entries: ${changeLog.length}`);
-
-    // Create a log distribution summary to help troubleshoot
-    const logTypeCounts = {};
-    changeLog.forEach((log) => {
-      logTypeCounts[log.type] = (logTypeCounts[log.type] || 0) + 1;
-    });
-    console.log("Change log entry types:", logTypeCounts);
-
-    setStep3Data({
-      processedData: processedData,
-      downloadReady: true,
-      matchedCount: matchedCount,
-      newEntriesCount: newEntriesCount,
-      totalBuyersProcessed: totalBuyersProcessed,
-      totalSellersProcessed: totalSellersProcessed,
-      changeLog: changeLog,
-    });
+      setStep3Data((prev) => ({
+        ...prev,
+        isProcessing: false,
+        progress: 0,
+        currentOperation: "Processing failed",
+      }));
+    }
   };
 
   const downloadProcessedCSV = () => {
@@ -2296,12 +2427,35 @@ function CsvFormatter() {
                         </p>
                       </div>
 
+                      {step3Data.isProcessing && (
+                        <div className="processing-indicator">
+                          <div className="progress-bar">
+                            <div
+                              className="progress-fill"
+                              style={{ width: `${step3Data.progress}%` }}
+                            ></div>
+                          </div>
+                          <p className="progress-text">
+                            {step3Data.currentOperation} ({step3Data.progress}%)
+                          </p>
+                          <p className="progress-warning">
+                            ⚠️ Processing large file - please wait and do not
+                            close the browser...
+                          </p>
+                        </div>
+                      )}
+
                       <button
                         onClick={processAndMergeData}
                         className="process-button"
-                        disabled={!step2Data.mainSellingAgent.trim()}
+                        disabled={
+                          !step2Data.mainSellingAgent.trim() ||
+                          step3Data.isProcessing
+                        }
                       >
-                        🔄 Process Data
+                        {step3Data.isProcessing
+                          ? "🔄 Processing..."
+                          : "🔄 Process Data"}
                       </button>
                     </div>
                   ) : (
