@@ -89,9 +89,19 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
+              marginRight: "1rem",
             }}
           >
             GPT Classifier
+          </Link>
+          <Link
+            to="/phone-consolidator"
+            style={{
+              color: "white",
+              textDecoration: "none",
+            }}
+          >
+            Phone Consolidator
           </Link>
         </div>
       </div>
