@@ -38,6 +38,16 @@ const GPTClassifier = () => {
     "sbcglobal.net",
   ];
 
+  // Test specific domains for debugging (moved inside file upload)
+  const testBusinessDomains = () => {
+    const testDomains = ["luxurypresence.com", "cj.com", "dfllp.com", "crexi.com", "sideinc.com"];
+    addLog(`🧪 Domain Test - Business domains should NOT be in personal list:`);
+    testDomains.forEach(domain => {
+      const isPersonal = PERSONAL_DOMAINS.includes(domain);
+      addLog(`   ${domain}: ${isPersonal ? "❌ PERSONAL (ERROR!)" : "✅ Business (Good)"}`);
+    });
+  };
+
   // Extract all emails from a contact
   const getAllEmails = (contact) => {
     const emails = [];
@@ -159,6 +169,7 @@ const GPTClassifier = () => {
       Papa.parse(uploadedFile, {
         header: true,
         complete: (results) => {
+          testBusinessDomains(); // Test domain classification first
           analyzeUngroupedContacts(results.data);
           analyzePersonalEmailContacts(results.data);
         },
@@ -171,28 +182,122 @@ const GPTClassifier = () => {
 
   // Analyze ungrouped contacts
   const analyzeUngroupedContacts = (data) => {
-    const ungrouped = data.filter((contact) => {
+    addLog(`🔍 Starting analysis of ${data.length} total contacts...`);
+    
+    // Debug: Check first few contacts to see their Groups values
+    addLog(`🔍 Sample Groups values from first 10 contacts:`);
+    data.slice(0, 10).forEach((contact, idx) => {
       const groups = (contact["Groups"] || contact["Group"] || "").trim();
+      const name = `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim() || "Unknown";
+      addLog(`   ${idx + 1}. ${name}: Groups="${groups}"`);
+    });
+    
+    // Step-by-step filtering with counts
+    const step1_allContacts = data.length;
+    
+    const step2_groupFiltered = data.filter(contact => {
+      const groups = (contact["Groups"] || contact["Group"] || "").trim();
+      return groups === "" || groups === "ALL CONTACTS";
+    });
+    addLog(`🔍 Step 1: ${step1_allContacts} total contacts`);
+    addLog(`🔍 Step 2: ${step2_groupFiltered.length} contacts after group filter (empty or 'ALL CONTACTS')`);
+    
+    const step3_businessEmailFiltered = step2_groupFiltered.filter((contact, index) => {
       const emails = getAllEmails(contact);
-
-      // Must be ungrouped
-      if (groups !== "") return false;
-
-      // Must have at least one business email (not only personal)
-      if (!hasBusinessEmail(emails)) return false;
-
-      // Must have some contact info
+      const hasBusiness = hasBusinessEmail(emails);
+      const name = `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim() || "Unknown";
+      
+      // Debug first few contacts that are being excluded
+      if (!hasBusiness && index < 5) {
+        addLog(`🔍 EXCLUDED (no business email): ${name}`);
+        addLog(`   All emails found: ${emails.join(", ") || "NONE"}`);
+      }
+      
+      // Debug first few contacts that ARE included
+      if (hasBusiness && index < 5) {
+        addLog(`🔍 INCLUDED (has business email): ${name}`);
+        addLog(`   All emails found: ${emails.join(", ")}`);
+      }
+      
+      return hasBusiness;
+    });
+    addLog(`🔍 Step 3: ${step3_businessEmailFiltered.length} contacts after business email filter`);
+    
+    const ungrouped = step3_businessEmailFiltered.filter(contact => {
+      const emails = getAllEmails(contact);
       const name = `${contact["First Name"] || ""} ${
         contact["Last Name"] || ""
       }`.trim();
+
+      // Debug specific contacts
+      if (name.toLowerCase().includes("drew") || emails.some(e => e.includes("luxurypresence"))) {
+        addLog(`🔍 DEBUG Drew/LuxuryPresence: ${name}`);
+        addLog(`   All emails: ${emails.join(", ")}`);
+        addLog(`   Has business email: ${hasBusinessEmail(emails)}`);
+        addLog(`   Only personal emails: ${hasOnlyPersonalEmails(emails)}`);
+        
+        emails.forEach(email => {
+          const domain = getEmailDomain(email);
+          const isPersonal = PERSONAL_DOMAINS.includes(domain);
+          addLog(`   ${email} -> domain: ${domain}, personal: ${isPersonal}`);
+        });
+      }
+
+      // Must have some contact info
       if (!name && emails.length === 0) return false;
 
       return true;
     });
+    
+    addLog(`🔍 Step 4: ${ungrouped.length} contacts after final contact info filter`);
+
+    // Debug filter results
+    const totalContacts = data.length;
+    const groupedContacts = data.filter(contact => {
+      const groups = (contact["Groups"] || contact["Group"] || "").trim();
+      return groups !== "" && groups !== "ALL CONTACTS";
+    }).length;
+    const allContactsGroup = data.filter(contact => {
+      const groups = (contact["Groups"] || contact["Group"] || "").trim();
+      return groups === "ALL CONTACTS";
+    }).length;
+    const ungroupedButNoBusinessEmail = data.filter(contact => {
+      const groups = (contact["Groups"] || contact["Group"] || "").trim();
+      const emails = getAllEmails(contact);
+      return (groups === "" || groups === "ALL CONTACTS") && !hasBusinessEmail(emails);
+    }).length;
+    const ungroupedButNoContactInfo = data.filter(contact => {
+      const groups = (contact["Groups"] || contact["Group"] || "").trim();
+      const emails = getAllEmails(contact);
+      const name = `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim();
+      return (groups === "" || groups === "ALL CONTACTS") && hasBusinessEmail(emails) && !name && emails.length === 0;
+    }).length;
+
+    addLog(`📊 Filter Analysis:`);
+    addLog(`   Total contacts: ${totalContacts}`);
+    addLog(`   Already grouped (meaningful groups): ${groupedContacts}`);
+    addLog(`   "ALL CONTACTS" group (treated as ungrouped): ${allContactsGroup}`);
+    addLog(`   Ungrouped but no business email: ${ungroupedButNoBusinessEmail}`);
+    addLog(`   Ungrouped but no contact info: ${ungroupedButNoContactInfo}`);
+    addLog(`   Final ungrouped with business emails: ${ungrouped.length}`);
 
     setUngroupedContacts(ungrouped);
     setEstimatedCost(ungrouped.length * 0.001); // Rough estimate
-    addLog(`Found ${ungrouped.length} ungrouped contacts with business emails`);
+    addLog(`✅ Found ${ungrouped.length} ungrouped contacts with business emails`);
+    
+    // Debug: Log some example contacts for verification
+    if (ungrouped.length > 0) {
+      addLog(`📧 Example business email contacts:`);
+      ungrouped.slice(0, 5).forEach((contact, idx) => {
+        const emails = getAllEmails(contact);
+        const businessEmails = emails.filter(email => {
+          const domain = getEmailDomain(email);
+          return !PERSONAL_DOMAINS.includes(domain);
+        });
+        const name = `${contact["First Name"] || ""} ${contact["Last Name"] || ""}`.trim() || "Unknown";
+        addLog(`   ${idx + 1}. ${name}: ${businessEmails.join(", ")}`);
+      });
+    }
   };
 
   // Analyze ungrouped contacts with only personal emails (for Leads)
@@ -201,8 +306,8 @@ const GPTClassifier = () => {
       const groups = (contact["Groups"] || contact["Group"] || "").trim();
       const emails = getAllEmails(contact);
 
-      // Must be ungrouped
-      if (groups !== "") return false;
+      // Must be ungrouped (treat "ALL CONTACTS" as ungrouped since it's just a default category)
+      if (groups !== "" && groups !== "ALL CONTACTS") return false;
 
       // Must have ONLY personal emails (no business emails)
       if (!hasOnlyPersonalEmails(emails)) return false;
@@ -358,6 +463,9 @@ Respond with only one word: Agent, Vendor, or Contact`;
         addLog(`⏳ [Chunk ${chunkIndex + 1}] Processing ${contactName}...`);
 
         const gptResult = await classifyWithGPT(contact);
+        
+        // Debug: Log the classification result
+        addLog(`🤖 GPT classified ${contactName}: "${gptResult}"`);
 
         if (gptResult === "Agent" || gptResult === "Vendor") {
           // Create updated contact with GPT classification
@@ -575,6 +683,7 @@ Respond with only one word: Agent, Vendor, or Contact`;
       addLog(
         `📊 Final Results: ${totalAgents} Agents, ${totalVendors} Vendors, ${totalContacts} Contacts`
       );
+      addLog(`📈 Classification Rate: ${Math.round(((totalAgents + totalVendors) / totalProcessed) * 100)}% classified as Agent/Vendor`);
       if (totalErrors > 0) {
         addLog(`⚠️ ${totalErrors} contacts failed to classify (API errors)`);
       }
