@@ -519,7 +519,9 @@ const LeadTagger = () => {
                   <div className="text-sm text-gray-600">
                     Already Categorized
                   </div>
-                  <div className="text-xs text-gray-500">(Has groups/category)</div>
+                  <div className="text-xs text-gray-500">
+                    (Has groups/category)
+                  </div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-orange-600">
@@ -535,7 +537,9 @@ const LeadTagger = () => {
                     {results.stats.leadsTagged}
                   </div>
                   <div className="text-sm text-gray-600">Added to "Leads"</div>
-                  <div className="text-xs text-gray-500">(Personal emails only)</div>
+                  <div className="text-xs text-gray-500">
+                    (Personal emails only)
+                  </div>
                 </div>
               </div>
 

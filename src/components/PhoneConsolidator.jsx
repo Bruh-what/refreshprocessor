@@ -16,102 +16,157 @@ const PhoneConsolidator = () => {
     setLogs((prev) => [...prev, `[${timestamp}] ${message}`]);
   };
 
-  // Phone number extraction and normalization functions
+  // Phone number extraction and normalization functions (matching RealEstateProcessor exactly)
   const getAllPhoneNumbers = (contact) => {
-    const phones = [];
     const phoneFields = [
-      "Mobile Phone",
+      // Standard Compass fields
       "Home Phone",
+      "Mobile Phone",
       "Work Phone",
       "Phone",
-      "Primary Mobile Phone",
       "Primary Home Phone",
+      "Home Phone 2",
       "Primary Work Phone",
-      "Primary other Phone",
-      "other Phone",
-      "Primary Custom Phone",
-      "Primary work Phone",
-      "work Phone",
-      "Primary personal Phone",
-      "other Phone 2",
-      "other Phone 3",
-      "Personal Phone 2",
-      "home Phone",
-      "Personal Phone 3",
-      "Personal Phone 4",
-      "home Phone 2",
-      "personal Phone",
-      "work Phone 2",
-      "other Phone 4",
-      "Custom Phone 2",
-      "Custom Phone",
+      "Primary Mobile Phone",
+      "Primary Phone",
+      "Mobile Phone 2",
+      "Mobile Phone 3",
+      "Work Phone 2",
+      // Phone export specific formats
       "Phone :",
       "Phone : mobile",
       "Phone : home",
       "Phone : work",
-      "Phone : other",
+      "Phone : iPhone",
+      "Phone : cell",
+      // Legacy phone fields for phone export compatibility
       "Phone Number (Home 1)",
-      "Phone Number (Mobile 1)",
-      "Phone Number (Work 1)",
-      "Phone Number (Other 1)",
       "Phone Number (Home 2)",
+      "Phone Number (Home 3)",
+      "Phone Number (Mobile 1)",
       "Phone Number (Mobile 2)",
+      "Phone Number (Mobile 3)",
+      "Phone Number (Work)",
+      "Phone Number (Work 1)",
       "Phone Number (Work 2)",
-      "Phone Number (Other 2)",
+      "Phone Number (Work 3)",
+      "Phone Number (Work 4)",
+      "Phone Number (Work 5)",
+      "Phone Number (Abraham)",
+      "Phone Number (Andrew)",
+      "Phone Number (Anita)",
+      "Phone Number (Annie)",
+      "Phone Number (Berj)",
+      "Phone Number (Bill)",
+      "Phone Number (Brett)",
+      "Phone Number (Call)",
+      "Phone Number (Carole)",
+      "Phone Number (Carrie)",
+      "Phone Number (Cash)",
+      "Phone Number (Cathy)",
+      "Phone Number (Chanler)",
+      "Phone Number (Cust Service)",
+      "Phone Number (David)",
+      "Phone Number (Eddie C)",
+      "Phone Number (Edie)",
+      "Phone Number (Exec Service)",
+      "Phone Number (Ford Gate)",
+      "Phone Number (Gina)",
+      "Phone Number (Gloria)",
+      "Phone Number (Greg)",
+      "Phone Number (Harold)",
+      "Phone Number (Heart)",
+      "Phone Number (Helen)",
+      "Phone Number (Janice)",
+      "Phone Number (Joel)",
+      "Phone Number (Kevin)",
+      "Phone Number (Lee)",
+      "Phone Number (Leslie)",
+      "Phone Number (Lisa)",
+      "Phone Number (Mark)",
+      "Phone Number (Michael)",
+      "Phone Number (Natalie)",
+      "Phone Number (Nicholas)",
+      "Phone Number (Pam)",
+      "Phone Number (Peter)",
+      "Phone Number (Ross)",
+      "Phone Number (Sabrina)",
+      "Phone Number (Seattle)",
+      "Phone Number (Steve)",
+      "Phone Number (Suzanne)",
+      "Phone Number (Ted)",
+      "Phone Number (Text)",
+      "Phone Number (Yolanda)",
+      "Phone Number (Zach Cell)",
+      "Phone Number (Assistant)",
+      "Phone Number (Company Main)",
+      "Phone Number (Home Fax)",
+      "Phone Number (Iphone)",
+      "Phone Number (Main 1)",
+      "Phone Number (Main 2)",
+      "Phone Number (Other Fax)",
+      "Phone Number (Other)",
+      "Phone Number (Pager)",
+      "Phone Number (Phone Number 1)",
+      "Phone Number (Phone Number 2)",
+      "Phone Number (Phone Number 3)",
+      "Phone Number (Work Fax 1)",
+      "Phone Number (Work Fax 2)",
     ];
 
-    // Check standard phone fields
-    phoneFields.forEach((field) => {
-      const phone = contact[field];
-      if (phone && typeof phone === "string" && phone.trim()) {
-        const normalizedPhone = normalizePhoneNumber(phone);
-        if (normalizedPhone && !phones.includes(normalizedPhone)) {
-          phones.push(normalizedPhone);
-        }
-      }
-    });
+    // First check the standard fields
+    const standardPhoneNumbers = phoneFields
+      .map((field) => contact[field])
+      .filter((phone) => phone && phone.trim() && phone !== "0000000000")
+      .map((phone) => normalizePhoneNumber(phone))
+      .filter((phone) => phone && phone.length >= 10);
 
-    // Scan all fields for phone patterns
-    for (const [key, value] of Object.entries(contact)) {
-      if (typeof value === "string" && value.trim()) {
-        // Look for phone number patterns
-        const phoneRegex = /(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/g;
-        const foundPhones = value.match(phoneRegex);
-        if (foundPhones) {
-          foundPhones.forEach((phone) => {
-            const normalizedPhone = normalizePhoneNumber(phone);
-            if (normalizedPhone && !phones.includes(normalizedPhone)) {
-              phones.push(normalizedPhone);
-            }
-          });
+    // Also check for any field that starts with "Phone :" or similar patterns (for phone exports)
+    const phoneExportNumbers = [];
+    for (const key in contact) {
+      // Check for different possible phone column formats in exports
+      if (
+        (key.startsWith("Phone :") ||
+          key.startsWith("Phone:") ||
+          key === "Phone" ||
+          key.includes("Phone") ||
+          key.includes("phone")) &&
+        contact[key] &&
+        contact[key].trim() &&
+        contact[key] !== "0000000000"
+      ) {
+        const normalizedPhone = normalizePhoneNumber(contact[key]);
+        if (normalizedPhone && normalizedPhone.length >= 10) {
+          phoneExportNumbers.push(normalizedPhone);
         }
       }
     }
 
-    return phones;
+    // Combine both types of phone numbers and remove duplicates
+    const allPhones = [...standardPhoneNumbers, ...phoneExportNumbers];
+    const uniquePhones = [...new Set(allPhones)];
+
+    return uniquePhones;
+
   };
 
+  // Helper method to normalize phone numbers consistently (matching RealEstateProcessor)
   const normalizePhoneNumber = (phone) => {
-    if (!phone || typeof phone !== "string") return null;
+    if (!phone || typeof phone !== "string") return "";
 
     // Remove all non-digit characters
     const digits = phone.replace(/\D/g, "");
 
-    // Must be at least 10 digits
-    if (digits.length < 10) return null;
+    // Check if we have at least 10 digits
+    if (digits.length < 10) return "";
 
-    // Handle US numbers with country code
+    // For US numbers with country code, strip the leading '1' if present
     if (digits.length === 11 && digits.startsWith("1")) {
       return digits.substring(1);
     }
 
-    // Return 10-digit US number
-    if (digits.length === 10) {
-      return digits;
-    }
-
-    // For longer numbers, take the last 10 digits
-    return digits.slice(-10);
+    // Return the cleaned digits (either exactly 10 digits or more for international)
+    return digits;
   };
 
   const formatPhoneNumber = (phone) => {
@@ -120,55 +175,235 @@ const PhoneConsolidator = () => {
   };
 
   // Email extraction for matching
+  // Get all emails from a contact (matching RealEstateProcessor)
   const getAllEmails = (contact) => {
-    const emails = [];
     const emailFields = [
-      "Email",
       "Personal Email",
-      "Email Address",
-      "Primary Email",
+      "Email",
       "Work Email",
-      "Business Email",
-      "Home Email",
-      "Other Email",
-      "Email 1",
       "Email 2",
       "Email 3",
-      "Primary Work Email",
       "Primary Personal Email",
-      "Primary other Email",
-      "other Email",
+      "Custom Email",
+      // Legacy email fields for phone export compatibility
+      "Email (1)",
+      "Email (2)",
+      "Email (3)",
+      "Email (Work)",
+      "Email (Home 1)",
+      "Email (Home 2)",
+      "Email (Andrea)",
+      "Email (David)",
+      "Email (Edina)",
+      "Email (Email 1)",
+      "Email (Email 2)",
+      "Email (Gabriele)",
+      "Email (Jennifer)",
+      "Email (John)",
+      "Email (Lauren)",
+      "Email (Lee)",
+      "Email (Lyn)",
+      "Email (Michael)",
+      "Email (Obsolete)",
+      "Email (Ralf)",
+      "Email (Icloud)",
+      "Email (Other 1)",
+      "Email (Other 2)",
+      "Email (Other 3)",
+      "Email (Work 1)",
+      "Email (Work 2)",
+      "Email (Work 3)",
+      "Primary Email",
+      "Primary Work Email",
     ];
 
-    emailFields.forEach((field) => {
-      const email = contact[field];
-      if (email && typeof email === "string" && email.includes("@")) {
-        emails.push(email.toLowerCase().trim());
-      }
-    });
+    // Extract all valid email addresses from the specified fields
+    const emails = emailFields
+      .map((field) => contact[field])
+      .filter((email) => email && email.trim() && email.includes("@"))
+      .map((email) => email.toLowerCase().trim());
 
-    // Scan all fields for email patterns
-    for (const [key, value] of Object.entries(contact)) {
-      if (typeof value === "string" && value.includes("@")) {
-        const emailRegex =
-          /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
-        const foundEmails = value.match(emailRegex);
-        if (foundEmails) {
-          foundEmails.forEach((email) => {
-            const cleanEmail = email.toLowerCase().trim();
-            if (!emails.includes(cleanEmail)) {
-              emails.push(cleanEmail);
-            }
-          });
+    // Now scan all other fields for anything that looks like an email address
+    // This helps catch emails in non-standard fields
+    if (contact) {
+      for (const [key, value] of Object.entries(contact)) {
+        if (
+          typeof value === "string" &&
+          value.includes("@") &&
+          !emailFields.includes(key)
+        ) {
+          const emailRegex =
+            /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+          const foundEmails = value.match(emailRegex);
+          if (foundEmails) {
+            foundEmails.forEach((email) => {
+              const cleanEmail = email.toLowerCase().trim();
+              if (!emails.includes(cleanEmail)) {
+                emails.push(cleanEmail);
+              }
+            });
+          }
         }
       }
     }
 
+    // Return unique emails only
     return [...new Set(emails)];
   };
 
   const normalizeEmail = (email) => {
-    return email.toLowerCase().trim();
+    if (!email || typeof email !== "string") return "";
+
+    return email
+      .toLowerCase()
+      .trim()
+      .replace(/\./g, "") // Remove dots
+      .replace(/\+.*@/, "@") // Remove plus aliases (user+alias@domain.com -> user@domain.com)
+      .replace(/(\d+)$/, ""); // Remove trailing numbers from username part
+  };
+
+  // Normalize names for matching - REQUIRES BOTH FIRST AND LAST NAME
+  const normalizeName = (firstName, lastName) => {
+    const first = (firstName || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s]/g, "")
+      .replace(/\s+/g, " ");
+    const last = (lastName || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s]/g, "")
+      .replace(/\s+/g, " ");
+
+    // Only return normalized name if BOTH first and last names exist
+    if (!first || !last) {
+      return ""; // Return empty string if either name is missing
+    }
+
+    return `${first} ${last}`.trim();
+  };
+
+  // Check if two names are similar enough to potentially be the same person
+  const areNamesSimilar = (name1, name2) => {
+    if (!name1 || !name2) return false;
+
+    // Exact match after normalization
+    if (name1 === name2) return true;
+
+    // Check for nickname matches (e.g., "Robert" and "Bob")
+    const nicknames = {
+      robert: ["rob", "bob", "bobby"],
+      william: ["will", "bill", "billy"],
+      james: ["jim", "jimmy"],
+      john: ["johnny", "jon"],
+      michael: ["mike", "mikey"],
+      christopher: ["chris"],
+      joseph: ["joe", "joey"],
+      thomas: ["tom", "tommy"],
+      charles: ["chuck", "charlie"],
+      katherine: ["kate", "katie", "kathy"],
+      elizabeth: ["liz", "beth", "betty"],
+      margaret: ["maggie", "peggy"],
+      patricia: ["pat", "patty", "tricia"],
+      jennifer: ["jen", "jenny"],
+      rebecca: ["becky"],
+      nicole: ["nikki"],
+      matthew: ["matt"],
+      richard: ["rick", "ricky", "dick"],
+      daniel: ["dan", "danny"],
+      joshua: ["josh"],
+      david: ["dave", "davey"],
+      nicholas: ["nick"],
+      anthony: ["tony"],
+      susan: ["sue", "suzie"],
+      deborah: ["deb", "debbie"],
+      barbara: ["barb"],
+      jessica: ["jess"],
+      victoria: ["vicky", "tori"],
+    };
+
+    // Check if one name is a nickname of the other
+    const n1 = name1.toLowerCase();
+    const n2 = name2.toLowerCase();
+
+    for (const [fullName, nicks] of Object.entries(nicknames)) {
+      if (
+        (n1 === fullName && nicks.includes(n2)) ||
+        (n2 === fullName && nicks.includes(n1)) ||
+        (nicks.includes(n1) && nicks.includes(n2))
+      ) {
+        return true;
+      }
+    }
+
+    // Calculate string similarity for detecting typos
+    const maxLength = Math.max(name1.length, name2.length);
+    if (maxLength <= 0) return false;
+
+    // Calculate Levenshtein distance
+    const distance = getLevenshteinDistance(name1, name2);
+
+    // Calculate similarity as a ratio
+    const similarity = 1 - distance / maxLength;
+
+    // Consider similar if 80% or more similar (allows for 1-2 character differences in typical names)
+    return similarity >= 0.8;
+  };
+
+  // Calculate Levenshtein distance between two strings
+  const getLevenshteinDistance = (a, b) => {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+
+    const matrix = [];
+
+    // Initialize matrix
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i];
+    }
+
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j;
+    }
+
+    // Calculate distances
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1, // substitution
+            matrix[i][j - 1] + 1, // insertion
+            matrix[i - 1][j] + 1 // deletion
+          );
+        }
+      }
+    }
+
+    return matrix[b.length][a.length];
+  };
+
+  // Enhanced matching function that requires both first and last names to match
+  const isNameMatch = (contact1, contact2) => {
+    const firstName1 = (contact1["First Name"] || "").toLowerCase().trim();
+    const lastName1 = (contact1["Last Name"] || "").toLowerCase().trim();
+    const firstName2 = (contact2["First Name"] || "").toLowerCase().trim();
+    const lastName2 = (contact2["Last Name"] || "").toLowerCase().trim();
+
+    // Both contacts must have both first and last names
+    if (!firstName1 || !lastName1 || !firstName2 || !lastName2) {
+      return false;
+    }
+
+    // Check if first names match (exact or similar)
+    const firstNamesMatch = areNamesSimilar(firstName1, firstName2);
+    
+    // Check if last names match (exact or similar)  
+    const lastNamesMatch = areNamesSimilar(lastName1, lastName2);
+
+    // BOTH first and last names must match
+    return firstNamesMatch && lastNamesMatch;
   };
 
   // File upload handlers
@@ -242,31 +477,36 @@ const PhoneConsolidator = () => {
         `📞 Found ${compassContactsMissingPhones.length} Compass contacts missing phone numbers`
       );
 
-      // Create lookup map for contacts missing phones
-      const keysToLookFor = new Set();
-      const keyToContactMap = new Map();
+      // Create lookup maps for enhanced matching
+      const emailKeyMap = new Map(); // email -> contact
+      const nameKeyMap = new Map(); // normalized name -> contact
+      const contactsArray = [...compassContactsMissingPhones]; // for fuzzy matching
 
       for (const compassContact of compassContactsMissingPhones) {
-        const firstName = (compassContact["First Name"] || "")
-          .toLowerCase()
-          .trim();
-        const lastName = (compassContact["Last Name"] || "")
-          .toLowerCase()
-          .trim();
-        const emails = getAllEmails(compassContact).map((e) =>
-          normalizeEmail(e)
+        const normalizedName = normalizeName(
+          compassContact["First Name"],
+          compassContact["Last Name"]
         );
+        const emails = getAllEmails(compassContact).map((e) => normalizeEmail(e));
 
+        // Add to name map if we have a valid normalized name
+        if (normalizedName) {
+          if (!nameKeyMap.has(normalizedName)) {
+            nameKeyMap.set(normalizedName, []);
+          }
+          nameKeyMap.get(normalizedName).push(compassContact);
+        }
+
+        // Add to email maps
         for (const email of emails) {
           if (email) {
-            const key = `${firstName}|${lastName}|${email}`;
-            keysToLookFor.add(key);
-            keyToContactMap.set(key, compassContact);
+            const key = `${normalizedName}|${email}`;
+            emailKeyMap.set(key, compassContact);
           }
         }
       }
 
-      addLog(`🔍 Created ${keysToLookFor.size} lookup keys for matching`);
+      addLog(`🔍 Created lookup maps: ${emailKeyMap.size} email keys, ${nameKeyMap.size} name keys`);
 
       let phonesAddedCount = 0;
       let contactsUpdatedCount = 0;
@@ -292,120 +532,70 @@ const PhoneConsolidator = () => {
           const phoneNumbers = getAllPhoneNumbers(phoneContact);
           if (phoneNumbers.length === 0) continue;
 
-          const firstName = (phoneContact["First Name"] || "")
-            .toLowerCase()
-            .trim();
-          const lastName = (phoneContact["Last Name"] || "")
-            .toLowerCase()
-            .trim();
-          const emails = getAllEmails(phoneContact).map((e) =>
-            normalizeEmail(e)
+          const normalizedName = normalizeName(
+            phoneContact["First Name"],
+            phoneContact["Last Name"]
           );
+          const emails = getAllEmails(phoneContact).map((e) => normalizeEmail(e));
 
-          // Try to match by name + email
           let matchFound = false;
+          let compassContact = null;
+
+          // Strategy 1: Exact name + email match (highest confidence)
           for (const email of emails) {
-            if (email) {
-              const key = `${firstName}|${lastName}|${email}`;
-              if (keysToLookFor.has(key)) {
-                const compassContact = keyToContactMap.get(key);
+            if (email && normalizedName) {
+              const key = `${normalizedName}|${email}`;
+              if (emailKeyMap.has(key)) {
+                compassContact = emailKeyMap.get(key);
+                addLog(`📧 Exact name+email match: ${normalizedName} (${email})`);
+                matchFound = true;
+                break;
+              }
+            }
+          }
 
-                // Add phone numbers to empty fields
-                const phoneFields = [
-                  "Mobile Phone",
-                  "Home Phone",
-                  "Work Phone",
-                  "Phone",
-                  "Primary Mobile Phone",
-                  "Primary Home Phone",
-                ];
+          // Strategy 2: Fuzzy name matching with strict requirements
+          if (!matchFound && normalizedName) {
+            // Check exact name match first
+            if (nameKeyMap.has(normalizedName)) {
+              const candidates = nameKeyMap.get(normalizedName);
+              if (candidates.length === 1) {
+                compassContact = candidates[0];
+                addLog(`👤 Exact name match: ${normalizedName}`);
+                matchFound = true;
+              }
+            }
 
-                for (const phoneNumber of phoneNumbers) {
-                  const formattedPhone = formatPhoneNumber(phoneNumber);
+            // If no exact match, try fuzzy matching but be very strict
+            if (!matchFound) {
+              for (const candidateContact of contactsArray) {
+                // Skip if already processed
+                if (getAllPhoneNumbers(candidateContact).length > 0) continue;
 
-                  for (const field of phoneFields) {
-                    if (!compassContact[field]) {
-                      compassContact[field] = formattedPhone;
-
-                      if (!compassContact["Changes Made"]) {
-                        compassContact["Changes Made"] = "";
-                      }
-                      if (compassContact["Changes Made"]) {
-                        compassContact["Changes Made"] += "; ";
-                      }
-                      compassContact[
-                        "Changes Made"
-                      ] += `Added phone number: ${formattedPhone}`;
-
-                      phonesAddedCount++;
-                      matchFound = true;
-                      break;
+                // Use enhanced name matching that requires both first and last names
+                if (isNameMatch(phoneContact, candidateContact)) {
+                  // Additional verification: if phone contact has email, compass contact should too
+                  if (emails.length > 0) {
+                    const compassEmails = getAllEmails(candidateContact);
+                    if (compassEmails.length === 0) {
+                      continue; // Skip this match - phone has email but compass doesn't
                     }
                   }
-                  if (matchFound) break;
-                }
 
-                if (matchFound) {
-                  contactsUpdatedCount++;
-                  addLog(
-                    `✅ Added phone to ${firstName} ${lastName}: ${phoneNumbers
-                      .map(formatPhoneNumber)
-                      .join(", ")}`
-                  );
+                  compassContact = candidateContact;
+                  addLog(`🔍 Fuzzy name match: ${normalizedName} -> ${normalizeName(candidateContact["First Name"], candidateContact["Last Name"])}`);
+                  matchFound = true;
                   break;
                 }
               }
             }
           }
-        }
 
-        // Update progress
-        setProgress(((chunkIndex + 1) / phoneChunks.length) * 100);
-
-        // Small delay to keep UI responsive
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-
-      // Try name-only matching for contacts that still need phones
-      addLog("🔍 Trying name-only matching for remaining contacts...");
-
-      const stillMissingPhones = updatedContacts.filter((contact) => {
-        return getAllPhoneNumbers(contact).length === 0;
-      });
-
-      addLog(
-        `📞 ${stillMissingPhones.length} contacts still missing phones, trying name-only matching`
-      );
-
-      for (const compassContact of stillMissingPhones) {
-        const compassFirstName = (compassContact["First Name"] || "")
-          .toLowerCase()
-          .trim();
-        const compassLastName = (compassContact["Last Name"] || "")
-          .toLowerCase()
-          .trim();
-
-        if (!compassFirstName || !compassLastName) continue;
-
-        for (const phoneContact of phoneData) {
-          const phoneNumbers = getAllPhoneNumbers(phoneContact);
-          if (phoneNumbers.length === 0) continue;
-
-          const phoneFirstName = (phoneContact["First Name"] || "")
-            .toLowerCase()
-            .trim();
-          const phoneLastName = (phoneContact["Last Name"] || "")
-            .toLowerCase()
-            .trim();
-
-          if (
-            compassFirstName === phoneFirstName &&
-            compassLastName === phoneLastName
-          ) {
-            // Add phone numbers
+          // Add phone numbers if match found
+          if (matchFound && compassContact) {
             const phoneFields = [
               "Mobile Phone",
-              "Home Phone",
+              "Home Phone", 
               "Work Phone",
               "Phone",
               "Primary Mobile Phone",
@@ -426,9 +616,7 @@ const PhoneConsolidator = () => {
                   if (compassContact["Changes Made"]) {
                     compassContact["Changes Made"] += "; ";
                   }
-                  compassContact[
-                    "Changes Made"
-                  ] += `Added phone number (name match): ${formattedPhone}`;
+                  compassContact["Changes Made"] += `Added phone number: ${formattedPhone}`;
 
                   phonesAddedCount++;
                   phoneAdded = true;
@@ -440,16 +628,24 @@ const PhoneConsolidator = () => {
 
             if (phoneAdded) {
               contactsUpdatedCount++;
-              addLog(
-                `✅ Added phone (name match) to ${compassFirstName} ${compassLastName}: ${phoneNumbers
-                  .map(formatPhoneNumber)
-                  .join(", ")}`
-              );
-              break;
+              addLog(`✅ Added phone to ${normalizedName}: ${phoneNumbers.map(formatPhoneNumber).join(", ")}`);
             }
           }
         }
+
+        // Update progress
+        setProgress(((chunkIndex + 1) / phoneChunks.length) * 100);
+
+        // Small delay to keep UI responsive
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
+
+      // Final count of contacts that still need phones
+      const stillMissingPhones = updatedContacts.filter((contact) => {
+        return getAllPhoneNumbers(contact).length === 0;
+      });
+
+      addLog(`📞 Final result: ${stillMissingPhones.length} contacts still missing phones after all matching strategies`);
 
       setResults({
         updatedContacts,
