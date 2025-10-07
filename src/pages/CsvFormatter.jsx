@@ -1119,13 +1119,19 @@ function CsvFormatter() {
                   `${saFirstName} ${saLastName}`.replace(/[^\w\s]/g, "");
                 const normalizedSaCompany = saCompany.replace(/[^\w\s]/g, "");
 
+                // Helper function to escape special regex characters
+                const escapeRegex = (string) => {
+                  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                };
+
                 // Check for strict boundary match - MUCH more precise
+                const escapedCompanyName = escapeRegex(companyName);
                 const boundaryMatch =
-                  new RegExp(`\\b${companyName}\\b`).test(
+                  new RegExp(`\\b${escapedCompanyName}\\b`).test(
                     `${saFirstName} ${saLastName}`
                   ) ||
                   (saCompany &&
-                    new RegExp(`\\b${companyName}\\b`).test(saCompany));
+                    new RegExp(`\\b${escapedCompanyName}\\b`).test(saCompany));
 
                 // Only return true for exact boundary matches - prevents over-matching
                 return {
