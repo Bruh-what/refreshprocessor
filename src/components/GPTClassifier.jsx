@@ -312,8 +312,27 @@ const GPTClassifier = () => {
         });
       }
 
-      // Must have some contact info
-      if (!name && emails.length === 0) return false;
+      // Must have some contact info - require at least a name for meaningful classification
+      if (!name || name.trim() === "") {
+        if (emails.length > 0) {
+          addLog(
+            `⚠️ EXCLUDED (no name): Contact with emails ${emails.join(
+              ", "
+            )} but no name - cannot classify meaningfully`
+          );
+        }
+        return false;
+      }
+
+      // Additional check: must have at least first OR last name (not just empty spaces)
+      const firstName = (contact["First Name"] || "").trim();
+      const lastName = (contact["Last Name"] || "").trim();
+      if (!firstName && !lastName) {
+        addLog(
+          `⚠️ EXCLUDED (empty names): Contact with empty first/last name fields`
+        );
+        return false;
+      }
 
       return true;
     });
@@ -402,11 +421,20 @@ const GPTClassifier = () => {
       // Must have ONLY personal emails (no business emails)
       if (!hasOnlyPersonalEmails(emails)) return false;
 
-      // Must have some contact info
+      // Must have some contact info - require at least a name for meaningful classification
       const name = `${contact["First Name"] || ""} ${
         contact["Last Name"] || ""
       }`.trim();
-      if (!name && emails.length === 0) return false;
+      if (!name || name.trim() === "") {
+        return false; // Skip contacts without names for leads classification too
+      }
+
+      // Additional check: must have at least first OR last name (not just empty spaces)
+      const firstName = (contact["First Name"] || "").trim();
+      const lastName = (contact["Last Name"] || "").trim();
+      if (!firstName && !lastName) {
+        return false;
+      }
 
       return true;
     });
