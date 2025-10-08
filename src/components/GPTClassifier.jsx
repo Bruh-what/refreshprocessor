@@ -312,26 +312,42 @@ const GPTClassifier = () => {
         });
       }
 
-      // Must have some contact info - require at least a name for meaningful classification
+      // Must have some contact info - either a name OR business emails for classification
       if (!name || name.trim() === "") {
-        if (emails.length > 0) {
+        // If no name, must have business emails to be worth classifying
+        if (emails.length === 0) {
           addLog(
-            `⚠️ EXCLUDED (no name): Contact with emails ${emails.join(
-              ", "
-            )} but no name - cannot classify meaningfully`
+            `⚠️ EXCLUDED (no name, no emails): Contact with no identifying information`
           );
+          return false;
         }
-        return false;
-      }
 
-      // Additional check: must have at least first OR last name (not just empty spaces)
-      const firstName = (contact["First Name"] || "").trim();
-      const lastName = (contact["Last Name"] || "").trim();
-      if (!firstName && !lastName) {
+        // Check if the emails include at least one business email
+        if (!hasBusinessEmail(emails)) {
+          addLog(
+            `⚠️ EXCLUDED (no name, only personal emails): Contact with emails ${emails.join(
+              ", "
+            )} but no name and no business emails`
+          );
+          return false;
+        }
+
+        // Allow nameless contacts if they have business emails (domain-based classification can work)
         addLog(
-          `⚠️ EXCLUDED (empty names): Contact with empty first/last name fields`
+          `✅ INCLUDED (no name, has business emails): Contact with business emails ${emails.join(
+            ", "
+          )} - can classify by domain`
         );
-        return false;
+      } else {
+        // Additional check for contacts with names: must have at least first OR last name (not just empty spaces)
+        const firstName = (contact["First Name"] || "").trim();
+        const lastName = (contact["Last Name"] || "").trim();
+        if (!firstName && !lastName) {
+          addLog(
+            `⚠️ EXCLUDED (empty name fields): Contact with empty first/last name fields but name="${name}"`
+          );
+          return false;
+        }
       }
 
       return true;
@@ -421,19 +437,23 @@ const GPTClassifier = () => {
       // Must have ONLY personal emails (no business emails)
       if (!hasOnlyPersonalEmails(emails)) return false;
 
-      // Must have some contact info - require at least a name for meaningful classification
+      // Must have some contact info - either a name OR emails for leads classification
       const name = `${contact["First Name"] || ""} ${
         contact["Last Name"] || ""
       }`.trim();
       if (!name || name.trim() === "") {
-        return false; // Skip contacts without names for leads classification too
-      }
-
-      // Additional check: must have at least first OR last name (not just empty spaces)
-      const firstName = (contact["First Name"] || "").trim();
-      const lastName = (contact["Last Name"] || "").trim();
-      if (!firstName && !lastName) {
-        return false;
+        // If no name, must have emails to be worth classifying as leads
+        if (emails.length === 0) {
+          return false;
+        }
+        // For leads, we accept nameless contacts with personal emails
+      } else {
+        // Additional check for contacts with names: must have at least first OR last name (not just empty spaces)
+        const firstName = (contact["First Name"] || "").trim();
+        const lastName = (contact["Last Name"] || "").trim();
+        if (!firstName && !lastName) {
+          return false;
+        }
       }
 
       return true;
@@ -913,20 +933,91 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
     // Create a map of classified contacts by name for quick lookup
     const classifiedMap = new Map();
     if (results && results.classifiedContacts.length > 0) {
-      results.classifiedContacts.forEach((contact) => {
-        const key = `${contact["First Name"] || ""}_${
-          contact["Last Name"] || ""
-        }`.toLowerCase();
-        classifiedMap.set(key, contact);
+      results.classifiedContacts.forEach((contact, index) => {
+        const firstName = (contact["First Name"] || "").trim();
+        const lastName = (contact["Last Name"] || "").trim();
+
+        // Handle contacts without names by using email as primary identifier
+        if (!firstName && !lastName) {
+          const emails = getAllEmails(contact);
+          if (emails.length === 0) {
+            addLog(
+              `⚠️ Export Warning: Skipping classified contact with no name and no emails (index ${index})`
+            );
+            return;
+          }
+          // Use email as the key for nameless contacts
+          const key = `NAMELESS_${emails[0]}_${index}`.toLowerCase();
+          classifiedMap.set(key, contact);
+          addLog(`📝 Export: Mapped nameless contact by email: ${emails[0]}`);
+          return;
+        }
+
+        // Create a more robust key that includes email as backup identifier
+        const emails = getAllEmails(contact);
+        const primaryEmail = emails.length > 0 ? emails[0] : "";
+        const key = `${firstName}_${lastName}_${primaryEmail}`.toLowerCase();
+
+        // Check for key collisions
+        if (classifiedMap.has(key)) {
+          addLog(
+            `⚠️ Export Warning: Duplicate key detected for ${firstName} ${lastName}, using index suffix`
+          );
+          classifiedMap.set(`${key}_${index}`, contact);
+        } else {
+          classifiedMap.set(key, contact);
+        }
       });
     }
 
     // Merge original data with classified results
     const allRecords = dataToExport.map((originalContact) => {
-      const key = `${originalContact["First Name"] || ""}_${
-        originalContact["Last Name"] || ""
-      }`.toLowerCase();
-      const classifiedContact = classifiedMap.get(key);
+      const firstName = (originalContact["First Name"] || "").trim();
+      const lastName = (originalContact["Last Name"] || "").trim();
+
+      // For contacts without names, try to match by email
+      if (!firstName && !lastName) {
+        const emails = getAllEmails(originalContact);
+        if (emails.length > 0) {
+          // Try to find classified version by email
+          const emailKey = `NAMELESS_${emails[0]}_`.toLowerCase();
+          for (const [mapKey, contact] of classifiedMap.entries()) {
+            if (mapKey.startsWith(emailKey)) {
+              addLog(
+                `📝 Export: Matched nameless contact by email: ${emails[0]}`
+              );
+              return contact;
+            }
+          }
+        }
+
+        // No classified version found, return original unchanged
+        const unchangedContact = { ...originalContact };
+        if (!unchangedContact["Category"]) unchangedContact["Category"] = "";
+        if (!unchangedContact["Groups"]) unchangedContact["Groups"] = "";
+        if (!unchangedContact["Tags"]) unchangedContact["Tags"] = "";
+        if (!unchangedContact["Changes Made"])
+          unchangedContact["Changes Made"] = "";
+        return unchangedContact;
+      }
+
+      // Create matching key for contacts with names
+      const emails = getAllEmails(originalContact);
+      const primaryEmail = emails.length > 0 ? emails[0] : "";
+      const key = `${firstName}_${lastName}_${primaryEmail}`.toLowerCase();
+
+      let classifiedContact = classifiedMap.get(key);
+
+      // Try without email if no exact match found
+      if (!classifiedContact) {
+        const keyWithoutEmail = `${firstName}_${lastName}_`.toLowerCase();
+        for (const [mapKey, contact] of classifiedMap.entries()) {
+          if (mapKey.startsWith(keyWithoutEmail)) {
+            classifiedContact = contact;
+            break;
+          }
+        }
+      }
 
       if (classifiedContact) {
         // Return the classified version (with updates)
