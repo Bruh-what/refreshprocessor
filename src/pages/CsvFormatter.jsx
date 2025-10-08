@@ -1121,7 +1121,7 @@ function CsvFormatter() {
 
                 // Helper function to escape special regex characters
                 const escapeRegex = (string) => {
-                  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
                 };
 
                 // Check for strict boundary match - MUCH more precise

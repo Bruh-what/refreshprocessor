@@ -147,7 +147,6 @@ const PhoneConsolidator = () => {
     const uniquePhones = [...new Set(allPhones)];
 
     return uniquePhones;
-
   };
 
   // Helper method to normalize phone numbers consistently (matching RealEstateProcessor)
@@ -398,8 +397,8 @@ const PhoneConsolidator = () => {
 
     // Check if first names match (exact or similar)
     const firstNamesMatch = areNamesSimilar(firstName1, firstName2);
-    
-    // Check if last names match (exact or similar)  
+
+    // Check if last names match (exact or similar)
     const lastNamesMatch = areNamesSimilar(lastName1, lastName2);
 
     // BOTH first and last names must match
@@ -487,7 +486,9 @@ const PhoneConsolidator = () => {
           compassContact["First Name"],
           compassContact["Last Name"]
         );
-        const emails = getAllEmails(compassContact).map((e) => normalizeEmail(e));
+        const emails = getAllEmails(compassContact).map((e) =>
+          normalizeEmail(e)
+        );
 
         // Add to name map if we have a valid normalized name
         if (normalizedName) {
@@ -506,7 +507,9 @@ const PhoneConsolidator = () => {
         }
       }
 
-      addLog(`🔍 Created lookup maps: ${emailKeyMap.size} email keys, ${nameKeyMap.size} name keys`);
+      addLog(
+        `🔍 Created lookup maps: ${emailKeyMap.size} email keys, ${nameKeyMap.size} name keys`
+      );
 
       let phonesAddedCount = 0;
       let contactsUpdatedCount = 0;
@@ -536,7 +539,9 @@ const PhoneConsolidator = () => {
             phoneContact["First Name"],
             phoneContact["Last Name"]
           );
-          const emails = getAllEmails(phoneContact).map((e) => normalizeEmail(e));
+          const emails = getAllEmails(phoneContact).map((e) =>
+            normalizeEmail(e)
+          );
 
           let matchFound = false;
           let compassContact = null;
@@ -547,7 +552,9 @@ const PhoneConsolidator = () => {
               const key = `${normalizedName}|${email}`;
               if (emailKeyMap.has(key)) {
                 compassContact = emailKeyMap.get(key);
-                addLog(`📧 Exact name+email match: ${normalizedName} (${email})`);
+                addLog(
+                  `📧 Exact name+email match: ${normalizedName} (${email})`
+                );
                 matchFound = true;
                 break;
               }
@@ -583,7 +590,12 @@ const PhoneConsolidator = () => {
                   }
 
                   compassContact = candidateContact;
-                  addLog(`🔍 Fuzzy name match: ${normalizedName} -> ${normalizeName(candidateContact["First Name"], candidateContact["Last Name"])}`);
+                  addLog(
+                    `🔍 Fuzzy name match: ${normalizedName} -> ${normalizeName(
+                      candidateContact["First Name"],
+                      candidateContact["Last Name"]
+                    )}`
+                  );
                   matchFound = true;
                   break;
                 }
@@ -595,7 +607,7 @@ const PhoneConsolidator = () => {
           if (matchFound && compassContact) {
             const phoneFields = [
               "Mobile Phone",
-              "Home Phone", 
+              "Home Phone",
               "Work Phone",
               "Phone",
               "Primary Mobile Phone",
@@ -616,7 +628,9 @@ const PhoneConsolidator = () => {
                   if (compassContact["Changes Made"]) {
                     compassContact["Changes Made"] += "; ";
                   }
-                  compassContact["Changes Made"] += `Added phone number: ${formattedPhone}`;
+                  compassContact[
+                    "Changes Made"
+                  ] += `Added phone number: ${formattedPhone}`;
 
                   phonesAddedCount++;
                   phoneAdded = true;
@@ -628,7 +642,11 @@ const PhoneConsolidator = () => {
 
             if (phoneAdded) {
               contactsUpdatedCount++;
-              addLog(`✅ Added phone to ${normalizedName}: ${phoneNumbers.map(formatPhoneNumber).join(", ")}`);
+              addLog(
+                `✅ Added phone to ${normalizedName}: ${phoneNumbers
+                  .map(formatPhoneNumber)
+                  .join(", ")}`
+              );
             }
           }
         }
@@ -645,7 +663,9 @@ const PhoneConsolidator = () => {
         return getAllPhoneNumbers(contact).length === 0;
       });
 
-      addLog(`📞 Final result: ${stillMissingPhones.length} contacts still missing phones after all matching strategies`);
+      addLog(
+        `📞 Final result: ${stillMissingPhones.length} contacts still missing phones after all matching strategies`
+      );
 
       setResults({
         updatedContacts,
