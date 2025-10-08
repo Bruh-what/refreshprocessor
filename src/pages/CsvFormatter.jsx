@@ -1523,12 +1523,12 @@ function CsvFormatter() {
                     // Create different tags based on whether this is a buyer or seller
                     const tagsToAdd = isBuyer
                       ? [
-                          "CRM Refresh: Home Anniversary",
+                          "CRM: Home Anniversary",
                           "Buyer",
                           anniversaryYear ? `${anniversaryYear}` : null,
                         ].filter(Boolean) // Remove null values
                       : [
-                          "CRM REFRESH CLOSED DATE",
+                          "CRM: Closed Date",
                           "SELLER-CRMREFRESH",
                           anniversaryYear ? `${anniversaryYear}` : null,
                         ].filter(Boolean); // Remove null values
@@ -1601,14 +1601,14 @@ function CsvFormatter() {
                   const contactType = isBuyer ? "buyer" : "seller";
                   const newEntryTags = isBuyer
                     ? [
-                        "CRM Refresh: Home Anniversary",
+                        "CRM: Home Anniversary",
                         "Buyer",
                         anniversaryYear ? `${anniversaryYear}` : null,
                       ]
                         .filter(Boolean)
                         .join(", ")
                     : [
-                        "CRM REFRESH CLOSED DATE",
+                        "CRM: Closed Date",
                         "Seller",
                         anniversaryYear ? `${anniversaryYear}` : null,
                       ]
@@ -1821,14 +1821,14 @@ function CsvFormatter() {
                 const contactType = isBuyer ? "buyer" : "seller";
                 const newEntryTags = isBuyer
                   ? [
-                      "CRM Refresh: Home Anniversary",
+                      "CRM: Home Anniversary",
                       "Buyer",
                       anniversaryYear ? `${anniversaryYear}` : null,
                     ]
                       .filter(Boolean)
                       .join(", ")
                   : [
-                      "CRM REFRESH CLOSED DATE",
+                      "CRM: Closed Date",
                       "Seller",
                       anniversaryYear ? `${anniversaryYear}` : null,
                     ]
@@ -1954,14 +1954,14 @@ function CsvFormatter() {
             // Create different tags based on whether this is a buyer or seller
             const newEntryTags = isBuyer
               ? [
-                  "CRM Refresh: Home Anniversary",
+                  "CRM: Home Anniversary",
                   "Buyer",
                   anniversaryYear ? `${anniversaryYear}` : null,
                 ]
                   .filter(Boolean)
                   .join(", ")
               : [
-                  "CRM REFRESH CLOSED DATE",
+                  "CRM: Closed Date",
                   "Seller",
                   anniversaryYear ? `${anniversaryYear}` : null,
                 ]
