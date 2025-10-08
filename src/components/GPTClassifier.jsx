@@ -656,9 +656,14 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
           updatedContact["Changes Made"] = updatedContact["Changes Made"]
             ? `${updatedContact["Changes Made"]}; Category=${gptResult} (GPT-classified)`
             : `Category=${gptResult} (GPT-classified)`;
-          updatedContact["Tags"] = updatedContact["Tags"]
-            ? `${updatedContact["Tags"]}, GPT-classified`
-            : "GPT-classified";
+
+          // Add tags including group change tracking
+          const existingTags = updatedContact["Tags"] || "";
+          const newTags = ["GPT-classified", `Ungrouped → ${gptResult}`];
+
+          updatedContact["Tags"] = existingTags
+            ? `${existingTags}, ${newTags.join(", ")}`
+            : newTags.join(", ");
 
           return {
             contact: updatedContact,
