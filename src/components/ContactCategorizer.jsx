@@ -1057,6 +1057,10 @@ const ContactCategorizer = () => {
         (r) => !r.Groups || r.Groups.trim() === ""
       ).length;
 
+      const categorizedCount = processedData.filter(
+        (r) => r.Category === "Agent" || r.Category === "Vendor"
+      ).length;
+
       const stats = {
         total: processedData.length,
         agents: processedData.filter((r) => r.Category === "Agent").length,
@@ -1065,6 +1069,7 @@ const ContactCategorizer = () => {
         leads: leadsCount,
         contactsMovedToLeads: contactsMovedToLeads,
         ungrouped: ungroupedCount,
+        categorized: categorizedCount,
       };
 
       // Sample categorized records for review
@@ -1178,6 +1183,26 @@ const ContactCategorizer = () => {
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "ungrouped_contacts_only.csv";
+    link.click();
+  };
+
+  const exportCategorizedContacts = () => {
+    if (!results) return;
+
+    const categorizedData = results.processedData.filter(
+      (record) => record.Category === "Agent" || record.Category === "Vendor"
+    );
+
+    if (categorizedData.length === 0) {
+      alert("No categorized contacts found to export!");
+      return;
+    }
+
+    const csv = Papa.unparse(categorizedData);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "categorized_contacts_only.csv";
     link.click();
   };
 
@@ -1326,6 +1351,14 @@ const ContactCategorizer = () => {
                         className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
                       >
                         👤 Contacts Only ({results.stats.contacts})
+                      </button>
+                    )}
+                    {results.stats.categorized > 0 && (
+                      <button
+                        onClick={exportCategorizedContacts}
+                        className="bg-teal-500 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded"
+                      >
+                        🎯 Categorized Only ({results.stats.categorized})
                       </button>
                     )}
                     {results.stats.ungrouped > 0 && (
