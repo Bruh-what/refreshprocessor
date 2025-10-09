@@ -9,6 +9,7 @@ import ContactCategorizer from "./components/ContactCategorizer.jsx";
 import GPTClassifier from "./components/GPTClassifier.jsx";
 import PhoneConsolidator from "./components/PhoneConsolidator.jsx";
 import LeadTagger from "./components/LeadTagger.jsx";
+import MergedBro from "./components/MergedBro.jsx";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -26,6 +27,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/gpt-classifier" element={<GPTClassifier />} />
         <Route path="/phone-consolidator" element={<PhoneConsolidator />} />
         <Route path="/lead-tagger" element={<LeadTagger />} />
+        <Route path="/merged-bro" element={<MergedBro />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

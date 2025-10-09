@@ -109,9 +109,19 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
+              marginRight: "1rem",
             }}
           >
             Lead Tagger
+          </Link>
+          <Link
+            to="/merged-bro"
+            style={{
+              color: "white",
+              textDecoration: "none",
+            }}
+          >
+            Merged Bro
           </Link>
         </div>
       </div>
