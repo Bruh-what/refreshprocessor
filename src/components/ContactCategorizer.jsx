@@ -1061,6 +1061,13 @@ const ContactCategorizer = () => {
         (r) => r.Category === "Agent" || r.Category === "Vendor"
       ).length;
 
+      const changedCount = processedData.filter(
+        (r) =>
+          r["Changes Made"] &&
+          r["Changes Made"] !== "Category=Contact" &&
+          r["Changes Made"].trim() !== ""
+      ).length;
+
       const stats = {
         total: processedData.length,
         agents: processedData.filter((r) => r.Category === "Agent").length,
@@ -1070,6 +1077,7 @@ const ContactCategorizer = () => {
         contactsMovedToLeads: contactsMovedToLeads,
         ungrouped: ungroupedCount,
         categorized: categorizedCount,
+        changed: changedCount,
       };
 
       // Sample categorized records for review
@@ -1206,6 +1214,29 @@ const ContactCategorizer = () => {
     link.click();
   };
 
+  const exportChangedContacts = () => {
+    if (!results) return;
+
+    const changedData = results.processedData.filter(
+      (record) =>
+        record["Changes Made"] &&
+        record["Changes Made"] !== "Category=Contact" &&
+        record["Changes Made"].trim() !== ""
+    );
+
+    if (changedData.length === 0) {
+      alert("No changed contacts found to export!");
+      return;
+    }
+
+    const csv = Papa.unparse(changedData);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "changed_contacts_only.csv";
+    link.click();
+  };
+
   return (
     <div>
       <Navbar />
@@ -1257,7 +1288,7 @@ const ContactCategorizer = () => {
               <h2 className="text-xl font-semibold mb-4">
                 Categorization Summary
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
                 <div className="text-center p-4 bg-blue-50 rounded">
                   <div className="text-2xl font-bold text-blue-600">
                     {results.stats.total}
@@ -1290,6 +1321,12 @@ const ContactCategorizer = () => {
                     {results.stats.contacts}
                   </div>
                   <div className="text-sm text-gray-600">Contacts</div>
+                </div>
+                <div className="text-center p-4 bg-yellow-50 rounded">
+                  <div className="text-2xl font-bold text-yellow-600">
+                    {results.stats.changed}
+                  </div>
+                  <div className="text-sm text-gray-600">Changed</div>
                 </div>
                 <div className="text-center p-4 bg-red-50 rounded">
                   <div className="text-2xl font-bold text-red-600">
@@ -1359,6 +1396,14 @@ const ContactCategorizer = () => {
                         className="bg-teal-500 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded"
                       >
                         🎯 Categorized Only ({results.stats.categorized})
+                      </button>
+                    )}
+                    {results.stats.changed > 0 && (
+                      <button
+                        onClick={exportChangedContacts}
+                        className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded"
+                      >
+                        ⚡ Changed Only ({results.stats.changed})
                       </button>
                     )}
                     {results.stats.ungrouped > 0 && (
