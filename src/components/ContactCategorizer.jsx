@@ -1053,6 +1053,10 @@ const ContactCategorizer = () => {
         (r) => r.Groups && r.Groups.toLowerCase().includes("leads")
       ).length;
 
+      const ungroupedCount = processedData.filter(
+        (r) => !r.Groups || r.Groups.trim() === ""
+      ).length;
+
       const stats = {
         total: processedData.length,
         agents: processedData.filter((r) => r.Category === "Agent").length,
@@ -1060,6 +1064,7 @@ const ContactCategorizer = () => {
         contacts: processedData.filter((r) => r.Category === "Contact").length,
         leads: leadsCount,
         contactsMovedToLeads: contactsMovedToLeads,
+        ungrouped: ungroupedCount,
       };
 
       // Sample categorized records for review
@@ -1156,6 +1161,26 @@ const ContactCategorizer = () => {
     link.click();
   };
 
+  const exportUngroupedContacts = () => {
+    if (!results) return;
+
+    const ungroupedData = results.processedData.filter(
+      (record) => !record.Groups || record.Groups.trim() === ""
+    );
+
+    if (ungroupedData.length === 0) {
+      alert("No ungrouped contacts found to export!");
+      return;
+    }
+
+    const csv = Papa.unparse(ungroupedData);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "ungrouped_contacts_only.csv";
+    link.click();
+  };
+
   return (
     <div>
       <Navbar />
@@ -1207,7 +1232,7 @@ const ContactCategorizer = () => {
               <h2 className="text-xl font-semibold mb-4">
                 Categorization Summary
               </h2>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                 <div className="text-center p-4 bg-blue-50 rounded">
                   <div className="text-2xl font-bold text-blue-600">
                     {results.stats.total}
@@ -1241,6 +1266,12 @@ const ContactCategorizer = () => {
                   </div>
                   <div className="text-sm text-gray-600">Contacts</div>
                 </div>
+                <div className="text-center p-4 bg-red-50 rounded">
+                  <div className="text-2xl font-bold text-red-600">
+                    {results.stats.ungrouped}
+                  </div>
+                  <div className="text-sm text-gray-600">Ungrouped</div>
+                </div>
               </div>
             </div>
 
@@ -1272,7 +1303,7 @@ const ContactCategorizer = () => {
                   <h3 className="text-md font-semibold mb-3 text-center">
                     Export by Category
                   </h3>
-                  <div className="flex justify-center space-x-4">
+                  <div className="flex justify-center flex-wrap gap-2">
                     {results.stats.agents > 0 && (
                       <button
                         onClick={() => exportByCategory("Agent")}
@@ -1295,6 +1326,14 @@ const ContactCategorizer = () => {
                         className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
                       >
                         👤 Contacts Only ({results.stats.contacts})
+                      </button>
+                    )}
+                    {results.stats.ungrouped > 0 && (
+                      <button
+                        onClick={exportUngroupedContacts}
+                        className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+                      >
+                        📭 Ungrouped Only ({results.stats.ungrouped})
                       </button>
                     )}
                   </div>
