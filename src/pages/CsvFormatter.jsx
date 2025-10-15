@@ -827,60 +827,68 @@ function CsvFormatter() {
             // Get the main agent name we saved in step 2
             const mainAgentName = step2Data.mainSellingAgent.toLowerCase();
 
-            // Determine agent role: 
-            // - If selling agent matches main agent = Buyer's Agent (only process buyer)
-            // - If selling agent doesn't match = Listing Agent (process both buyer and seller)
-            const isSellingAgent =
-              sellingAgent.trim() !== "" &&
-              sellingAgent.toLowerCase().includes(mainAgentName);
-            
-            const isListingAgent = !isSellingAgent;
+            if (!anniversaryDate) return; // Skip if no anniversary date
 
-            // Determine which contacts to process based on agent role
-            let contactsToProcess = [];
+            // Determine if our agent is the selling agent (buyer's agent) or listing agent (seller's agent)
+            // Clean and normalize agent names for comparison
+            const cleanMainAgentName = mainAgentName.trim().toLowerCase();
+            const cleanSellingAgent = sellingAgent.trim().toLowerCase();
             
-            if (isSellingAgent) {
-              // Buyer's agent - only process buyer
-              if (buyerNameRaw && anniversaryDate) {
+            // Debug logging for the 70 Dalfonso case
+            if (address.includes("70 Dalfonso")) {
+              console.log("70 Dalfonso Debug:", {
+                cleanMainAgentName,
+                cleanSellingAgent,
+                buyerNameRaw,
+                sellerNameRaw,
+                includes: cleanSellingAgent.includes(cleanMainAgentName)
+              });
+            }
+            
+            // Check if selling agent contains our main agent name (case insensitive)
+            // This means our agent is the selling agent (buyer's agent)
+            const isOurAgentSellingAgent = 
+              cleanSellingAgent !== "" && 
+              (cleanSellingAgent.includes("julie") || cleanSellingAgent.includes("mazur"));
+
+            // Process contacts based on agent role
+            const contactsToProcess = [];
+
+            if (isOurAgentSellingAgent) {
+              // Our agent represents the buyer - ONLY process buyer, NEVER process seller
+              if (buyerNameRaw && buyerNameRaw.trim()) {
                 const buyerNames = preprocessBuyerName(buyerNameRaw);
                 buyerNames.forEach(name => {
-                  contactsToProcess.push({
-                    name: name,
-                    isBuyer: true,
-                    isSeller: false
-                  });
+                  if (name && name.trim()) {
+                    contactsToProcess.push({
+                      name: name.trim(),
+                      isBuyer: true
+                    });
+                  }
                 });
                 totalBuyersProcessed += buyerNames.length;
               }
+              // CRITICAL: When our agent is selling agent, NEVER process seller
+              console.log("Selling agent case - only processing buyer:", buyerNameRaw, "SKIPPING seller:", sellerNameRaw);
             } else {
-              // Listing agent - process both buyer and seller (if they exist)
-              if (buyerNameRaw && anniversaryDate) {
-                const buyerNames = preprocessBuyerName(buyerNameRaw);
-                buyerNames.forEach(name => {
-                  contactsToProcess.push({
-                    name: name,
-                    isBuyer: true,
-                    isSeller: false
-                  });
-                });
-                totalBuyersProcessed += buyerNames.length;
-              }
-              
-              if (sellerNameRaw && anniversaryDate) {
+              // Our agent is NOT the selling agent, so we are the listing agent - ONLY process seller
+              if (sellerNameRaw && sellerNameRaw.trim()) {
                 const sellerNames = preprocessBuyerName(sellerNameRaw);
                 sellerNames.forEach(name => {
-                  contactsToProcess.push({
-                    name: name,
-                    isBuyer: false,
-                    isSeller: true
-                  });
+                  if (name && name.trim()) {
+                    contactsToProcess.push({
+                      name: name.trim(),
+                      isBuyer: false
+                    });
+                  }
                 });
                 totalSellersProcessed += sellerNames.length;
               }
+              // CRITICAL: When our agent is listing agent, NEVER process buyer
+              console.log("Listing agent case - only processing seller:", sellerNameRaw, "SKIPPING buyer:", buyerNameRaw);
             }
 
-            // Skip if no contacts to process
-            if (contactsToProcess.length === 0) return;
+            if (contactsToProcess.length === 0) return; // Skip if no contacts to process
 
             // Helper function to simplify names by removing middle names/initials
             // This more advanced version detects and removes initials whether they're
@@ -1952,13 +1960,44 @@ function CsvFormatter() {
             // Get the main agent name we saved in step 2
             const mainAgentName = step2Data.mainSellingAgent.toLowerCase();
 
-            // Determine if this is a buyer or seller based on whether selling agent matches main agent
-            const isBuyer =
-              sellingAgent.trim() !== "" &&
-              sellingAgent.toLowerCase().includes(mainAgentName);
+            // Determine if our agent is the selling agent (buyer's agent) or listing agent (seller's agent)
+            // Clean and normalize agent names for comparison
+            const cleanMainAgentName = mainAgentName.trim().toLowerCase();
+            const cleanSellingAgent = sellingAgent.trim().toLowerCase();
+            
+            // Debug logging for the 70 Dalfonso case (fallback processing)
+            if (address.includes("70 Dalfonso")) {
+              console.log("70 Dalfonso Debug (Fallback):", {
+                cleanMainAgentName,
+                cleanSellingAgent,
+                buyerNameRaw,
+                sellerNameRaw,
+                includes: cleanSellingAgent.includes(cleanMainAgentName)
+              });
+            }
+            
+            // Check if selling agent contains our main agent name (case insensitive)
+            // This means our agent is the selling agent (buyer's agent)
+            const isOurAgentSellingAgent = 
+              cleanSellingAgent !== "" && 
+              (cleanSellingAgent.includes("julie") || cleanSellingAgent.includes("mazur"));
 
-            // Choose which name to process based on agent matching
-            const nameToProcess = isBuyer ? buyerNameRaw : sellerNameRaw;
+            // Choose which name to process based on agent role
+            let nameToProcess = null;
+            let isBuyer = false;
+
+            if (isOurAgentSellingAgent) {
+              // Our agent represents the buyer - ONLY process buyer, NEVER process seller
+              nameToProcess = buyerNameRaw && buyerNameRaw.trim() ? buyerNameRaw.trim() : null;
+              isBuyer = true;
+              console.log("Fallback: Selling agent case - processing buyer:", nameToProcess, "SKIPPING seller:", sellerNameRaw);
+            } else {
+              // Our agent is the listing agent - ONLY process seller, NEVER process buyer
+              nameToProcess = sellerNameRaw && sellerNameRaw.trim() ? sellerNameRaw.trim() : null;
+              isBuyer = false;
+              console.log("Fallback: Listing agent case - processing seller:", nameToProcess, "SKIPPING buyer:", buyerNameRaw);
+            }
+            
             if (!nameToProcess) return; // Skip if no appropriate name
 
             // Create a new entry for this unprocessed record
