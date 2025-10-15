@@ -827,26 +827,60 @@ function CsvFormatter() {
             // Get the main agent name we saved in step 2
             const mainAgentName = step2Data.mainSellingAgent.toLowerCase();
 
-            // Determine if this is a buyer or seller based on whether selling agent matches main agent
-            const isBuyer =
+            // Determine agent role: 
+            // - If selling agent matches main agent = Buyer's Agent (only process buyer)
+            // - If selling agent doesn't match = Listing Agent (process both buyer and seller)
+            const isSellingAgent =
               sellingAgent.trim() !== "" &&
               sellingAgent.toLowerCase().includes(mainAgentName);
+            
+            const isListingAgent = !isSellingAgent;
 
-            // Choose which name to process based on agent matching
-            const nameToProcess = isBuyer ? buyerNameRaw : sellerNameRaw;
-
-            if (!nameToProcess || !anniversaryDate) return; // Skip if no appropriate name or anniversary date
-
-            // Parse names - they may have multiple people separated by &
-            // Format: "Last Name, First Name & Last Name, First Name" or "Company Name & Company Name"
-            const contactNames = preprocessBuyerName(nameToProcess);
-
-            if (isBuyer) {
-              totalBuyersProcessed += contactNames.length;
+            // Determine which contacts to process based on agent role
+            let contactsToProcess = [];
+            
+            if (isSellingAgent) {
+              // Buyer's agent - only process buyer
+              if (buyerNameRaw && anniversaryDate) {
+                const buyerNames = preprocessBuyerName(buyerNameRaw);
+                buyerNames.forEach(name => {
+                  contactsToProcess.push({
+                    name: name,
+                    isBuyer: true,
+                    isSeller: false
+                  });
+                });
+                totalBuyersProcessed += buyerNames.length;
+              }
             } else {
-              // Count as seller
-              totalSellersProcessed += contactNames.length;
+              // Listing agent - process both buyer and seller (if they exist)
+              if (buyerNameRaw && anniversaryDate) {
+                const buyerNames = preprocessBuyerName(buyerNameRaw);
+                buyerNames.forEach(name => {
+                  contactsToProcess.push({
+                    name: name,
+                    isBuyer: true,
+                    isSeller: false
+                  });
+                });
+                totalBuyersProcessed += buyerNames.length;
+              }
+              
+              if (sellerNameRaw && anniversaryDate) {
+                const sellerNames = preprocessBuyerName(sellerNameRaw);
+                sellerNames.forEach(name => {
+                  contactsToProcess.push({
+                    name: name,
+                    isBuyer: false,
+                    isSeller: true
+                  });
+                });
+                totalSellersProcessed += sellerNames.length;
+              }
             }
+
+            // Skip if no contacts to process
+            if (contactsToProcess.length === 0) return;
 
             // Helper function to simplify names by removing middle names/initials
             // This more advanced version detects and removes initials whether they're
@@ -1465,7 +1499,9 @@ function CsvFormatter() {
               };
             };
 
-            contactNames.forEach((contactName) => {
+            contactsToProcess.forEach((contactInfo) => {
+              const contactName = contactInfo.name;
+              
               // Skip empty contact names
               if (!contactName.trim()) {
                 return;
@@ -1521,7 +1557,7 @@ function CsvFormatter() {
                       : "";
 
                     // Create different tags based on whether this is a buyer or seller
-                    const tagsToAdd = isBuyer
+                    const tagsToAdd = contactInfo.isBuyer
                       ? [
                           "CRM: Home Anniversary",
                           "Buyer",
@@ -1559,7 +1595,7 @@ function CsvFormatter() {
                       existingTagsArray.join(", ");
 
                     // Add notes about what was done
-                    const contactType = isBuyer ? "buyer" : "seller";
+                    const contactType = contactInfo.isBuyer ? "buyer" : "seller";
                     const notes = `Updated existing contact as ${contactType}: Added home anniversary date (${anniversaryDate}). Tags added: ${addedTags.join(
                       ", "
                     )}`;
@@ -1598,8 +1634,8 @@ function CsvFormatter() {
                     : "";
 
                   // Create different tags based on whether this is a buyer or seller
-                  const contactType = isBuyer ? "buyer" : "seller";
-                  const newEntryTags = isBuyer
+                  const contactType = contactInfo.isBuyer ? "buyer" : "seller";
+                  const newEntryTags = contactInfo.isBuyer
                     ? [
                         "CRM: Home Anniversary",
                         "Buyer",
@@ -1651,7 +1687,7 @@ function CsvFormatter() {
                 changeLog.push({
                   type: "skipped_single_name",
                   contactName: nameInfo.singleName,
-                  contactType: isBuyer ? "buyer" : "seller",
+                  contactType: contactInfo.isBuyer ? "buyer" : "seller",
                   reason:
                     "Single name without last name - too ambiguous to match safely",
                   address: address,
@@ -1677,7 +1713,7 @@ function CsvFormatter() {
                   changeLog.push({
                     type: "skipped_incomplete",
                     contactName: contactName,
-                    contactType: isBuyer ? "buyer" : "seller",
+                    contactType: contactInfo.isBuyer ? "buyer" : "seller",
                     reason:
                       "First name is too short or missing - may cause over-matching",
                     address: address,
@@ -1699,7 +1735,7 @@ function CsvFormatter() {
                   changeLog.push({
                     type: "parse_error",
                     contactName: contactName,
-                    contactType: isBuyer ? "buyer" : "seller",
+                    contactType: contactInfo.isBuyer ? "buyer" : "seller",
                     reason: "Could not parse contact name format",
                     address: address,
                   });
@@ -1744,7 +1780,7 @@ function CsvFormatter() {
                     : "";
 
                   // Create different tags based on whether this is a buyer or seller
-                  const tagsToAdd = isBuyer
+                  const tagsToAdd = contactInfo.isBuyer
                     ? [
                         "CRM: Home Anniversary", // Changed from "CRM Refresh: Home Anniversary"
                         "Buyer",
@@ -1779,7 +1815,7 @@ function CsvFormatter() {
                   updatedSaRows[saIndex]["Tags"] = existingTagsArray.join(", ");
 
                   // Add notes about what was done
-                  const contactType = isBuyer ? "buyer" : "seller";
+                  const contactType = contactInfo.isBuyer ? "buyer" : "seller";
                   const notes = `Updated existing contact as ${contactType}: Added home anniversary date (${anniversaryDate}). Tags added: ${addedTags.join(
                     ", "
                   )}`;
@@ -1818,8 +1854,8 @@ function CsvFormatter() {
                   : "";
 
                 // Create different tags based on whether this is a buyer or seller
-                const contactType = isBuyer ? "buyer" : "seller";
-                const newEntryTags = isBuyer
+                const contactType = contactInfo.isBuyer ? "buyer" : "seller";
+                const newEntryTags = contactInfo.isBuyer
                   ? [
                       "CRM: Home Anniversary",
                       "Buyer",
