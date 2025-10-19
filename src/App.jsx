@@ -138,17 +138,17 @@ function App() {
         );
       };
 
-      // Helper function to check if a record has CRMMERGED tag
+      // Helper function to check if a record has CRM: Merged tag
       const hasMergeTag = (record) => {
         if (!record.Tags) return false;
         const tagsLower = record.Tags.toLowerCase();
-        return tagsLower.includes("crmmerged");
+        return tagsLower.includes("crm: merged");
       };
 
-      // Helper function to check if a record has CRMDuplicate tag
+      // Helper function to check if a record has CRM: Duplicate tag
       const hasDuplicateTag = (record) => {
         if (!record.Tags) return false;
-        return record.Tags.includes("CRMDuplicate");
+        return record.Tags.includes("CRM: Duplicate");
       };
 
       // Get all processed data
@@ -268,16 +268,16 @@ function App() {
         `Found ${phoneAnniversaryRecords.length} anniversary records in Phone data`
       );
 
-      // Find records with CRMMERGED tag from all processed data
+      // Find records with CRM: Merged tag from all processed data
       const mergedRecords = allProcessedData.filter((record) =>
         hasMergeTag(record)
       );
-      console.log(`Found ${mergedRecords.length} records with CRMMERGED tag`);
+      console.log(`Found ${mergedRecords.length} records with CRM: Merged tag`);
 
       // Create a map to deduplicate based on name
       const uniqueRecordsMap = new Map();
 
-      // First add CRMMERGED records (highest priority)
+      // First add CRM: Merged records (highest priority)
       let mergeTagsAdded = 0;
       for (const record of mergedRecords) {
         const firstName = (record["First Name"] || "").toLowerCase().trim();
@@ -291,7 +291,7 @@ function App() {
             !record["Changes Made"] ||
             record["Changes Made"] === "No changes made"
           ) {
-            record["Changes Made"] = "Included for CRMMERGED tag";
+            record["Changes Made"] = "Included for CRM: Merged tag";
           }
 
           uniqueRecordsMap.set(key, record);
@@ -380,12 +380,12 @@ function App() {
           } anniversary)`
       );
 
-      // Add a debug log to verify CRMMERGED tags are present
+      // Add a debug log to verify CRM: Merged tags are present
       const mergedTagsInExport = recordsToExport.filter(
-        (r) => r["Tags"] && r["Tags"].includes("CRMMERGED")
+        (r) => r["Tags"] && r["Tags"].includes("CRM: Merged")
       ).length;
       console.log(
-        `Number of records with CRMMERGED tag in export: ${mergedTagsInExport}`
+        `Number of records with CRM: Merged tag in export: ${mergedTagsInExport}`
       );
 
       // Fields to exclude for import
