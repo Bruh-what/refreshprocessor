@@ -384,195 +384,187 @@ const LeadTagger = () => {
           without contact info
         </p>
 
-          {/* File Upload Section */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6">
+        {/* File Upload Section */}
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">📁 Upload Contact File</h2>
+          <div className="mb-4">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileUpload}
+              className="w-full p-3 border rounded-lg"
+            />
+            {file && (
+              <p className="text-sm text-gray-600 mt-2">📄 File: {file.name}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Processing Rules */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">🔧 Processing Rules</h2>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-start space-x-3">
+              <span className="text-green-600 font-bold">✅</span>
+              <span>
+                <strong>Already Categorized:</strong> Contacts with existing
+                Groups or Categories are left unchanged
+              </span>
+            </div>
+            <div className="flex items-start space-x-3">
+              <span className="text-blue-600 font-bold">🏢</span>
+              <span>
+                <strong>Business Emails:</strong> Uncategorized contacts with
+                business emails get "Uncategorized" tag
+              </span>
+            </div>
+            <div className="flex items-start space-x-3">
+              <span className="text-purple-600 font-bold">👤</span>
+              <span>
+                <strong>Personal Emails:</strong> Contacts with only personal
+                emails (Gmail, Yahoo, etc.) go to "Leads" group
+              </span>
+            </div>
+            <div className="flex items-start space-x-3">
+              <span className="text-red-600 font-bold">�️</span>
+              <span>
+                <strong>No Email:</strong> Records without email addresses are
+                deleted (regardless of name)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Process Button */}
+        {originalData.length > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4">🚀 Ready to Process</h2>
+
+            <button
+              onClick={processContacts}
+              disabled={processing || !file}
+              className={`w-full py-3 px-4 rounded-lg font-semibold ${
+                !processing && file
+                  ? "bg-blue-500 hover:bg-blue-700 text-white"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
+            >
+              {processing
+                ? `Processing... (${Math.floor(progress)}%)`
+                : `🏷️ Process ${originalData.length} Contacts`}
+            </button>
+          </div>
+        )}
+
+        {/* Progress Section */}
+        {processing && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4">
-              📁 Upload Contact File
+              ⏳ Processing Progress
             </h2>
             <div className="mb-4">
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleFileUpload}
-                className="w-full p-3 border rounded-lg"
-              />
-              {file && (
-                <p className="text-sm text-gray-600 mt-2">
-                  📄 File: {file.name}
-                </p>
-              )}
+              <div className="bg-gray-200 rounded-full h-3">
+                <div
+                  className="bg-blue-500 h-3 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                {Math.floor(progress)}% complete
+              </p>
             </div>
           </div>
+        )}
 
-          {/* Processing Rules */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-            <h2 className="text-xl font-semibold mb-4">🔧 Processing Rules</h2>
-            <div className="space-y-3 text-sm">
-              <div className="flex items-start space-x-3">
-                <span className="text-green-600 font-bold">✅</span>
-                <span>
-                  <strong>Already Categorized:</strong> Contacts with existing
-                  Groups or Categories are left unchanged
-                </span>
+        {/* Results Section */}
+        {results && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4">
+              ✅ Processing Complete
+            </h2>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  {results.stats.originalCount}
+                </div>
+                <div className="text-sm text-gray-600">Original Contacts</div>
               </div>
-              <div className="flex items-start space-x-3">
-                <span className="text-blue-600 font-bold">🏢</span>
-                <span>
-                  <strong>Business Emails:</strong> Uncategorized contacts with
-                  business emails get "Uncategorized" tag
-                </span>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {results.stats.finalCount}
+                </div>
+                <div className="text-sm text-gray-600">Final Contacts</div>
               </div>
-              <div className="flex items-start space-x-3">
-                <span className="text-purple-600 font-bold">👤</span>
-                <span>
-                  <strong>Personal Emails:</strong> Contacts with only personal
-                  emails (Gmail, Yahoo, etc.) go to "Leads" group
-                </span>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">
+                  {results.stats.deletedCount}
+                </div>
+                <div className="text-sm text-gray-600">Deleted Records</div>
+                <div className="text-xs text-gray-500">(No email found)</div>
               </div>
-              <div className="flex items-start space-x-3">
-                <span className="text-red-600 font-bold">�️</span>
-                <span>
-                  <strong>No Email:</strong> Records without email addresses are
-                  deleted (regardless of name)
-                </span>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-gray-600">
+                  {results.stats.alreadyCategorizedCount}
+                </div>
+                <div className="text-sm text-gray-600">Already Categorized</div>
+                <div className="text-xs text-gray-500">
+                  (Has groups/category)
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">
+                  {results.stats.uncategorizedTagged}
+                </div>
+                <div className="text-sm text-gray-600">
+                  Tagged "Uncategorized"
+                </div>
+                <div className="text-xs text-gray-500">(Business emails)</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">
+                  {results.stats.leadsTagged}
+                </div>
+                <div className="text-sm text-gray-600">Added to "Leads"</div>
+                <div className="text-xs text-gray-500">
+                  (Personal emails only)
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Process Button */}
-          {originalData.length > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4">
-                🚀 Ready to Process
-              </h2>
-
+            {/* Export Button */}
+            <div className="space-y-4">
               <button
-                onClick={processContacts}
-                disabled={processing || !file}
-                className={`w-full py-3 px-4 rounded-lg font-semibold ${
-                  !processing && file
-                    ? "bg-blue-500 hover:bg-blue-700 text-white"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                }`}
+                onClick={exportProcessedData}
+                className="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg"
               >
-                {processing
-                  ? `Processing... (${Math.floor(progress)}%)`
-                  : `🏷️ Process ${originalData.length} Contacts`}
+                📥 Export Processed Contacts
               </button>
-            </div>
-          )}
 
-          {/* Progress Section */}
-          {processing && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4">
-                ⏳ Processing Progress
-              </h2>
-              <div className="mb-4">
-                <div className="bg-gray-200 rounded-full h-3">
-                  <div
-                    className="bg-blue-500 h-3 rounded-full transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <p className="text-sm text-gray-600 mt-2">
-                  {Math.floor(progress)}% complete
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Results Section */}
-          {results && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4">
-                ✅ Processing Complete
-              </h2>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {results.stats.originalCount}
-                  </div>
-                  <div className="text-sm text-gray-600">Original Contacts</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {results.stats.finalCount}
-                  </div>
-                  <div className="text-sm text-gray-600">Final Contacts</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-red-600">
-                    {results.stats.deletedCount}
-                  </div>
-                  <div className="text-sm text-gray-600">Deleted Records</div>
-                  <div className="text-xs text-gray-500">(No email found)</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-600">
-                    {results.stats.alreadyCategorizedCount}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    Already Categorized
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    (Has groups/category)
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-orange-600">
-                    {results.stats.uncategorizedTagged}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    Tagged "Uncategorized"
-                  </div>
-                  <div className="text-xs text-gray-500">(Business emails)</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">
-                    {results.stats.leadsTagged}
-                  </div>
-                  <div className="text-sm text-gray-600">Added to "Leads"</div>
-                  <div className="text-xs text-gray-500">
-                    (Personal emails only)
-                  </div>
-                </div>
-              </div>
-
-              {/* Export Button */}
-              <div className="space-y-4">
+              <div className="text-center">
                 <button
-                  onClick={exportProcessedData}
-                  className="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg"
+                  onClick={clearData}
+                  className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
                 >
-                  📥 Export Processed Contacts
+                  🗑️ Clear Data
                 </button>
-
-                <div className="text-center">
-                  <button
-                    onClick={clearData}
-                    className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
-                  >
-                    🗑️ Clear Data
-                  </button>
-                </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Logs Section */}
-          {logs.length > 0 && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">📋 Processing Logs</h2>
-              <div className="bg-black text-green-400 p-4 rounded-lg max-h-60 overflow-y-auto font-mono text-sm">
-                {logs.map((log, index) => (
-                  <div key={index}>{log}</div>
-                ))}
-              </div>
+        {/* Logs Section */}
+        {logs.length > 0 && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4">📋 Processing Logs</h2>
+            <div className="bg-black text-green-400 p-4 rounded-lg max-h-60 overflow-y-auto font-mono text-sm">
+              {logs.map((log, index) => (
+                <div key={index}>{log}</div>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

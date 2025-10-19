@@ -3708,6 +3708,7 @@ function CsvFormatter() {
             if (
               address.includes("70 Dalfonso") ||
               address.includes("34 Black Hawk") ||
+              address.includes("16 Shari Dr") ||
               Math.random() < 0.02
             ) {
               console.log("🔍 Agent Matching Debug:", {
@@ -3719,7 +3720,7 @@ function CsvFormatter() {
                 sellerNameRaw: sellerNameRaw,
                 willProcess: isOurAgentSellingAgent
                   ? "BUYER ONLY"
-                  : "SELLER ONLY",
+                  : "SKIP - NOT OUR TRANSACTION",
               });
             }
 
@@ -3748,26 +3749,21 @@ function CsvFormatter() {
                 sellerNameRaw
               );
             } else {
-              // Our agent is NOT the selling agent, so we are the listing agent - ONLY process seller
-              if (sellerNameRaw && sellerNameRaw.trim()) {
-                const sellerNames = preprocessBuyerName(sellerNameRaw);
-                sellerNames.forEach((name) => {
-                  if (name && name.trim()) {
-                    contactsToProcess.push({
-                      name: name.trim(),
-                      isBuyer: false,
-                    });
-                  }
-                });
-                totalSellersProcessed += sellerNames.length;
-              }
-              // CRITICAL: When our agent is listing agent, NEVER process buyer
+              // CRITICAL FIX: Our agent is NOT the selling agent - SKIP this transaction entirely
+              // We don't have a listing agent column, so we can't verify if Julie is the listing agent
+              // Therefore, we should ONLY process transactions where Julie is explicitly the selling agent
               console.log(
-                "Listing agent case - only processing seller:",
-                sellerNameRaw,
+                "SKIPPING transaction - our agent not involved as selling agent:",
+                "Selling Agent:",
+                sellingAgent,
+                "Address:",
+                address,
                 "SKIPPING buyer:",
-                buyerNameRaw
+                buyerNameRaw,
+                "SKIPPING seller:",
+                sellerNameRaw
               );
+              return; // Skip this entire transaction
             }
 
             if (contactsToProcess.length === 0) return; // Skip if no contacts to process
@@ -4875,8 +4871,9 @@ function CsvFormatter() {
             const cleanSellingAgent = sellingAgent.trim().toLowerCase();
 
             // Debug logging for the 70 Dalfonso case (fallback processing)
-            if (address.includes("70 Dalfonso")) {
-              console.log("70 Dalfonso Debug (Fallback):", {
+            if (address.includes("70 Dalfonso") || address.includes("16 Shari Dr")) {
+              console.log("Debug (Fallback):", {
+                address: address,
                 cleanMainAgentName,
                 cleanSellingAgent,
                 buyerNameRaw,
@@ -4939,18 +4936,21 @@ function CsvFormatter() {
                 sellerNameRaw
               );
             } else {
-              // Our agent is the listing agent - ONLY process seller, NEVER process buyer
-              nameToProcess =
-                sellerNameRaw && sellerNameRaw.trim()
-                  ? sellerNameRaw.trim()
-                  : null;
-              isBuyer = false;
+              // CRITICAL FIX: Our agent is NOT the selling agent - SKIP this transaction entirely
+              // We don't have a listing agent column, so we can't verify if Julie is the listing agent
+              // Therefore, we should ONLY process transactions where Julie is explicitly the selling agent
               console.log(
-                "Fallback: Listing agent case - processing seller:",
-                nameToProcess,
+                "Fallback: SKIPPING transaction - our agent not involved as selling agent:",
+                "Selling Agent:",
+                sellingAgent,
+                "Address:",
+                address,
                 "SKIPPING buyer:",
-                buyerNameRaw
+                buyerNameRaw,
+                "SKIPPING seller:",
+                sellerNameRaw
               );
+              return; // Skip this entire transaction
             }
 
             if (!nameToProcess) return; // Skip if no appropriate name
@@ -5105,743 +5105,716 @@ function CsvFormatter() {
         <h1>📊 CSV Formatter</h1>
         <p>Process and merge your CSV data in 3 easy steps</p>
 
-          {/* Step indicator */}
-          <div className="step-indicator">
-            <div
-              className={`step ${
-                currentStep === 1
-                  ? "active"
-                  : currentStep > 1
-                  ? "completed"
-                  : ""
-              }`}
-            >
-              <span>1</span>
-              <label>Format & Filter</label>
-            </div>
-            <div
-              className={`step ${
-                currentStep === 2
-                  ? "active"
-                  : currentStep > 2
-                  ? "completed"
-                  : ""
-              }`}
-            >
-              <span>2</span>
-              <label>Upload Files</label>
-            </div>
-            <div className={`step ${currentStep === 3 ? "active" : ""}`}>
-              <span>3</span>
-              <label>Process & Download</label>
-            </div>
+        {/* Step indicator */}
+        <div className="step-indicator">
+          <div
+            className={`step ${
+              currentStep === 1 ? "active" : currentStep > 1 ? "completed" : ""
+            }`}
+          >
+            <span>1</span>
+            <label>Format & Filter</label>
           </div>
-        </header>
+          <div
+            className={`step ${
+              currentStep === 2 ? "active" : currentStep > 2 ? "completed" : ""
+            }`}
+          >
+            <span>2</span>
+            <label>Upload Files</label>
+          </div>
+          <div className={`step ${currentStep === 3 ? "active" : ""}`}>
+            <span>3</span>
+            <label>Process & Download</label>
+          </div>
+        </div>
+      </header>
 
-        <main className="csv-formatter-main">
-          <div className="formatter-content">
-            {/* Step 1: Filter by Selling Agent */}
-            {currentStep === 1 && (
-              <div className="step-content">
-                <div className="step-header">
-                  <h2>
-                    Step 1: Format Names & Optionally Filter by Selling Agent
-                  </h2>
-                  <p>
-                    Upload your CSV file with home anniversaries, format all
-                    names correctly, and optionally filter by selling agent.
-                  </p>
+      <main className="csv-formatter-main">
+        <div className="formatter-content">
+          {/* Step 1: Filter by Selling Agent */}
+          {currentStep === 1 && (
+            <div className="step-content">
+              <div className="step-header">
+                <h2>
+                  Step 1: Format Names & Optionally Filter by Selling Agent
+                </h2>
+                <p>
+                  Upload your CSV file with home anniversaries, format all names
+                  correctly, and optionally filter by selling agent.
+                </p>
+              </div>
+
+              <div className="upload-section">
+                <div className="file-upload">
+                  <label htmlFor="step1-csv" className="upload-label">
+                    📁 Upload Home Anniversaries CSV
+                  </label>
+                  <input
+                    type="file"
+                    id="step1-csv"
+                    accept=".csv"
+                    onChange={handleStep1CsvUpload}
+                    className="file-input"
+                  />
+                  {step1Data.csvFile && (
+                    <div className="file-info">
+                      ✅ File: {step1Data.csvFile.name}
+                    </div>
+                  )}
                 </div>
 
-                <div className="upload-section">
+                <div className="agent-input">
+                  <label htmlFor="selling-agent">
+                    Selling Agent Name (optional):
+                  </label>
+                  <input
+                    type="text"
+                    id="selling-agent"
+                    value={step1Data.sellingAgent}
+                    onChange={handleSellingAgentChange}
+                    placeholder="Enter selling agent name (or leave blank for all entries)"
+                    className="text-input"
+                  />
+                </div>
+
+                <button
+                  onClick={filterBySellingAgent}
+                  className="filter-button"
+                  disabled={!step1Data.csvFile}
+                >
+                  Process CSV Data
+                </button>
+
+                {step1Data.filteredData && (
+                  <div className="filter-results">
+                    {step1Data.sellingAgent.trim() ? (
+                      <p>
+                        ✅ Found {step1Data.filteredData.rows.length} entries
+                        for "{step1Data.sellingAgent}" (from{" "}
+                        {step1Data.allFormattedData.rows.length} total)
+                      </p>
+                    ) : (
+                      <p>
+                        ✅ Processed all{" "}
+                        {step1Data.allFormattedData.rows.length} entries
+                      </p>
+                    )}
+
+                    <div className="download-options">
+                      {step1Data.sellingAgent.trim() && (
+                        <button
+                          onClick={downloadFilteredCSV}
+                          className="download-button"
+                        >
+                          📥 Download Filtered CSV
+                        </button>
+                      )}
+
+                      <button
+                        onClick={downloadAllFormattedCSV}
+                        className="download-button"
+                      >
+                        📥 Download All Formatted CSV
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {step1Data.downloadReady && (
+                  <div className="next-step">
+                    <button
+                      onClick={() => setCurrentStep(2)}
+                      className="next-button"
+                    >
+                      Next Step →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <style jsx>{`
+                .download-options {
+                  display: flex;
+                  gap: 10px;
+                  margin-top: 10px;
+                }
+
+                .agent-info {
+                  background-color: #f8f9fa;
+                  border: 1px solid #e9ecef;
+                  border-radius: 5px;
+                  padding: 10px 15px;
+                  margin: 15px 0;
+                }
+
+                .agent-input-processing {
+                  background-color: #f0f8ff;
+                  border: 1px solid #d1e7ff;
+                  border-radius: 5px;
+                  padding: 15px;
+                  margin: 20px 0;
+                }
+
+                .agent-input-processing label {
+                  display: block;
+                  font-weight: bold;
+                  margin-bottom: 8px;
+                }
+
+                .agent-input-processing input {
+                  width: 100%;
+                  padding: 8px 10px;
+                  border: 1px solid #ced4da;
+                  border-radius: 4px;
+                  font-size: 16px;
+                  margin-bottom: 8px;
+                }
+
+                .agent-info-text {
+                  font-size: 14px;
+                  color: #555;
+                  margin-top: 5px;
+                }
+
+                .log-display-options {
+                  display: flex;
+                  align-items: center;
+                  margin-bottom: 15px;
+                }
+
+                .toggle-logs-button {
+                  background-color: #f0f0f0;
+                  border: 1px solid #ddd;
+                  border-radius: 4px;
+                  padding: 5px 10px;
+                  font-size: 12px;
+                  cursor: pointer;
+                }
+
+                .toggle-logs-button:hover {
+                  background-color: #e0e0e0;
+                }
+
+                .small-note {
+                  font-size: 12px;
+                  color: #666;
+                  margin-left: 10px;
+                }
+              `}</style>
+            </div>
+          )}
+
+          {/* Step 2: Upload Both CSVs */}
+          {currentStep === 2 && (
+            <div className="step-content">
+              <div className="step-header">
+                <h2>Step 2: Upload CSV Files for Processing</h2>
+                <p>
+                  Upload both the formatted home anniversary CSV (either
+                  filtered or all entries) and the stream app CSV for data
+                  merging.
+                </p>
+              </div>
+
+              <div className="dual-upload-section">
+                <div className="upload-card">
+                  <h3>Formatted Home Anniversary CSV</h3>
                   <div className="file-upload">
-                    <label htmlFor="step1-csv" className="upload-label">
-                      📁 Upload Home Anniversaries CSV
+                    <label
+                      htmlFor="home-anniversary-csv"
+                      className="upload-label"
+                    >
+                      📁 Upload Formatted CSV
                     </label>
                     <input
                       type="file"
-                      id="step1-csv"
+                      id="home-anniversary-csv"
                       accept=".csv"
-                      onChange={handleStep1CsvUpload}
+                      onChange={handleHomeAnniversaryUpload}
                       className="file-input"
                     />
-                    {step1Data.csvFile && (
+                    {step2Data.homeAnniversaryCsv && (
                       <div className="file-info">
-                        ✅ File: {step1Data.csvFile.name}
+                        ✅ {step2Data.homeAnniversaryCsv.rows.length} rows
+                        loaded
                       </div>
                     )}
                   </div>
+                </div>
 
-                  <div className="agent-input">
-                    <label htmlFor="selling-agent">
-                      Selling Agent Name (optional):
+                <div className="upload-card">
+                  <h3>Stream App CSV</h3>
+                  <div className="file-upload">
+                    <label htmlFor="stream-app-csv" className="upload-label">
+                      📁 Upload Stream App CSV
                     </label>
                     <input
-                      type="text"
-                      id="selling-agent"
-                      value={step1Data.sellingAgent}
-                      onChange={handleSellingAgentChange}
-                      placeholder="Enter selling agent name (or leave blank for all entries)"
-                      className="text-input"
+                      type="file"
+                      id="stream-app-csv"
+                      accept=".csv"
+                      onChange={handleStreamAppUpload}
+                      className="file-input"
                     />
-                  </div>
-
-                  <button
-                    onClick={filterBySellingAgent}
-                    className="filter-button"
-                    disabled={!step1Data.csvFile}
-                  >
-                    Process CSV Data
-                  </button>
-
-                  {step1Data.filteredData && (
-                    <div className="filter-results">
-                      {step1Data.sellingAgent.trim() ? (
-                        <p>
-                          ✅ Found {step1Data.filteredData.rows.length} entries
-                          for "{step1Data.sellingAgent}" (from{" "}
-                          {step1Data.allFormattedData.rows.length} total)
-                        </p>
-                      ) : (
-                        <p>
-                          ✅ Processed all{" "}
-                          {step1Data.allFormattedData.rows.length} entries
-                        </p>
-                      )}
-
-                      <div className="download-options">
-                        {step1Data.sellingAgent.trim() && (
-                          <button
-                            onClick={downloadFilteredCSV}
-                            className="download-button"
-                          >
-                            📥 Download Filtered CSV
-                          </button>
-                        )}
-
-                        <button
-                          onClick={downloadAllFormattedCSV}
-                          className="download-button"
-                        >
-                          📥 Download All Formatted CSV
-                        </button>
+                    {step2Data.streamAppCsv && (
+                      <div className="file-info">
+                        ✅ {step2Data.streamAppCsv.rows.length} rows loaded
                       </div>
-                    </div>
-                  )}
-
-                  {step1Data.downloadReady && (
-                    <div className="next-step">
-                      <button
-                        onClick={() => setCurrentStep(2)}
-                        className="next-button"
-                      >
-                        Next Step →
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <style jsx>{`
-                  .download-options {
-                    display: flex;
-                    gap: 10px;
-                    margin-top: 10px;
-                  }
-
-                  .agent-info {
-                    background-color: #f8f9fa;
-                    border: 1px solid #e9ecef;
-                    border-radius: 5px;
-                    padding: 10px 15px;
-                    margin: 15px 0;
-                  }
-
-                  .agent-input-processing {
-                    background-color: #f0f8ff;
-                    border: 1px solid #d1e7ff;
-                    border-radius: 5px;
-                    padding: 15px;
-                    margin: 20px 0;
-                  }
-
-                  .agent-input-processing label {
-                    display: block;
-                    font-weight: bold;
-                    margin-bottom: 8px;
-                  }
-
-                  .agent-input-processing input {
-                    width: 100%;
-                    padding: 8px 10px;
-                    border: 1px solid #ced4da;
-                    border-radius: 4px;
-                    font-size: 16px;
-                    margin-bottom: 8px;
-                  }
-
-                  .agent-info-text {
-                    font-size: 14px;
-                    color: #555;
-                    margin-top: 5px;
-                  }
-
-                  .log-display-options {
-                    display: flex;
-                    align-items: center;
-                    margin-bottom: 15px;
-                  }
-
-                  .toggle-logs-button {
-                    background-color: #f0f0f0;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    padding: 5px 10px;
-                    font-size: 12px;
-                    cursor: pointer;
-                  }
-
-                  .toggle-logs-button:hover {
-                    background-color: #e0e0e0;
-                  }
-
-                  .small-note {
-                    font-size: 12px;
-                    color: #666;
-                    margin-left: 10px;
-                  }
-                `}</style>
-              </div>
-            )}
-
-            {/* Step 2: Upload Both CSVs */}
-            {currentStep === 2 && (
-              <div className="step-content">
-                <div className="step-header">
-                  <h2>Step 2: Upload CSV Files for Processing</h2>
-                  <p>
-                    Upload both the formatted home anniversary CSV (either
-                    filtered or all entries) and the stream app CSV for data
-                    merging.
-                  </p>
-                </div>
-
-                <div className="dual-upload-section">
-                  <div className="upload-card">
-                    <h3>Formatted Home Anniversary CSV</h3>
-                    <div className="file-upload">
-                      <label
-                        htmlFor="home-anniversary-csv"
-                        className="upload-label"
-                      >
-                        📁 Upload Formatted CSV
-                      </label>
-                      <input
-                        type="file"
-                        id="home-anniversary-csv"
-                        accept=".csv"
-                        onChange={handleHomeAnniversaryUpload}
-                        className="file-input"
-                      />
-                      {step2Data.homeAnniversaryCsv && (
-                        <div className="file-info">
-                          ✅ {step2Data.homeAnniversaryCsv.rows.length} rows
-                          loaded
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
-
-                  <div className="upload-card">
-                    <h3>Stream App CSV</h3>
-                    <div className="file-upload">
-                      <label htmlFor="stream-app-csv" className="upload-label">
-                        📁 Upload Stream App CSV
-                      </label>
-                      <input
-                        type="file"
-                        id="stream-app-csv"
-                        accept=".csv"
-                        onChange={handleStreamAppUpload}
-                        className="file-input"
-                      />
-                      {step2Data.streamAppCsv && (
-                        <div className="file-info">
-                          ✅ {step2Data.streamAppCsv.rows.length} rows loaded
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="step-actions">
-                  <button
-                    onClick={() => setCurrentStep(1)}
-                    className="back-button"
-                  >
-                    ← Back
-                  </button>
-
-                  {step2Data.homeAnniversaryCsv && step2Data.streamAppCsv && (
-                    <button
-                      onClick={() => setCurrentStep(3)}
-                      className="next-button"
-                    >
-                      Process Data →
-                    </button>
-                  )}
                 </div>
               </div>
-            )}
 
-            {/* Step 3: Process and Download */}
-            {currentStep === 3 && (
-              <div className="step-content">
-                <div className="step-header">
-                  <h2>Step 3: Process and Merge Data</h2>
-                  <p>
-                    The system will find matching buyer names and add their home
-                    anniversary dates to the Compass contacts.
-                  </p>
-                </div>
+              <div className="step-actions">
+                <button
+                  onClick={() => setCurrentStep(1)}
+                  className="back-button"
+                >
+                  ← Back
+                </button>
 
-                <div className="process-section">
-                  {!step3Data.processedData ? (
-                    <div className="process-info">
-                      <p>Ready to process your data. This will:</p>
-                      <ul>
-                        <li>
-                          Extract contact names from home anniversary CSV
-                          (format: "Last Name, First Name" or company names)
-                        </li>
-                        <li>
-                          Handle multiple buyers/sellers separated by "&"
-                          symbols
-                        </li>
-                        <li>
-                          Search for matching names in the Compass contacts
-                          database
-                        </li>
-                        <li>
-                          Tag contacts as "Buyer" with "CRM Refresh: Home
-                          Anniversary" if the selling agent matches the main
-                          agent
-                        </li>
-                        <li>
-                          Tag contacts as "SELLER-CRMREFRESH" with "CRM REFRESH
-                          CLOSED DATE" if selling agent is different or missing
-                        </li>
-                        <li>
-                          Update matched contacts with home anniversary dates
-                        </li>
-                        <li>Generate a detailed report of changes</li>
-                      </ul>
+                {step2Data.homeAnniversaryCsv && step2Data.streamAppCsv && (
+                  <button
+                    onClick={() => setCurrentStep(3)}
+                    className="next-button"
+                  >
+                    Process Data →
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
-                      <div className="agent-input-processing">
-                        <label htmlFor="main-selling-agent">
-                          Main Selling Agent for Buyer/Seller Determination:
-                        </label>
-                        <input
-                          type="text"
-                          id="main-selling-agent"
-                          value={step2Data.mainSellingAgent}
-                          onChange={(e) =>
-                            setStep2Data((prev) => ({
-                              ...prev,
-                              mainSellingAgent: e.target.value,
-                            }))
-                          }
-                          placeholder="Enter the main selling agent name (entries with this agent will be tagged as Buyers)"
-                          className="text-input"
-                        />
-                        <p className="agent-info-text">
-                          <em>
-                            Contacts with this agent will be tagged as Buyers,
-                            all others as Sellers
-                          </em>
-                        </p>
-                      </div>
+          {/* Step 3: Process and Download */}
+          {currentStep === 3 && (
+            <div className="step-content">
+              <div className="step-header">
+                <h2>Step 3: Process and Merge Data</h2>
+                <p>
+                  The system will find matching buyer names and add their home
+                  anniversary dates to the Compass contacts.
+                </p>
+              </div>
 
-                      {step3Data.isProcessing && (
-                        <div className="processing-indicator">
-                          <div className="progress-bar">
-                            <div
-                              className="progress-fill"
-                              style={{ width: `${step3Data.progress}%` }}
-                            ></div>
-                          </div>
-                          <p className="progress-text">
-                            {step3Data.currentOperation} ({step3Data.progress}%)
-                          </p>
-                          <p className="progress-warning">
-                            ⚠️ Processing large file - please wait and do not
-                            close the browser...
-                          </p>
-                        </div>
-                      )}
+              <div className="process-section">
+                {!step3Data.processedData ? (
+                  <div className="process-info">
+                    <p>Ready to process your data. This will:</p>
+                    <ul>
+                      <li>
+                        Extract contact names from home anniversary CSV (format:
+                        "Last Name, First Name" or company names)
+                      </li>
+                      <li>
+                        Handle multiple buyers/sellers separated by "&" symbols
+                      </li>
+                      <li>
+                        Search for matching names in the Compass contacts
+                        database
+                      </li>
+                      <li>
+                        Tag contacts as "Buyer" with "CRM Refresh: Home
+                        Anniversary" if the selling agent matches the main agent
+                      </li>
+                      <li>
+                        Tag contacts as "SELLER-CRMREFRESH" with "CRM REFRESH
+                        CLOSED DATE" if selling agent is different or missing
+                      </li>
+                      <li>
+                        Update matched contacts with home anniversary dates
+                      </li>
+                      <li>Generate a detailed report of changes</li>
+                    </ul>
 
-                      <button
-                        onClick={processAndMergeData}
-                        className="process-button"
-                        disabled={
-                          !step2Data.mainSellingAgent.trim() ||
-                          step3Data.isProcessing
+                    <div className="agent-input-processing">
+                      <label htmlFor="main-selling-agent">
+                        Main Selling Agent for Buyer/Seller Determination:
+                      </label>
+                      <input
+                        type="text"
+                        id="main-selling-agent"
+                        value={step2Data.mainSellingAgent}
+                        onChange={(e) =>
+                          setStep2Data((prev) => ({
+                            ...prev,
+                            mainSellingAgent: e.target.value,
+                          }))
                         }
-                      >
-                        {step3Data.isProcessing
-                          ? "🔄 Processing..."
-                          : "🔄 Process Data"}
-                      </button>
+                        placeholder="Enter the main selling agent name (entries with this agent will be tagged as Buyers)"
+                        className="text-input"
+                      />
+                      <p className="agent-info-text">
+                        <em>
+                          Contacts with this agent will be tagged as Buyers, all
+                          others as Sellers
+                        </em>
+                      </p>
                     </div>
-                  ) : (
-                    <div className="process-results">
-                      <p>✅ Processing complete!</p>
 
-                      <div className="agent-info">
-                        <p>
-                          <strong>Main Selling Agent:</strong>{" "}
-                          {step2Data.mainSellingAgent}
+                    {step3Data.isProcessing && (
+                      <div className="processing-indicator">
+                        <div className="progress-bar">
+                          <div
+                            className="progress-fill"
+                            style={{ width: `${step3Data.progress}%` }}
+                          ></div>
+                        </div>
+                        <p className="progress-text">
+                          {step3Data.currentOperation} ({step3Data.progress}%)
                         </p>
-                        <p>
-                          <em>
-                            Contacts with this agent were tagged as Buyers, all
-                            others as Sellers
-                          </em>
+                        <p className="progress-warning">
+                          ⚠️ Processing large file - please wait and do not
+                          close the browser...
                         </p>
                       </div>
-                      <div className="process-stats">
-                        <p>
-                          📊 Processed {step3Data.totalBuyersProcessed} names as
-                          buyers (with main agent) and{" "}
-                          {step3Data.totalSellersProcessed} names as sellers
-                          (other agents)
-                        </p>
-                        <p>
-                          ✓ {step3Data.matchedCount} unique contacts updated
-                          with home anniversary dates
-                        </p>
-                        <p>
-                          ➕ {step3Data.newEntriesCount} names did not match
-                          existing contacts
-                        </p>
-                        {step3Data.matchedCount >
-                          (step3Data.totalBuyersProcessed +
-                            step3Data.totalSellersProcessed) *
-                            0.8 && (
-                          <p className="warning">
-                            ⚠️ Warning: The number of matches (
-                            {step3Data.matchedCount}) is unusually high compared
-                            to the total names processed (
-                            {step3Data.totalBuyersProcessed +
-                              step3Data.totalSellersProcessed}
-                            ). This may indicate over-matching with flexible
-                            name matching.
-                          </p>
-                        )}
-                        {step3Data.changeLog && (
-                          <p>
-                            📝 {step3Data.changeLog.length} total log entries
-                            captured (some may be filtered in display below)
-                          </p>
-                        )}
-                        {step3Data.matchedCount >
-                          (step3Data.totalBuyersProcessed +
-                            step3Data.totalSellersProcessed) *
-                            0.8 && (
-                          <p className="warning">
-                            ⚠️ The number of contacts updated (
-                            {step3Data.matchedCount}) is much higher than
-                            expected for {step3Data.totalBuyersProcessed} buyers
-                            processed. This may indicate over-matching with
-                            company names or duplicates.
-                          </p>
-                        )}
-                      </div>
+                    )}
 
-                      {step3Data.changeLog &&
-                        step3Data.changeLog.length > 0 && (
-                          <div className="change-log">
-                            <h3>Change Details:</h3>
-                            <div className="log-display-options">
-                              <button
-                                onClick={() => setShowAllLogs((prev) => !prev)}
-                                className="toggle-logs-button"
-                              >
-                                {showAllLogs
-                                  ? "Show Filtered Logs"
-                                  : "Show All Logs"}
-                              </button>
-                              {showAllLogs && (
-                                <p className="small-note">
-                                  Showing all {step3Data.changeLog.length} log
-                                  entries
-                                </p>
-                              )}
-                            </div>
+                    <button
+                      onClick={processAndMergeData}
+                      className="process-button"
+                      disabled={
+                        !step2Data.mainSellingAgent.trim() ||
+                        step3Data.isProcessing
+                      }
+                    >
+                      {step3Data.isProcessing
+                        ? "🔄 Processing..."
+                        : "🔄 Process Data"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="process-results">
+                    <p>✅ Processing complete!</p>
 
-                            <div className="change-log-container">
-                              {showAllLogs ? (
-                                // Show all logs without filtering when showAllLogs is true
-                                step3Data.changeLog.map((log, idx) => {
-                                  // Determine what type of entry this is
-                                  let entryClass = "";
-                                  let icon = "";
-                                  let message = "";
+                    <div className="agent-info">
+                      <p>
+                        <strong>Main Selling Agent:</strong>{" "}
+                        {step2Data.mainSellingAgent}
+                      </p>
+                      <p>
+                        <em>
+                          Contacts with this agent were tagged as Buyers, all
+                          others as Sellers
+                        </em>
+                      </p>
+                    </div>
+                    <div className="process-stats">
+                      <p>
+                        📊 Processed {step3Data.totalBuyersProcessed} names as
+                        buyers (with main agent) and{" "}
+                        {step3Data.totalSellersProcessed} names as sellers
+                        (other agents)
+                      </p>
+                      <p>
+                        ✓ {step3Data.matchedCount} unique contacts updated with
+                        home anniversary dates
+                      </p>
+                      <p>
+                        ➕ {step3Data.newEntriesCount} names did not match
+                        existing contacts
+                      </p>
+                      {step3Data.matchedCount >
+                        (step3Data.totalBuyersProcessed +
+                          step3Data.totalSellersProcessed) *
+                          0.8 && (
+                        <p className="warning">
+                          ⚠️ Warning: The number of matches (
+                          {step3Data.matchedCount}) is unusually high compared
+                          to the total names processed (
+                          {step3Data.totalBuyersProcessed +
+                            step3Data.totalSellersProcessed}
+                          ). This may indicate over-matching with flexible name
+                          matching.
+                        </p>
+                      )}
+                      {step3Data.changeLog && (
+                        <p>
+                          📝 {step3Data.changeLog.length} total log entries
+                          captured (some may be filtered in display below)
+                        </p>
+                      )}
+                      {step3Data.matchedCount >
+                        (step3Data.totalBuyersProcessed +
+                          step3Data.totalSellersProcessed) *
+                          0.8 && (
+                        <p className="warning">
+                          ⚠️ The number of contacts updated (
+                          {step3Data.matchedCount}) is much higher than expected
+                          for {step3Data.totalBuyersProcessed} buyers processed.
+                          This may indicate over-matching with company names or
+                          duplicates.
+                        </p>
+                      )}
+                    </div>
 
-                                  if (
+                    {step3Data.changeLog && step3Data.changeLog.length > 0 && (
+                      <div className="change-log">
+                        <h3>Change Details:</h3>
+                        <div className="log-display-options">
+                          <button
+                            onClick={() => setShowAllLogs((prev) => !prev)}
+                            className="toggle-logs-button"
+                          >
+                            {showAllLogs
+                              ? "Show Filtered Logs"
+                              : "Show All Logs"}
+                          </button>
+                          {showAllLogs && (
+                            <p className="small-note">
+                              Showing all {step3Data.changeLog.length} log
+                              entries
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="change-log-container">
+                          {showAllLogs ? (
+                            // Show all logs without filtering when showAllLogs is true
+                            step3Data.changeLog.map((log, idx) => {
+                              // Determine what type of entry this is
+                              let entryClass = "";
+                              let icon = "";
+                              let message = "";
+
+                              if (
+                                log.type === "match" ||
+                                log.type === "company_match"
+                              ) {
+                                entryClass = "match";
+                                icon = "✓";
+                                message = `Updated <strong>${log.buyer}</strong> with anniversary date: ${log.newValue}`;
+                              } else if (
+                                log.type === "no_match" ||
+                                log.type === "no_match_company"
+                              ) {
+                                entryClass = "no-match";
+                                icon = "❌";
+                                message = `No match found for <strong>${log.buyer}</strong> (anniversary date: ${log.anniversaryDate})`;
+                              } else if (log.type === "skip") {
+                                entryClass = "skip";
+                                icon = "⚠️";
+                                message = `Skipped <strong>${log.buyer}</strong>: ${log.reason}`;
+                              } else if (
+                                log.type === "skipped_single_name" ||
+                                log.type === "skipped_incomplete"
+                              ) {
+                                entryClass = "skip";
+                                icon = "⏭️";
+                                message = `Safely skipped <strong>${log.buyer}</strong>: ${log.reason}`;
+                              } else if (
+                                log.type === "no_match_added" ||
+                                log.type === "no_match_company_added" ||
+                                log.type === "single_name_added"
+                              ) {
+                                entryClass = "info";
+                                icon = "➕";
+                                message = `Added new contact <strong>${log.buyer}</strong> with anniversary date: ${log.anniversaryDate}`;
+                              } else {
+                                entryClass = "other";
+                                icon = "ℹ️";
+                                message = `${log.type}: <strong>${log.buyer}</strong>`;
+                              }
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`change-entry ${entryClass}`}
+                                >
+                                  <p
+                                    dangerouslySetInnerHTML={{
+                                      __html: `${icon} ${message}`,
+                                    }}
+                                  ></p>
+                                  {log.address && (
+                                    <p className="small">
+                                      Address: {log.address}
+                                    </p>
+                                  )}
+                                  {log.matchType && (
+                                    <p className="match-details">
+                                      <span className="match-type">
+                                        {log.matchType}
+                                      </span>
+                                      {log.matchDetails && (
+                                        <span className="match-explanation">
+                                          {" "}
+                                          - {log.matchDetails}
+                                        </span>
+                                      )}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            // Original filtered log display
+                            <>
+                              {step3Data.changeLog
+                                .filter(
+                                  (log) =>
                                     log.type === "match" ||
                                     log.type === "company_match"
-                                  ) {
-                                    entryClass = "match";
-                                    icon = "✓";
-                                    message = `Updated <strong>${log.buyer}</strong> with anniversary date: ${log.newValue}`;
-                                  } else if (
+                                )
+                                .map((log, idx) => (
+                                  <div key={idx} className="change-entry match">
+                                    <p>
+                                      ✓ Updated{" "}
+                                      <strong>
+                                        {log.contactName || log.buyer}
+                                      </strong>{" "}
+                                      with anniversary date: {log.newValue}
+                                    </p>
+                                    <p className="small">
+                                      Address: {log.address}
+                                    </p>
+                                    {log.matchType && (
+                                      <p className="match-details">
+                                        <span className="match-type">
+                                          {log.matchType}
+                                        </span>
+                                        {log.matchDetails && (
+                                          <span className="match-explanation">
+                                            {" "}
+                                            - {log.matchDetails}
+                                          </span>
+                                        )}
+                                      </p>
+                                    )}
+                                  </div>
+                                ))}
+
+                              {step3Data.changeLog
+                                .filter(
+                                  (log) =>
                                     log.type === "no_match" ||
                                     log.type === "no_match_company"
-                                  ) {
-                                    entryClass = "no-match";
-                                    icon = "❌";
-                                    message = `No match found for <strong>${log.buyer}</strong> (anniversary date: ${log.anniversaryDate})`;
-                                  } else if (log.type === "skip") {
-                                    entryClass = "skip";
-                                    icon = "⚠️";
-                                    message = `Skipped <strong>${log.buyer}</strong>: ${log.reason}`;
-                                  } else if (
+                                )
+                                .map((log, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="change-entry no-match"
+                                  >
+                                    <p>
+                                      ❌ No match found for{" "}
+                                      <strong>{log.buyer}</strong> (anniversary
+                                      date: {log.anniversaryDate})
+                                    </p>
+                                    <p className="small">
+                                      Address: {log.address}
+                                    </p>
+                                  </div>
+                                ))}
+
+                              {step3Data.changeLog
+                                .filter((log) => log.type === "skip")
+                                .map((log, idx) => (
+                                  <div key={idx} className="change-entry skip">
+                                    <p>
+                                      ⚠️ Skipped <strong>{log.buyer}</strong>:{" "}
+                                      {log.reason}
+                                    </p>
+                                  </div>
+                                ))}
+
+                              {/* Show skipped entries for safety */}
+                              {step3Data.changeLog
+                                .filter(
+                                  (log) =>
                                     log.type === "skipped_single_name" ||
                                     log.type === "skipped_incomplete"
-                                  ) {
-                                    entryClass = "skip";
-                                    icon = "⏭️";
-                                    message = `Safely skipped <strong>${log.buyer}</strong>: ${log.reason}`;
-                                  } else if (
+                                )
+                                .map((log, idx) => (
+                                  <div key={idx} className="change-entry skip">
+                                    <p>
+                                      ⏭️ Safely skipped{" "}
+                                      <strong>{log.buyer}</strong>: {log.reason}
+                                    </p>
+                                    <p className="small">
+                                      Address: {log.address} | Anniversary:{" "}
+                                      {log.anniversaryDate}
+                                    </p>
+                                  </div>
+                                ))}
+
+                              {/* Show new entries added */}
+                              {step3Data.changeLog
+                                .filter(
+                                  (log) =>
                                     log.type === "no_match_added" ||
                                     log.type === "no_match_company_added" ||
                                     log.type === "single_name_added"
-                                  ) {
-                                    entryClass = "info";
-                                    icon = "➕";
-                                    message = `Added new contact <strong>${log.buyer}</strong> with anniversary date: ${log.anniversaryDate}`;
-                                  } else {
-                                    entryClass = "other";
-                                    icon = "ℹ️";
-                                    message = `${log.type}: <strong>${log.buyer}</strong>`;
-                                  }
+                                )
+                                .map((log, idx) => (
+                                  <div key={idx} className="change-entry info">
+                                    <p>
+                                      ➕ Added new contact{" "}
+                                      <strong>{log.buyer}</strong> with
+                                      anniversary date: {log.anniversaryDate}
+                                    </p>
+                                    <p className="small">
+                                      Address: {log.address}
+                                    </p>
+                                  </div>
+                                ))}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
-                                  return (
-                                    <div
-                                      key={idx}
-                                      className={`change-entry ${entryClass}`}
-                                    >
-                                      <p
-                                        dangerouslySetInnerHTML={{
-                                          __html: `${icon} ${message}`,
-                                        }}
-                                      ></p>
-                                      {log.address && (
-                                        <p className="small">
-                                          Address: {log.address}
-                                        </p>
-                                      )}
-                                      {log.matchType && (
-                                        <p className="match-details">
-                                          <span className="match-type">
-                                            {log.matchType}
-                                          </span>
-                                          {log.matchDetails && (
-                                            <span className="match-explanation">
-                                              {" "}
-                                              - {log.matchDetails}
-                                            </span>
-                                          )}
-                                        </p>
-                                      )}
-                                    </div>
-                                  );
-                                })
-                              ) : (
-                                // Original filtered log display
-                                <>
-                                  {step3Data.changeLog
-                                    .filter(
-                                      (log) =>
-                                        log.type === "match" ||
-                                        log.type === "company_match"
-                                    )
-                                    .map((log, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="change-entry match"
-                                      >
-                                        <p>
-                                          ✓ Updated{" "}
-                                          <strong>
-                                            {log.contactName || log.buyer}
-                                          </strong>{" "}
-                                          with anniversary date: {log.newValue}
-                                        </p>
-                                        <p className="small">
-                                          Address: {log.address}
-                                        </p>
-                                        {log.matchType && (
-                                          <p className="match-details">
-                                            <span className="match-type">
-                                              {log.matchType}
-                                            </span>
-                                            {log.matchDetails && (
-                                              <span className="match-explanation">
-                                                {" "}
-                                                - {log.matchDetails}
-                                              </span>
-                                            )}
-                                          </p>
-                                        )}
-                                      </div>
-                                    ))}
-
-                                  {step3Data.changeLog
-                                    .filter(
-                                      (log) =>
-                                        log.type === "no_match" ||
-                                        log.type === "no_match_company"
-                                    )
-                                    .map((log, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="change-entry no-match"
-                                      >
-                                        <p>
-                                          ❌ No match found for{" "}
-                                          <strong>{log.buyer}</strong>{" "}
-                                          (anniversary date:{" "}
-                                          {log.anniversaryDate})
-                                        </p>
-                                        <p className="small">
-                                          Address: {log.address}
-                                        </p>
-                                      </div>
-                                    ))}
-
-                                  {step3Data.changeLog
-                                    .filter((log) => log.type === "skip")
-                                    .map((log, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="change-entry skip"
-                                      >
-                                        <p>
-                                          ⚠️ Skipped{" "}
-                                          <strong>{log.buyer}</strong>:{" "}
-                                          {log.reason}
-                                        </p>
-                                      </div>
-                                    ))}
-
-                                  {/* Show skipped entries for safety */}
-                                  {step3Data.changeLog
-                                    .filter(
-                                      (log) =>
-                                        log.type === "skipped_single_name" ||
-                                        log.type === "skipped_incomplete"
-                                    )
-                                    .map((log, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="change-entry skip"
-                                      >
-                                        <p>
-                                          ⏭️ Safely skipped{" "}
-                                          <strong>{log.buyer}</strong>:{" "}
-                                          {log.reason}
-                                        </p>
-                                        <p className="small">
-                                          Address: {log.address} | Anniversary:{" "}
-                                          {log.anniversaryDate}
-                                        </p>
-                                      </div>
-                                    ))}
-
-                                  {/* Show new entries added */}
-                                  {step3Data.changeLog
-                                    .filter(
-                                      (log) =>
-                                        log.type === "no_match_added" ||
-                                        log.type === "no_match_company_added" ||
-                                        log.type === "single_name_added"
-                                    )
-                                    .map((log, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="change-entry info"
-                                      >
-                                        <p>
-                                          ➕ Added new contact{" "}
-                                          <strong>{log.buyer}</strong> with
-                                          anniversary date:{" "}
-                                          {log.anniversaryDate}
-                                        </p>
-                                        <p className="small">
-                                          Address: {log.address}
-                                        </p>
-                                      </div>
-                                    ))}
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                      <button
-                        onClick={downloadProcessedCSV}
-                        className="download-button"
-                      >
-                        📥 Download Updated Compass Contacts
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="step-actions">
-                  <button
-                    onClick={() => setCurrentStep(2)}
-                    className="back-button"
-                  >
-                    ← Back
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setCurrentStep(1);
-                      setShowAllLogs(false);
-                      setStep1Data({
-                        csvFile: null,
-                        sellingAgent: "",
-                        filteredData: null,
-                        downloadReady: false,
-                      });
-                      setStep2Data({
-                        homeAnniversaryCsv: null,
-                        streamAppCsv: null,
-                        mainSellingAgent: "",
-                      });
-                      setStep3Data({
-                        processedData: null,
-                        downloadReady: false,
-                        matchedCount: 0,
-                        newEntriesCount: 0,
-                        totalBuyersProcessed: 0,
-                        totalSellersProcessed: 0,
-                        changeLog: [],
-                      });
-                    }}
-                    className="restart-button"
-                  >
-                    🔄 Start Over
-                  </button>
-                </div>
+                    <button
+                      onClick={downloadProcessedCSV}
+                      className="download-button"
+                    >
+                      📥 Download Updated Compass Contacts
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </main>
-      </div>
+
+              <div className="step-actions">
+                <button
+                  onClick={() => setCurrentStep(2)}
+                  className="back-button"
+                >
+                  ← Back
+                </button>
+
+                <button
+                  onClick={() => {
+                    setCurrentStep(1);
+                    setShowAllLogs(false);
+                    setStep1Data({
+                      csvFile: null,
+                      sellingAgent: "",
+                      filteredData: null,
+                      downloadReady: false,
+                    });
+                    setStep2Data({
+                      homeAnniversaryCsv: null,
+                      streamAppCsv: null,
+                      mainSellingAgent: "",
+                    });
+                    setStep3Data({
+                      processedData: null,
+                      downloadReady: false,
+                      matchedCount: 0,
+                      newEntriesCount: 0,
+                      totalBuyersProcessed: 0,
+                      totalSellersProcessed: 0,
+                      changeLog: [],
+                    });
+                  }}
+                  className="restart-button"
+                >
+                  🔄 Start Over
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }
 

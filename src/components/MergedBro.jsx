@@ -320,227 +320,222 @@ const MergedBro = () => {
           Upload multiple CSV files and merge all their rows together into one
           unified file.
         </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-            <h3 className="font-semibold text-blue-800 mb-2">How it works:</h3>
-            <ul className="text-sm text-blue-700 space-y-1">
-              <li>
-                • Upload 2 or more CSV files with similar column structures
-              </li>
-              <li>
-                • All rows from all files are combined into one large dataset
-              </li>
-              <li>
-                • Handles column mismatches by using the union of all columns
-              </li>
-              <li>• Adds metadata to track which file each row came from</li>
-            </ul>
-          </div>
-        </header>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+          <h3 className="font-semibold text-blue-800 mb-2">How it works:</h3>
+          <ul className="text-sm text-blue-700 space-y-1">
+            <li>• Upload 2 or more CSV files with similar column structures</li>
+            <li>
+              • All rows from all files are combined into one large dataset
+            </li>
+            <li>
+              • Handles column mismatches by using the union of all columns
+            </li>
+            <li>• Adds metadata to track which file each row came from</li>
+          </ul>
+        </div>
+      </header>
 
-        {/* File Upload Section */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">📁 Upload CSV Files</h2>
+      {/* File Upload Section */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">📁 Upload CSV Files</h2>
 
-          <div className="mb-4">
-            <input
-              type="file"
-              multiple
-              accept=".csv"
-              onChange={handleFileUpload}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-            <p className="text-xs text-gray-500 mt-2">
-              Select multiple CSV files (max 50MB each). Files should have
-              similar column structures for best results.
-            </p>
-          </div>
-
-          {files.length > 0 && (
-            <div className="mb-4">
-              <h3 className="font-semibold mb-2">
-                Selected Files ({files.length}):
-              </h3>
-              <div className="bg-gray-50 rounded p-3 max-h-40 overflow-y-auto">
-                {files.map((file, index) => (
-                  <div key={index} className="text-sm py-1">
-                    <span className="font-medium">{index + 1}.</span>{" "}
-                    {file.name}
-                    <span className="text-gray-500 ml-2">
-                      ({(file.size / 1024).toFixed(1)} KB)
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            <button
-              onClick={mergeFiles}
-              disabled={files.length < 2 || processing}
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded disabled:opacity-50"
-            >
-              {processing ? "Merging..." : "🤝 Merge Files"}
-            </button>
-
-            {files.length > 0 && (
-              <button
-                onClick={clearFiles}
-                className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
-              >
-                Clear Files
-              </button>
-            )}
-          </div>
-
-          {files.length < 2 && files.length > 0 && (
-            <p className="text-orange-600 text-sm mt-2">
-              Please select at least 2 CSV files to merge.
-            </p>
-          )}
+        <div className="mb-4">
+          <input
+            type="file"
+            multiple
+            accept=".csv"
+            onChange={handleFileUpload}
+            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+          <p className="text-xs text-gray-500 mt-2">
+            Select multiple CSV files (max 50MB each). Files should have similar
+            column structures for best results.
+          </p>
         </div>
 
-        {/* Processing Logs */}
-        {logs.length > 0 && (
-          <div className="bg-gray-100 rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-semibold mb-2">Processing Log</h3>
-            <div className="text-sm font-mono max-h-60 overflow-y-auto">
-              {logs.map((log, index) => (
-                <div key={index} className="whitespace-pre-wrap py-1">
-                  {log}
+        {files.length > 0 && (
+          <div className="mb-4">
+            <h3 className="font-semibold mb-2">
+              Selected Files ({files.length}):
+            </h3>
+            <div className="bg-gray-50 rounded p-3 max-h-40 overflow-y-auto">
+              {files.map((file, index) => (
+                <div key={index} className="text-sm py-1">
+                  <span className="font-medium">{index + 1}.</span> {file.name}
+                  <span className="text-gray-500 ml-2">
+                    ({(file.size / 1024).toFixed(1)} KB)
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Results */}
-        {stats && mergedData && (
-          <div className="space-y-6">
-            {/* Summary Stats */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold mb-4">📊 Merge Summary</h2>
+        <div className="flex gap-3">
+          <button
+            onClick={mergeFiles}
+            disabled={files.length < 2 || processing}
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded disabled:opacity-50"
+          >
+            {processing ? "Merging..." : "🤝 Merge Files"}
+          </button>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="text-center p-4 bg-blue-50 rounded">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {stats.totalFiles}
-                  </div>
-                  <div className="text-sm text-gray-600">Files Merged</div>
-                </div>
-                <div className="text-center p-4 bg-green-50 rounded">
-                  <div className="text-2xl font-bold text-green-600">
-                    {stats.totalRows}
-                  </div>
-                  <div className="text-sm text-gray-600">Total Rows</div>
-                </div>
-                <div className="text-center p-4 bg-purple-50 rounded">
-                  <div className="text-2xl font-bold text-purple-600">
-                    {stats.totalColumns}
-                  </div>
-                  <div className="text-sm text-gray-600">Data Columns</div>
-                </div>
-                <div className="text-center p-4 bg-orange-50 rounded">
-                  <div className="text-2xl font-bold text-orange-600">
-                    {stats.finalColumns}
-                  </div>
-                  <div className="text-sm text-gray-600">Final Columns</div>
-                </div>
-              </div>
+          {files.length > 0 && (
+            <button
+              onClick={clearFiles}
+              className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+            >
+              Clear Files
+            </button>
+          )}
+        </div>
 
-              {/* File Breakdown */}
-              <div className="mb-6">
-                <h3 className="font-semibold mb-3">File Breakdown:</h3>
-                <div className="space-y-2">
-                  {stats.fileBreakdown.map((file, index) => (
-                    <div
-                      key={index}
-                      className="flex justify-between items-center p-3 bg-gray-50 rounded"
-                    >
-                      <span className="font-medium">{file.fileName}</span>
-                      <div className="text-sm text-gray-600">
-                        {file.rows} rows × {file.columns} columns
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {stats.headerMismatches && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
-                  <p className="text-yellow-800 text-sm">
-                    ⚠️ <strong>Column Mismatch Detected:</strong> Files had
-                    different column structures. Missing columns were filled
-                    with empty values. Check the processing log for details.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Export Options */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold mb-4">
-                📥 Download Merged File
-              </h2>
-              <div className="space-y-4">
-                <div className="text-center">
-                  <button
-                    onClick={exportMergedData}
-                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg text-lg mr-4"
-                  >
-                    📥 Download with Metadata
-                  </button>
-                  <button
-                    onClick={exportWithoutMetadata}
-                    className="bg-teal-500 hover:bg-teal-700 text-white font-bold py-3 px-8 rounded-lg text-lg"
-                  >
-                    📥 Download Clean Version
-                  </button>
-                </div>
-
-                <div className="text-sm text-gray-600 text-center space-y-1">
-                  <p>
-                    <strong>With Metadata:</strong> Includes source file
-                    tracking columns (_source_file, _source_row, _merged_order)
-                  </p>
-                  <p>
-                    <strong>Clean Version:</strong> Only your original data
-                    columns, no metadata
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+        {files.length < 2 && files.length > 0 && (
+          <p className="text-orange-600 text-sm mt-2">
+            Please select at least 2 CSV files to merge.
+          </p>
         )}
+      </div>
 
-        {/* Usage Tips */}
-        <div className="bg-yellow-50 rounded-lg p-6 mt-6">
-          <h2 className="text-xl font-semibold mb-4">
-            💡 Tips for Best Results
-          </h2>
-          <div className="text-sm space-y-2">
-            <p>
-              <strong>✅ Ideal:</strong> Files with identical column headers and
-              similar data formats
-            </p>
-            <p>
-              <strong>⚠️ Acceptable:</strong> Files with mostly similar columns
-              (missing columns will be filled with empty values)
-            </p>
-            <p>
-              <strong>📝 Metadata Columns:</strong> The tool adds tracking
-              columns to show which file each row came from
-            </p>
-            <p>
-              <strong>🔍 Column Matching:</strong> Column names must match
-              exactly (case-sensitive) to be merged properly
-            </p>
-            <p>
-              <strong>📊 Large Files:</strong> Can handle large datasets, but
-              processing time increases with file size
-            </p>
+      {/* Processing Logs */}
+      {logs.length > 0 && (
+        <div className="bg-gray-100 rounded-lg p-4 mb-6">
+          <h3 className="text-lg font-semibold mb-2">Processing Log</h3>
+          <div className="text-sm font-mono max-h-60 overflow-y-auto">
+            {logs.map((log, index) => (
+              <div key={index} className="whitespace-pre-wrap py-1">
+                {log}
+              </div>
+            ))}
           </div>
         </div>
+      )}
+
+      {/* Results */}
+      {stats && mergedData && (
+        <div className="space-y-6">
+          {/* Summary Stats */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4">📊 Merge Summary</h2>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="text-center p-4 bg-blue-50 rounded">
+                <div className="text-2xl font-bold text-blue-600">
+                  {stats.totalFiles}
+                </div>
+                <div className="text-sm text-gray-600">Files Merged</div>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded">
+                <div className="text-2xl font-bold text-green-600">
+                  {stats.totalRows}
+                </div>
+                <div className="text-sm text-gray-600">Total Rows</div>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded">
+                <div className="text-2xl font-bold text-purple-600">
+                  {stats.totalColumns}
+                </div>
+                <div className="text-sm text-gray-600">Data Columns</div>
+              </div>
+              <div className="text-center p-4 bg-orange-50 rounded">
+                <div className="text-2xl font-bold text-orange-600">
+                  {stats.finalColumns}
+                </div>
+                <div className="text-sm text-gray-600">Final Columns</div>
+              </div>
+            </div>
+
+            {/* File Breakdown */}
+            <div className="mb-6">
+              <h3 className="font-semibold mb-3">File Breakdown:</h3>
+              <div className="space-y-2">
+                {stats.fileBreakdown.map((file, index) => (
+                  <div
+                    key={index}
+                    className="flex justify-between items-center p-3 bg-gray-50 rounded"
+                  >
+                    <span className="font-medium">{file.fileName}</span>
+                    <div className="text-sm text-gray-600">
+                      {file.rows} rows × {file.columns} columns
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {stats.headerMismatches && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
+                <p className="text-yellow-800 text-sm">
+                  ⚠️ <strong>Column Mismatch Detected:</strong> Files had
+                  different column structures. Missing columns were filled with
+                  empty values. Check the processing log for details.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Export Options */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4">
+              📥 Download Merged File
+            </h2>
+            <div className="space-y-4">
+              <div className="text-center">
+                <button
+                  onClick={exportMergedData}
+                  className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg text-lg mr-4"
+                >
+                  📥 Download with Metadata
+                </button>
+                <button
+                  onClick={exportWithoutMetadata}
+                  className="bg-teal-500 hover:bg-teal-700 text-white font-bold py-3 px-8 rounded-lg text-lg"
+                >
+                  📥 Download Clean Version
+                </button>
+              </div>
+
+              <div className="text-sm text-gray-600 text-center space-y-1">
+                <p>
+                  <strong>With Metadata:</strong> Includes source file tracking
+                  columns (_source_file, _source_row, _merged_order)
+                </p>
+                <p>
+                  <strong>Clean Version:</strong> Only your original data
+                  columns, no metadata
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Usage Tips */}
+      <div className="bg-yellow-50 rounded-lg p-6 mt-6">
+        <h2 className="text-xl font-semibold mb-4">💡 Tips for Best Results</h2>
+        <div className="text-sm space-y-2">
+          <p>
+            <strong>✅ Ideal:</strong> Files with identical column headers and
+            similar data formats
+          </p>
+          <p>
+            <strong>⚠️ Acceptable:</strong> Files with mostly similar columns
+            (missing columns will be filled with empty values)
+          </p>
+          <p>
+            <strong>📝 Metadata Columns:</strong> The tool adds tracking columns
+            to show which file each row came from
+          </p>
+          <p>
+            <strong>🔍 Column Matching:</strong> Column names must match exactly
+            (case-sensitive) to be merged properly
+          </p>
+          <p>
+            <strong>📊 Large Files:</strong> Can handle large datasets, but
+            processing time increases with file size
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

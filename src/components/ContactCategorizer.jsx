@@ -1240,285 +1240,284 @@ const ContactCategorizer = () => {
     <div className="max-w-6xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-6">Contact Categorizer</h1>
       <p className="text-gray-600 mb-6">
-        Automatically categorize contacts as Agents, Vendors, or Contacts
-        based on email domains, company names, job titles, and other signals.
+        Automatically categorize contacts as Agents, Vendors, or Contacts based
+        on email domains, company names, job titles, and other signals.
       </p>
 
-        {/* File Upload */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Upload CSV File</h2>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e) => setFile(e.target.files[0])}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
+      {/* File Upload */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">Upload CSV File</h2>
+        <input
+          type="file"
+          accept=".csv"
+          onChange={(e) => setFile(e.target.files[0])}
+          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        />
 
-          <button
-            onClick={processFile}
-            disabled={!file || processing}
-            className="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-          >
-            {processing ? "Processing..." : "Categorize Contacts"}
-          </button>
-        </div>
-
-        {/* Processing Logs */}
-        {logs.length > 0 && (
-          <div className="bg-gray-100 rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-semibold mb-2">Processing Log</h3>
-            <div className="text-sm font-mono max-h-60 overflow-y-auto">
-              {logs.map((log, index) => (
-                <div key={index} className="whitespace-pre-wrap">
-                  {log}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Results */}
-        {results && (
-          <div className="space-y-6">
-            {/* Summary Stats */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold mb-4">
-                Categorization Summary
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
-                <div className="text-center p-4 bg-blue-50 rounded">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {results.stats.total}
-                  </div>
-                  <div className="text-sm text-gray-600">Total Records</div>
-                </div>
-                <div className="text-center p-4 bg-green-50 rounded">
-                  <div className="text-2xl font-bold text-green-600">
-                    {results.stats.agents}
-                  </div>
-                  <div className="text-sm text-gray-600">Agents</div>
-                </div>
-                <div className="text-center p-4 bg-orange-50 rounded">
-                  <div className="text-2xl font-bold text-orange-600">
-                    {results.stats.vendors}
-                  </div>
-                  <div className="text-sm text-gray-600">Vendors</div>
-                </div>
-                <div className="text-center p-4 bg-purple-50 rounded">
-                  <div className="text-2xl font-bold text-purple-600">
-                    {results.stats.leads}
-                  </div>
-                  <div className="text-sm text-gray-600">Leads</div>
-                  <div className="text-xs text-purple-500 mt-1">
-                    ({results.stats.contactsMovedToLeads} moved)
-                  </div>
-                </div>
-                <div className="text-center p-4 bg-gray-50 rounded">
-                  <div className="text-2xl font-bold text-gray-600">
-                    {results.stats.contacts}
-                  </div>
-                  <div className="text-sm text-gray-600">Contacts</div>
-                </div>
-                <div className="text-center p-4 bg-yellow-50 rounded">
-                  <div className="text-2xl font-bold text-yellow-600">
-                    {results.stats.changed}
-                  </div>
-                  <div className="text-sm text-gray-600">Changed</div>
-                </div>
-                <div className="text-center p-4 bg-red-50 rounded">
-                  <div className="text-2xl font-bold text-red-600">
-                    {results.stats.ungrouped}
-                  </div>
-                  <div className="text-sm text-gray-600">Ungrouped</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Export Options */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold mb-4">📥 Export Results</h2>
-              <div className="space-y-4">
-                <p className="text-gray-600 text-center">
-                  Download your categorized contacts with the new "Category"
-                  column added to each record.
-                </p>
-
-                {/* Main Export Button */}
-                <div className="text-center">
-                  <button
-                    onClick={exportResults}
-                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg text-lg"
-                  >
-                    📥 Export Complete Categorized File
-                  </button>
-                  <div className="text-sm text-gray-500 mt-2">
-                    File: "categorized_contacts.csv" with {results.stats.total}{" "}
-                    records
-                  </div>
-                </div>
-
-                {/* Category-Specific Export Buttons */}
-                <div className="border-t pt-4">
-                  <h3 className="text-md font-semibold mb-3 text-center">
-                    Export by Category
-                  </h3>
-                  <div className="flex justify-center flex-wrap gap-2">
-                    {results.stats.agents > 0 && (
-                      <button
-                        onClick={() => exportByCategory("Agent")}
-                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                      >
-                        🏢 Agents Only ({results.stats.agents})
-                      </button>
-                    )}
-                    {results.stats.vendors > 0 && (
-                      <button
-                        onClick={() => exportByCategory("Vendor")}
-                        className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded"
-                      >
-                        🔧 Vendors Only ({results.stats.vendors})
-                      </button>
-                    )}
-                    {results.stats.contacts > 0 && (
-                      <button
-                        onClick={() => exportByCategory("Contact")}
-                        className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
-                      >
-                        👤 Contacts Only ({results.stats.contacts})
-                      </button>
-                    )}
-                    {results.stats.categorized > 0 && (
-                      <button
-                        onClick={exportCategorizedContacts}
-                        className="bg-teal-500 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded"
-                      >
-                        🎯 Categorized Only ({results.stats.categorized})
-                      </button>
-                    )}
-                    {results.stats.changed > 0 && (
-                      <button
-                        onClick={exportChangedContacts}
-                        className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded"
-                      >
-                        ⚡ Changed Only ({results.stats.changed})
-                      </button>
-                    )}
-                    {results.stats.ungrouped > 0 && (
-                      <button
-                        onClick={exportUngroupedContacts}
-                        className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-                      >
-                        📭 Ungrouped Only ({results.stats.ungrouped})
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Sample Agents */}
-            {results.sampleAgents.length > 0 && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-xl font-semibold mb-4">
-                  Sample Agents ({results.stats.agents} total)
-                </h2>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {results.sampleAgents.map((agent, index) => (
-                    <div
-                      key={index}
-                      className="border-l-4 border-green-500 pl-4 py-2"
-                    >
-                      <h3 className="font-semibold text-green-700">
-                        {agent.name}
-                      </h3>
-                      <p className="text-sm text-gray-600">{agent.email}</p>
-                      <p className="text-sm text-gray-600">{agent.company}</p>
-                      <div className="text-xs text-green-600 mt-1">
-                        Confidence: {agent.confidence} |{" "}
-                        {agent.reasons.join(", ")}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Sample Vendors */}
-            {results.sampleVendors.length > 0 && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h2 className="text-xl font-semibold mb-4">
-                  Sample Vendors ({results.stats.vendors} total)
-                </h2>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {results.sampleVendors.map((vendor, index) => (
-                    <div
-                      key={index}
-                      className="border-l-4 border-orange-500 pl-4 py-2"
-                    >
-                      <h3 className="font-semibold text-orange-700">
-                        {vendor.name}
-                      </h3>
-                      <p className="text-sm text-gray-600">{vendor.email}</p>
-                      <p className="text-sm text-gray-600">{vendor.company}</p>
-                      <div className="text-xs text-orange-600 mt-1">
-                        Confidence: {vendor.confidence} |{" "}
-                        {vendor.reasons.join(", ")}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* How It Works */}
-            <div className="bg-yellow-50 rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">
-                Enhanced Categorization Logic
-              </h2>
-              <div className="text-sm space-y-2">
-                <p>
-                  <strong>📧 Email Analysis:</strong> Scans ALL email fields
-                  (Personal Email, Work Email, Email 2, etc.) + finds emails in
-                  any field
-                </p>
-                <p>
-                  <strong>🏢 Agent Detection:</strong> 70+ brokerage domains,
-                  40+ agent keywords, company patterns, job titles, notes
-                  analysis
-                </p>
-                <p>
-                  <strong>🔧 Vendor Detection:</strong> Direct vendor matches
-                  (Chartwell, Modus Title), 50+ service keywords, business
-                  entities, professional titles
-                </p>
-                <p>
-                  <strong>🎯 Multi-Signal Analysis:</strong> Checks company,
-                  title, tags, groups, notes, background info for comprehensive
-                  classification
-                </p>
-                <p>
-                  <strong>👤 Contact Protection:</strong> Past clients remain as
-                  "Contact" regardless of other signals
-                </p>
-                <p>
-                  <strong>⚖️ Confidence Scoring:</strong> Multiple signals build
-                  confidence scores. Agents need 35+ points, Vendors need 40+
-                  points
-                </p>
-                <p>
-                  <strong>🔍 Enhanced Matching:</strong> Now matches
-                  RealEstateProcessor logic for consistent results across tools
-                </p>
-                <p>
-                  <strong>📝 Change Logging:</strong> Adds "Changes Made" and
-                  "Classification Reason" columns to track why each contact was
-                  categorized
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        <button
+          onClick={processFile}
+          disabled={!file || processing}
+          className="mt-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
+        >
+          {processing ? "Processing..." : "Categorize Contacts"}
+        </button>
       </div>
+
+      {/* Processing Logs */}
+      {logs.length > 0 && (
+        <div className="bg-gray-100 rounded-lg p-4 mb-6">
+          <h3 className="text-lg font-semibold mb-2">Processing Log</h3>
+          <div className="text-sm font-mono max-h-60 overflow-y-auto">
+            {logs.map((log, index) => (
+              <div key={index} className="whitespace-pre-wrap">
+                {log}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Results */}
+      {results && (
+        <div className="space-y-6">
+          {/* Summary Stats */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4">
+              Categorization Summary
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+              <div className="text-center p-4 bg-blue-50 rounded">
+                <div className="text-2xl font-bold text-blue-600">
+                  {results.stats.total}
+                </div>
+                <div className="text-sm text-gray-600">Total Records</div>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded">
+                <div className="text-2xl font-bold text-green-600">
+                  {results.stats.agents}
+                </div>
+                <div className="text-sm text-gray-600">Agents</div>
+              </div>
+              <div className="text-center p-4 bg-orange-50 rounded">
+                <div className="text-2xl font-bold text-orange-600">
+                  {results.stats.vendors}
+                </div>
+                <div className="text-sm text-gray-600">Vendors</div>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded">
+                <div className="text-2xl font-bold text-purple-600">
+                  {results.stats.leads}
+                </div>
+                <div className="text-sm text-gray-600">Leads</div>
+                <div className="text-xs text-purple-500 mt-1">
+                  ({results.stats.contactsMovedToLeads} moved)
+                </div>
+              </div>
+              <div className="text-center p-4 bg-gray-50 rounded">
+                <div className="text-2xl font-bold text-gray-600">
+                  {results.stats.contacts}
+                </div>
+                <div className="text-sm text-gray-600">Contacts</div>
+              </div>
+              <div className="text-center p-4 bg-yellow-50 rounded">
+                <div className="text-2xl font-bold text-yellow-600">
+                  {results.stats.changed}
+                </div>
+                <div className="text-sm text-gray-600">Changed</div>
+              </div>
+              <div className="text-center p-4 bg-red-50 rounded">
+                <div className="text-2xl font-bold text-red-600">
+                  {results.stats.ungrouped}
+                </div>
+                <div className="text-sm text-gray-600">Ungrouped</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Export Options */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4">📥 Export Results</h2>
+            <div className="space-y-4">
+              <p className="text-gray-600 text-center">
+                Download your categorized contacts with the new "Category"
+                column added to each record.
+              </p>
+
+              {/* Main Export Button */}
+              <div className="text-center">
+                <button
+                  onClick={exportResults}
+                  className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg text-lg"
+                >
+                  📥 Export Complete Categorized File
+                </button>
+                <div className="text-sm text-gray-500 mt-2">
+                  File: "categorized_contacts.csv" with {results.stats.total}{" "}
+                  records
+                </div>
+              </div>
+
+              {/* Category-Specific Export Buttons */}
+              <div className="border-t pt-4">
+                <h3 className="text-md font-semibold mb-3 text-center">
+                  Export by Category
+                </h3>
+                <div className="flex justify-center flex-wrap gap-2">
+                  {results.stats.agents > 0 && (
+                    <button
+                      onClick={() => exportByCategory("Agent")}
+                      className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                      🏢 Agents Only ({results.stats.agents})
+                    </button>
+                  )}
+                  {results.stats.vendors > 0 && (
+                    <button
+                      onClick={() => exportByCategory("Vendor")}
+                      className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                      🔧 Vendors Only ({results.stats.vendors})
+                    </button>
+                  )}
+                  {results.stats.contacts > 0 && (
+                    <button
+                      onClick={() => exportByCategory("Contact")}
+                      className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                      👤 Contacts Only ({results.stats.contacts})
+                    </button>
+                  )}
+                  {results.stats.categorized > 0 && (
+                    <button
+                      onClick={exportCategorizedContacts}
+                      className="bg-teal-500 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                      🎯 Categorized Only ({results.stats.categorized})
+                    </button>
+                  )}
+                  {results.stats.changed > 0 && (
+                    <button
+                      onClick={exportChangedContacts}
+                      className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                      ⚡ Changed Only ({results.stats.changed})
+                    </button>
+                  )}
+                  {results.stats.ungrouped > 0 && (
+                    <button
+                      onClick={exportUngroupedContacts}
+                      className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                      📭 Ungrouped Only ({results.stats.ungrouped})
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sample Agents */}
+          {results.sampleAgents.length > 0 && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-semibold mb-4">
+                Sample Agents ({results.stats.agents} total)
+              </h2>
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {results.sampleAgents.map((agent, index) => (
+                  <div
+                    key={index}
+                    className="border-l-4 border-green-500 pl-4 py-2"
+                  >
+                    <h3 className="font-semibold text-green-700">
+                      {agent.name}
+                    </h3>
+                    <p className="text-sm text-gray-600">{agent.email}</p>
+                    <p className="text-sm text-gray-600">{agent.company}</p>
+                    <div className="text-xs text-green-600 mt-1">
+                      Confidence: {agent.confidence} |{" "}
+                      {agent.reasons.join(", ")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sample Vendors */}
+          {results.sampleVendors.length > 0 && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-semibold mb-4">
+                Sample Vendors ({results.stats.vendors} total)
+              </h2>
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {results.sampleVendors.map((vendor, index) => (
+                  <div
+                    key={index}
+                    className="border-l-4 border-orange-500 pl-4 py-2"
+                  >
+                    <h3 className="font-semibold text-orange-700">
+                      {vendor.name}
+                    </h3>
+                    <p className="text-sm text-gray-600">{vendor.email}</p>
+                    <p className="text-sm text-gray-600">{vendor.company}</p>
+                    <div className="text-xs text-orange-600 mt-1">
+                      Confidence: {vendor.confidence} |{" "}
+                      {vendor.reasons.join(", ")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* How It Works */}
+          <div className="bg-yellow-50 rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4">
+              Enhanced Categorization Logic
+            </h2>
+            <div className="text-sm space-y-2">
+              <p>
+                <strong>📧 Email Analysis:</strong> Scans ALL email fields
+                (Personal Email, Work Email, Email 2, etc.) + finds emails in
+                any field
+              </p>
+              <p>
+                <strong>🏢 Agent Detection:</strong> 70+ brokerage domains, 40+
+                agent keywords, company patterns, job titles, notes analysis
+              </p>
+              <p>
+                <strong>🔧 Vendor Detection:</strong> Direct vendor matches
+                (Chartwell, Modus Title), 50+ service keywords, business
+                entities, professional titles
+              </p>
+              <p>
+                <strong>🎯 Multi-Signal Analysis:</strong> Checks company,
+                title, tags, groups, notes, background info for comprehensive
+                classification
+              </p>
+              <p>
+                <strong>👤 Contact Protection:</strong> Past clients remain as
+                "Contact" regardless of other signals
+              </p>
+              <p>
+                <strong>⚖️ Confidence Scoring:</strong> Multiple signals build
+                confidence scores. Agents need 35+ points, Vendors need 40+
+                points
+              </p>
+              <p>
+                <strong>🔍 Enhanced Matching:</strong> Now matches
+                RealEstateProcessor logic for consistent results across tools
+              </p>
+              <p>
+                <strong>📝 Change Logging:</strong> Adds "Changes Made" and
+                "Classification Reason" columns to track why each contact was
+                categorized
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
