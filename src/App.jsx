@@ -6,7 +6,6 @@ import RealEstateProcessor from "./utils/RealEstateProcessor";
 import Splitter from "./components/Splitter";
 import EmailVerifier from "./components/EmailVerifier";
 import DuplicateRemover from "./components/DuplicateRemover";
-import Navbar from "./components/Navbar";
 
 function App() {
   const [files, setFiles] = useState({
@@ -466,7 +465,6 @@ function App() {
 
   return (
     <div className="App">
-      <Navbar />
       <header style={{ textAlign: "center", marginBottom: "2rem" }}>
         <h1>Real Estate Contact Processor</h1>
         <p>

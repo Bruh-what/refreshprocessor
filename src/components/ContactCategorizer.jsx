@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import Papa from "papaparse";
-import Navbar from "./Navbar";
 
 const ContactCategorizer = () => {
   const [file, setFile] = useState(null);
@@ -934,14 +933,14 @@ const ContactCategorizer = () => {
           changesMade.push("Category=Agent");
           if (isTrulyUngrouped) {
             changesMade.push("Added to Agents group (contact was ungrouped)");
-            newTags.push("Group: Ungrouped to Agents");
+            newTags.push("CRM: Ungrouped > Agents");
           } else {
             changesMade.push(
               `Added to Agents group (previously in: ${originalGroups.join(
                 ", "
               )})`
             );
-            newTags.push(`Group: ${originalGroups.join(",")} to Agents`);
+            newTags.push(`CRM: ${originalGroups.join(",")} > Agents`);
           }
           changesMade.push(
             `Classified as real estate agent based on ${result.reasons
@@ -958,14 +957,14 @@ const ContactCategorizer = () => {
           changesMade.push("Category=Vendor");
           if (isTrulyUngrouped) {
             changesMade.push("Added to Vendors group (contact was ungrouped)");
-            newTags.push("Group: Ungrouped to Vendors");
+            newTags.push("CRM: Ungrouped > Vendors");
           } else {
             changesMade.push(
               `Added to Vendors group (previously in: ${originalGroups.join(
                 ", "
               )})`
             );
-            newTags.push(`Group: ${originalGroups.join(",")} to Vendors`);
+            newTags.push(`CRM: ${originalGroups.join(",")} > Vendors`);
           }
           changesMade.push(
             `Classified as vendor based on ${result.reasons
@@ -1008,7 +1007,7 @@ const ContactCategorizer = () => {
             if (isTrulyUngrouped) {
               changesMade.push("Added to Leads group (contact was ungrouped)");
               // Add tag showing the group transition
-              newTags.push("Group: Ungrouped to Leads");
+              newTags.push("CRM: Ungrouped > Leads");
             } else {
               changesMade.push(
                 `Added to Leads group (previously in: ${originalGroups.join(
@@ -1016,7 +1015,7 @@ const ContactCategorizer = () => {
                 )})`
               );
               // Add transition tag for group movement
-              newTags.push(`Group: ${originalGroups.join(",")} to Leads`);
+              newTags.push(`CRM: ${originalGroups.join(",")} > Leads`);
             }
 
             // Increment the counter for contacts moved to Leads
@@ -1238,14 +1237,12 @@ const ContactCategorizer = () => {
   };
 
   return (
-    <div>
-      <Navbar />
-      <div className="max-w-6xl mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-6">Contact Categorizer</h1>
-        <p className="text-gray-600 mb-6">
-          Automatically categorize contacts as Agents, Vendors, or Contacts
-          based on email domains, company names, job titles, and other signals.
-        </p>
+    <div className="max-w-6xl mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-6">Contact Categorizer</h1>
+      <p className="text-gray-600 mb-6">
+        Automatically categorize contacts as Agents, Vendors, or Contacts
+        based on email domains, company names, job titles, and other signals.
+      </p>
 
         {/* File Upload */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -1522,7 +1519,6 @@ const ContactCategorizer = () => {
           </div>
         )}
       </div>
-    </div>
   );
 };
 

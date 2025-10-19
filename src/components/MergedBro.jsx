@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import Papa from "papaparse";
-import Navbar from "./Navbar";
 
 const MergedBro = () => {
   const [files, setFiles] = useState([]);
@@ -314,15 +313,13 @@ const MergedBro = () => {
   };
 
   return (
-    <div>
-      <Navbar />
-      <div className="max-w-6xl mx-auto p-6">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold mb-4">🤝 Merged Bro</h1>
-          <p className="text-gray-600 text-lg">
-            Upload multiple CSV files and merge all their rows together into one
-            unified file.
-          </p>
+    <div className="max-w-6xl mx-auto p-6">
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold mb-4">🤝 Merged Bro</h1>
+        <p className="text-gray-600 text-lg">
+          Upload multiple CSV files and merge all their rows together into one
+          unified file.
+        </p>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
             <h3 className="font-semibold text-blue-800 mb-2">How it works:</h3>
             <ul className="text-sm text-blue-700 space-y-1">
@@ -544,7 +541,6 @@ const MergedBro = () => {
             </p>
           </div>
         </div>
-      </div>
     </div>
   );
 };

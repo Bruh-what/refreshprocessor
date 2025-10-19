@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import Papa from "papaparse";
-import Navbar from "./Navbar";
 
 const LeadTagger = () => {
   const [file, setFile] = useState(null);
@@ -374,18 +373,16 @@ const LeadTagger = () => {
   };
 
   return (
-    <div>
-      <Navbar />
-      <div className="max-w-6xl mx-auto p-6">
-        <div className="bg-white shadow-lg rounded-lg p-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-6">
-            🏷️ Lead Tagger
-          </h1>
-          <p className="text-gray-600 mb-8">
-            Automatically organize your contacts: Tag business emails as
-            "Uncategorized", personal emails as "Leads", and clean up records
-            without contact info
-          </p>
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="bg-white shadow-lg rounded-lg p-8">
+        <h1 className="text-3xl font-bold text-gray-800 mb-6">
+          🏷️ Lead Tagger
+        </h1>
+        <p className="text-gray-600 mb-8">
+          Automatically organize your contacts: Tag business emails as
+          "Uncategorized", personal emails as "Leads", and clean up records
+          without contact info
+        </p>
 
           {/* File Upload Section */}
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 mb-6">
@@ -576,7 +573,6 @@ const LeadTagger = () => {
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 };

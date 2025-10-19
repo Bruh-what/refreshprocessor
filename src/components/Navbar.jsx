@@ -7,7 +7,7 @@ const Navbar = () => {
       style={{
         background: "#333",
         color: "white",
-        padding: "1rem",
+        padding: "0.75rem 1rem",
         marginBottom: "1rem",
       }}
     >
@@ -16,7 +16,7 @@ const Navbar = () => {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          maxWidth: "1200px",
+          maxWidth: "1400px",
           margin: "0 auto",
         }}
       >
@@ -26,20 +26,27 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
-              fontSize: "1.25rem",
+              fontSize: "1rem",
               fontWeight: "bold",
             }}
           >
-            Real Estate Contact Processor
+            Processor
           </Link>
         </div>
-        <div>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
           <Link
             to="/"
             style={{
               color: "white",
               textDecoration: "none",
-              marginRight: "1rem",
+              fontSize: "0.875rem",
             }}
           >
             Home
@@ -49,7 +56,7 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
-              marginRight: "1rem",
+              fontSize: "0.875rem",
             }}
           >
             Import Mapper
@@ -59,7 +66,7 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
-              marginRight: "1rem",
+              fontSize: "0.875rem",
             }}
           >
             CSV Formatter
@@ -69,7 +76,7 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
-              marginRight: "1rem",
+              fontSize: "0.875rem",
             }}
           >
             Simple Duplicate Tagger
@@ -79,7 +86,7 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
-              marginRight: "1rem",
+              fontSize: "0.875rem",
             }}
           >
             Contact Categorizer
@@ -89,7 +96,7 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
-              marginRight: "1rem",
+              fontSize: "0.875rem",
             }}
           >
             GPT Classifier
@@ -99,7 +106,7 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
-              marginRight: "1rem",
+              fontSize: "0.875rem",
             }}
           >
             Phone Consolidator
@@ -109,7 +116,7 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
-              marginRight: "1rem",
+              fontSize: "0.875rem",
             }}
           >
             Lead Tagger
@@ -119,6 +126,7 @@ const Navbar = () => {
             style={{
               color: "white",
               textDecoration: "none",
+              fontSize: "0.875rem",
             }}
           >
             Merged Bro
