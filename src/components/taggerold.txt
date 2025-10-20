@@ -186,10 +186,10 @@ const SimpleDuplicateTagger = () => {
             }
 
             const existingTags = record["Tags"] || "";
-            if (!existingTags.includes("CRM:Duplicate")) {
+            if (!existingTags.includes("CRMDuplicate")) {
               record["Tags"] = existingTags
-                ? `${existingTags},CRM:Duplicate`
-                : "CRM:Duplicate";
+                ? `${existingTags},CRMDuplicate`
+                : "CRMDuplicate";
             }
             totalDuplicateRecords++;
 
@@ -240,7 +240,7 @@ const SimpleDuplicateTagger = () => {
       addLog(`\n=== TAGGING COMPLETE ===`);
       addLog(`Duplicate groups found: ${duplicateGroups}`);
       addLog(
-        `Total records tagged with CRM:Duplicate: ${totalDuplicateRecords}`
+        `Total records tagged with CRMDuplicate: ${totalDuplicateRecords}`
       );
       addLog(
         `Master records (most complete info in each group): ${masterRecords}`
@@ -248,11 +248,11 @@ const SimpleDuplicateTagger = () => {
 
       // Verify tags were applied
       const taggedDuplicates = processedData.filter(
-        (r) => r.Tags && r.Tags.includes("CRM:Duplicate")
+        (r) => r.Tags && r.Tags.includes("CRMDuplicate")
       ).length;
 
       addLog(`\n=== VERIFICATION ===`);
-      addLog(`Records with CRM:Duplicate tag: ${taggedDuplicates}`);
+      addLog(`Records with CRMDuplicate tag: ${taggedDuplicates}`);
 
       setResults({
         originalCount: parsed.data.length,
@@ -287,9 +287,9 @@ const SimpleDuplicateTagger = () => {
   const exportTaggedOnly = () => {
     if (!results) return;
 
-    // Filter to only records that have CRM:Duplicate tag
+    // Filter to only records that have CRMDuplicate tag
     const taggedRecords = results.processedData.filter(
-      (record) => record.Tags && record.Tags.includes("CRM:Duplicate")
+      (record) => record.Tags && record.Tags.includes("CRMDuplicate")
     );
 
     if (taggedRecords.length === 0) {
@@ -403,7 +403,7 @@ const SimpleDuplicateTagger = () => {
 
       for (let i = 0; i < mergedData.length; i++) {
         const record = mergedData[i];
-        if (!record.Tags || !record.Tags.includes("CRM:Duplicate")) continue;
+        if (!record.Tags || !record.Tags.includes("CRMDuplicate")) continue;
 
         const normalizedName = normalizeName(
           record["First Name"],
@@ -570,9 +570,9 @@ const SimpleDuplicateTagger = () => {
           .split(",")
           .map((t) => t.trim())
           .filter((t) => t);
-        const updatedTags = existingTags.filter((t) => t !== "CRM:Duplicate");
-        if (!updatedTags.includes("CRM:Merged")) {
-          updatedTags.push("CRM:Merged");
+        const updatedTags = existingTags.filter((t) => t !== "CRMDuplicate");
+        if (!updatedTags.includes("CRMMERGED")) {
+          updatedTags.push("CRMMERGED");
         }
         masterRecord["Tags"] = updatedTags.join(",");
 
@@ -675,7 +675,7 @@ const SimpleDuplicateTagger = () => {
                 <div className="text-2xl font-bold text-red-600">
                   {results.taggedDuplicates}
                 </div>
-                <div className="text-sm text-gray-600">CRM:Duplicate Tags</div>
+                <div className="text-sm text-gray-600">CRMDuplicate Tags</div>
               </div>
             </div>
 
@@ -734,11 +734,11 @@ const SimpleDuplicateTagger = () => {
                       <p className="font-medium">⚠️ Important:</p>
                       <ul className="list-disc list-inside mt-2 text-sm">
                         <li>
-                          Master records will get <strong>CRM:Merged</strong>{" "}
+                          Master records will get <strong>CRMMERGED</strong>{" "}
                           tags
                         </li>
                         <li>
-                          Duplicate records keep <strong>CRM:Duplicate</strong>{" "}
+                          Duplicate records keep <strong>CRMDuplicate</strong>{" "}
                           tags
                         </li>
                         <li>
@@ -769,8 +769,8 @@ const SimpleDuplicateTagger = () => {
                     <p className="font-medium">✅ Merge Complete!</p>
                     <div className="mt-2 text-sm">
                       <p>
-                        • {results.masterCount} master records created with CRM:
-                        Merged tags
+                        • {results.masterCount} master records created with
+                        CRMMERGED tags
                       </p>
                       <p>
                         • {results.mergeCount} duplicate records consolidated
@@ -859,7 +859,7 @@ const SimpleDuplicateTagger = () => {
               </p>
               <p>
                 <strong>Duplicate Tagging:</strong> ALL records in duplicate
-                groups (including masters) get CRM:Duplicate tag.
+                groups (including masters) get CRMDuplicate tag.
               </p>
               <p>
                 <strong>No Merging:</strong> Records are only tagged - no data
