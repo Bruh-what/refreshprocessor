@@ -917,10 +917,10 @@ const ContactCategorizer = () => {
         const isTrulyUngrouped = originalGroups.length === 0;
         const newGroups = [...originalGroups];
         let changesMade = [];
-        let newTags = (updatedRecord["Tags"] || "")
-          .split(",")
-          .map((t) => t.trim())
-          .filter((t) => t !== "");
+        
+        // FIXED: Preserve all original tags without parsing them
+        const originalTagsString = updatedRecord["Tags"] || "";
+        let newTagsToAdd = [];
 
         // Add groups based on category (matching RealEstateProcessor)
         if (
@@ -933,14 +933,14 @@ const ContactCategorizer = () => {
           changesMade.push("Category=Agent");
           if (isTrulyUngrouped) {
             changesMade.push("Added to Agents group (contact was ungrouped)");
-            newTags.push("CRM: Ungrouped > Agents");
+            newTagsToAdd.push("CRM: Ungrouped > Agents");
           } else {
             changesMade.push(
               `Added to Agents group (previously in: ${originalGroups.join(
                 ", "
               )})`
             );
-            newTags.push(`CRM: ${originalGroups.join(",")} > Agents`);
+            newTagsToAdd.push(`CRM: ${originalGroups.join(",")} > Agents`);
           }
           changesMade.push(
             `Classified as real estate agent based on ${result.reasons
@@ -957,14 +957,14 @@ const ContactCategorizer = () => {
           changesMade.push("Category=Vendor");
           if (isTrulyUngrouped) {
             changesMade.push("Added to Vendors group (contact was ungrouped)");
-            newTags.push("CRM: Ungrouped > Vendors");
+            newTagsToAdd.push("CRM: Ungrouped > Vendors");
           } else {
             changesMade.push(
               `Added to Vendors group (previously in: ${originalGroups.join(
                 ", "
               )})`
             );
-            newTags.push(`CRM: ${originalGroups.join(",")} > Vendors`);
+            newTagsToAdd.push(`CRM: ${originalGroups.join(",")} > Vendors`);
           }
           changesMade.push(
             `Classified as vendor based on ${result.reasons
@@ -1007,7 +1007,7 @@ const ContactCategorizer = () => {
             if (isTrulyUngrouped) {
               changesMade.push("Added to Leads group (contact was ungrouped)");
               // Add tag showing the group transition
-              newTags.push("CRM: Ungrouped > Leads");
+              newTagsToAdd.push("CRM: Ungrouped > Leads");
             } else {
               changesMade.push(
                 `Added to Leads group (previously in: ${originalGroups.join(
@@ -1015,7 +1015,7 @@ const ContactCategorizer = () => {
                 )})`
               );
               // Add transition tag for group movement
-              newTags.push(`CRM: ${originalGroups.join(",")} > Leads`);
+              newTagsToAdd.push(`CRM: ${originalGroups.join(",")} > Leads`);
             }
 
             // Increment the counter for contacts moved to Leads
@@ -1025,7 +1025,16 @@ const ContactCategorizer = () => {
 
         // Update the record with new groups and tags
         updatedRecord["Groups"] = newGroups.join(",");
-        updatedRecord["Tags"] = newTags.join(",");
+        
+        // FIXED: Preserve original tags and add new ones
+        let finalTags = [];
+        if (originalTagsString && originalTagsString.trim()) {
+          finalTags.push(originalTagsString);
+        }
+        if (newTagsToAdd.length > 0) {
+          finalTags.push(...newTagsToAdd);
+        }
+        updatedRecord["Tags"] = finalTags.join(",");
         updatedRecord["Changes Made"] = changesMade.join("; ");
         updatedRecord["Classification Reason"] =
           result.reasons.slice(0, 3).join("; ") ||
@@ -1067,6 +1076,36 @@ const ContactCategorizer = () => {
           r["Changes Made"].trim() !== ""
       ).length;
 
+      // Count contacts with Home Anniversary values
+      const anniversaryCount = processedData.filter(
+        (r) =>
+          r["Home Anniversary"] &&
+          r["Home Anniversary"].toString().trim() !== ""
+      ).length;
+
+      // Count combined unique contacts (changed + anniversary)
+      const changedRecords = new Set();
+      const anniversaryRecords = new Set();
+      
+      processedData.forEach(record => {
+        const key = `${record["First Name"]}_${record["Last Name"]}_${record["Email"] || record["Personal Email"] || ""}`;
+        
+        // Track changed contacts
+        if (record["Changes Made"] && 
+            record["Changes Made"] !== "Category=Contact" && 
+            record["Changes Made"].trim() !== "") {
+          changedRecords.add(key);
+        }
+        
+        // Track anniversary contacts
+        if (record["Home Anniversary"] && 
+            record["Home Anniversary"].toString().trim() !== "") {
+          anniversaryRecords.add(key);
+        }
+      });
+      
+      const combinedCount = new Set([...changedRecords, ...anniversaryRecords]).size;
+
       const stats = {
         total: processedData.length,
         agents: processedData.filter((r) => r.Category === "Agent").length,
@@ -1077,6 +1116,8 @@ const ContactCategorizer = () => {
         ungrouped: ungroupedCount,
         categorized: categorizedCount,
         changed: changedCount,
+        anniversary: anniversaryCount,
+        changedOrAnniversary: combinedCount,
       };
 
       // Sample categorized records for review
@@ -1213,9 +1254,30 @@ const ContactCategorizer = () => {
     link.click();
   };
 
+  const exportAllExceptUngrouped = () => {
+    if (!results) return;
+
+    const groupedData = results.processedData.filter(
+      (record) => record.Groups && record.Groups.trim() !== ""
+    );
+
+    if (groupedData.length === 0) {
+      alert("No grouped contacts found to export!");
+      return;
+    }
+
+    const csv = Papa.unparse(groupedData);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "all_except_ungrouped_contacts.csv";
+    link.click();
+  };
+
   const exportChangedContacts = () => {
     if (!results) return;
 
+    // Get contacts that were changed/categorized
     const changedData = results.processedData.filter(
       (record) =>
         record["Changes Made"] &&
@@ -1223,16 +1285,40 @@ const ContactCategorizer = () => {
         record["Changes Made"].trim() !== ""
     );
 
-    if (changedData.length === 0) {
-      alert("No changed contacts found to export!");
+    // Get contacts that have Home Anniversary values
+    const homeAnniversaryData = results.processedData.filter(
+      (record) =>
+        record["Home Anniversary"] &&
+        record["Home Anniversary"].toString().trim() !== ""
+    );
+
+    // Combine both sets and remove duplicates using Set
+    const combinedRecords = new Map();
+    
+    // Add all changed contacts
+    changedData.forEach(record => {
+      const key = `${record["First Name"]}_${record["Last Name"]}_${record["Email"] || record["Personal Email"] || ""}`;
+      combinedRecords.set(key, record);
+    });
+    
+    // Add all home anniversary contacts
+    homeAnniversaryData.forEach(record => {
+      const key = `${record["First Name"]}_${record["Last Name"]}_${record["Email"] || record["Personal Email"] || ""}`;
+      combinedRecords.set(key, record);
+    });
+
+    const finalData = Array.from(combinedRecords.values());
+
+    if (finalData.length === 0) {
+      alert("No changed contacts or home anniversary contacts found to export!");
       return;
     }
 
-    const csv = Papa.unparse(changedData);
+    const csv = Papa.unparse(finalData);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "changed_contacts_only.csv";
+    link.download = "changed_and_anniversary_contacts.csv";
     link.click();
   };
 
@@ -1395,12 +1481,12 @@ const ContactCategorizer = () => {
                       🎯 Categorized Only ({results.stats.categorized})
                     </button>
                   )}
-                  {results.stats.changed > 0 && (
+                  {results.stats.changedOrAnniversary > 0 && (
                     <button
                       onClick={exportChangedContacts}
                       className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded"
                     >
-                      ⚡ Changed Only ({results.stats.changed})
+                      ⚡ Changed + Anniversary ({results.stats.changedOrAnniversary})
                     </button>
                   )}
                   {results.stats.ungrouped > 0 && (
@@ -1409,6 +1495,14 @@ const ContactCategorizer = () => {
                       className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
                     >
                       📭 Ungrouped Only ({results.stats.ungrouped})
+                    </button>
+                  )}
+                  {(results.stats.total - results.stats.ungrouped) > 0 && (
+                    <button
+                      onClick={exportAllExceptUngrouped}
+                      className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                      📋 All Except Ungrouped ({results.stats.total - results.stats.ungrouped})
                     </button>
                   )}
                 </div>

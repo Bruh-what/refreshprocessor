@@ -394,7 +394,7 @@ const SimpleDuplicateTagger = () => {
     addLog("\n=== STARTING MERGE PROCESS ===");
 
     try {
-      const mergedData = [...results.processedData];
+      const mergedData = results.processedData.map((record) => ({ ...record }));
       let mergeCount = 0;
       let masterCount = 0;
 
@@ -434,6 +434,21 @@ const SimpleDuplicateTagger = () => {
         addLog(
           `Merging ${duplicateRecords.length} duplicates into master: "${name}"`
         );
+
+        // Debug: Track Robert Abbott specifically
+        if (
+          name.toLowerCase().includes("robert") &&
+          name.toLowerCase().includes("abbott")
+        ) {
+          console.log("=== ROBERT ABBOTT MERGE DEBUG ===");
+          console.log(`Master record index: ${records[0].index}`);
+          console.log(`Master record:`, masterRecord);
+          console.log(`Duplicate records count: ${duplicateRecords.length}`);
+          duplicateRecords.forEach((dup, i) => {
+            console.log(`Duplicate ${i + 1} index: ${dup.index}`);
+            console.log(`Duplicate ${i + 1} record:`, mergedData[dup.index]);
+          });
+        }
 
         // Extract existing data from master
         const masterEmails = extractEmails(masterRecord).map((e) =>
@@ -583,10 +598,30 @@ const SimpleDuplicateTagger = () => {
       addLog(`Master records created: ${masterCount}`);
       addLog(`Duplicate records merged: ${mergeCount}`);
 
+      // Debug: Count Robert Abbott records in final mergedData
+      const robertAbbottRecords = mergedData.filter(
+        (record) =>
+          record["First Name"] &&
+          record["Last Name"] &&
+          record["First Name"].toLowerCase().includes("robert") &&
+          record["Last Name"].toLowerCase().includes("abbott")
+      );
+      console.log("=== FINAL ROBERT ABBOTT COUNT ===");
+      console.log(
+        `Found ${robertAbbottRecords.length} Robert Abbott records in mergedData:`
+      );
+      robertAbbottRecords.forEach((record, i) => {
+        console.log(`Robert Abbott ${i + 1}:`, {
+          firstName: record["First Name"],
+          lastName: record["Last Name"],
+          tags: record["Tags"],
+          email: record["Email"] || record["Personal Email"],
+        });
+      });
+
       // Update results with merged data
       setResults({
         ...results,
-        processedData: mergedData,
         mergedData: mergedData,
         masterCount: masterCount,
         mergeCount: mergeCount,
@@ -603,7 +638,68 @@ const SimpleDuplicateTagger = () => {
   const exportMergedResults = () => {
     if (!results || !results.hasMerged) return;
 
+    // Debug: Check what we're about to export
+    console.log("=== EXPORT DEBUG ===");
+    console.log(`Total records in mergedData: ${results.mergedData.length}`);
+
+    const robertAbbottExportRecords = results.mergedData.filter(
+      (record) =>
+        record["First Name"] &&
+        record["Last Name"] &&
+        record["First Name"].toLowerCase().includes("robert") &&
+        record["Last Name"].toLowerCase().includes("abbott")
+    );
+
+    console.log(
+      `Robert Abbott records being exported: ${robertAbbottExportRecords.length}`
+    );
+    robertAbbottExportRecords.forEach((record, i) => {
+      console.log(`Export Robert Abbott ${i + 1}:`, {
+        firstName: record["First Name"],
+        lastName: record["Last Name"],
+        tags: record["Tags"],
+        email:
+          record["Email"] ||
+          record["Personal Email"] ||
+          record["Primary Work Email"],
+        createdAt: record["Created At"],
+      });
+    });
+
     const csv = Papa.unparse(results.mergedData);
+
+    // Debug: Check the CSV output for Robert Abbott
+    const csvLines = csv.split("\n");
+    const robertLines = csvLines.filter(
+      (line) =>
+        line.toLowerCase().includes("robert") &&
+        line.toLowerCase().includes("abbott")
+    );
+    console.log(`Robert Abbott lines in CSV: ${robertLines.length}`);
+    robertLines.forEach((line, i) => {
+      console.log(
+        `CSV Robert Abbott line ${i + 1}:`,
+        line.substring(0, 200) + "..."
+      );
+    });
+
+    // Debug: Check for duplicate lines
+    const allLines = csv.split("\n");
+    console.log(`Total CSV lines: ${allLines.length}`);
+    console.log(
+      `First few Robert Abbott characters in CSV:`,
+      csv.substring(csv.indexOf("Robert"), csv.indexOf("Robert") + 500)
+    );
+
+    // Debug: Check if both records are actually different
+    const uniqueRobertLines = [...new Set(robertLines)];
+    console.log(`Unique Robert Abbott lines: ${uniqueRobertLines.length}`);
+    if (uniqueRobertLines.length !== robertLines.length) {
+      console.log("WARNING: Duplicate Robert Abbott lines detected!");
+      console.log("Original lines:", robertLines.length);
+      console.log("Unique lines:", uniqueRobertLines.length);
+    }
+
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
