@@ -1,0 +1,382 @@
+import React, { useState } from "react";
+import Papa from "papaparse";
+import "./CsvFormatter.css";
+
+function MergeBro() {
+  const [csvFiles, setCsvFiles] = useState([]);
+  const [mergedData, setMergedData] = useState(null);
+  const [downloadReady, setDownloadReady] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState({
+    current: 0,
+    total: 0,
+    status: "",
+  });
+
+  // Use PapaParse for robust CSV parsing/stringifying
+  const parseCSV = (csvText) => {
+    const result = Papa.parse(csvText, {
+      header: true,
+      skipEmptyLines: true,
+      worker: false, // Keep false for better control
+      chunk: undefined, // We'll handle chunking manually
+    });
+    return result;
+  };
+
+  const convertToCSV = (data) => {
+    return Papa.unparse(data, { quotes: true });
+  };
+
+  // Sleep function to prevent browser blocking
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Process data in chunks to prevent browser freezing
+  const processInChunks = async (data, chunkSize = 1000) => {
+    const chunks = [];
+    for (let i = 0; i < data.length; i += chunkSize) {
+      chunks.push(data.slice(i, i + chunkSize));
+    }
+    return chunks;
+  };
+
+  // Handle file uploads
+  const handleCsvUpload = (event) => {
+    const files = Array.from(event.target.files);
+    setCsvFiles(files);
+    setMergedData(null);
+    setDownloadReady(false);
+    setIsProcessing(false);
+    setProgress({ current: 0, total: 0, status: "" });
+  };
+
+  // Merge all CSVs with chunked processing for large datasets
+  const mergeCSVs = async () => {
+    if (csvFiles.length < 2) {
+      alert("Please upload at least two CSV files to merge.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setProgress({
+      current: 0,
+      total: csvFiles.length,
+      status: "Starting merge process...",
+    });
+
+    try {
+      // Parse all files with progress tracking
+      const parsedCSVs = [];
+      let totalRowsEstimate = 0;
+
+      for (let i = 0; i < csvFiles.length; i++) {
+        setProgress({
+          current: i + 1,
+          total: csvFiles.length,
+          status: `Parsing file ${i + 1} of ${csvFiles.length}: ${
+            csvFiles[i].name
+          }`,
+        });
+
+        const fileContent = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsText(csvFiles[i]);
+        });
+
+        // Parse the CSV
+        const parsed = parseCSV(fileContent);
+        parsedCSVs.push(parsed);
+        totalRowsEstimate += parsed.data?.length || 0;
+
+        // Give browser time to breathe
+        await sleep(10);
+      }
+
+      setProgress({
+        current: csvFiles.length,
+        total: csvFiles.length,
+        status: `Merging ${totalRowsEstimate} total rows...`,
+      });
+
+      // Use fields from the first file
+      const fields = parsedCSVs[0]?.meta?.fields || [];
+
+      // Merge all rows in chunks to prevent memory issues
+      let allRows = [];
+      let processedRows = 0;
+
+      for (let i = 0; i < parsedCSVs.length; i++) {
+        const csv = parsedCSVs[i];
+        if (csv && csv.data) {
+          // Process large datasets in chunks
+          if (csv.data.length > 5000) {
+            const chunks = await processInChunks(csv.data, 2000);
+            for (let j = 0; j < chunks.length; j++) {
+              allRows.push(...chunks[j]);
+              processedRows += chunks[j].length;
+
+              setProgress({
+                current: processedRows,
+                total: totalRowsEstimate,
+                status: `Processing rows: ${processedRows} of ${totalRowsEstimate}`,
+              });
+
+              // Give browser time to breathe every chunk
+              await sleep(5);
+            }
+          } else {
+            allRows.push(...csv.data);
+            processedRows += csv.data.length;
+          }
+        }
+      }
+
+      setProgress({
+        current: totalRowsEstimate,
+        total: totalRowsEstimate,
+        status: "Finalizing merge...",
+      });
+
+      setMergedData({ fields, data: allRows });
+      setDownloadReady(true);
+      setProgress({
+        current: totalRowsEstimate,
+        total: totalRowsEstimate,
+        status: `Successfully merged ${allRows.length} rows!`,
+      });
+    } catch (error) {
+      console.error("Error merging CSVs:", error);
+      alert("Error merging CSV files. Please check the console for details.");
+      setProgress({
+        current: 0,
+        total: 0,
+        status: "Error occurred during merge",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Download merged CSV with chunked processing for large files
+  const downloadMergedCSV = async () => {
+    if (!mergedData) return;
+
+    setProgress({
+      current: 0,
+      total: mergedData.data.length,
+      status: "Preparing download...",
+    });
+
+    try {
+      // For very large datasets, process in chunks
+      if (mergedData.data.length > 10000) {
+        setProgress({
+          current: 0,
+          total: mergedData.data.length,
+          status: "Converting large dataset to CSV...",
+        });
+
+        // Process in smaller chunks to avoid memory issues
+        const chunks = await processInChunks(mergedData.data, 5000);
+        let csvContent = "";
+
+        // Add header first
+        const headerCSV = Papa.unparse({
+          fields: mergedData.fields,
+          data: [],
+        });
+        csvContent = headerCSV + "\n";
+
+        // Process each chunk
+        for (let i = 0; i < chunks.length; i++) {
+          const chunkCSV = Papa.unparse({
+            fields: mergedData.fields,
+            data: chunks[i],
+          });
+
+          // Remove header from chunk (keep only data rows)
+          const chunkLines = chunkCSV.split("\n");
+          chunkLines.shift(); // Remove header line
+          csvContent += chunkLines.join("\n") + "\n";
+
+          setProgress({
+            current: (i + 1) * 5000,
+            total: mergedData.data.length,
+            status: `Processing chunk ${i + 1} of ${chunks.length}...`,
+          });
+
+          // Give browser time to breathe
+          await sleep(10);
+        }
+
+        // Create and download blob
+        const blob = new Blob([csvContent], { type: "text/csv" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `merged_bro_${mergedData.data.length}_rows.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } else {
+        // Standard processing for smaller files
+        const csvContent = convertToCSV({
+          fields: mergedData.fields,
+          data: mergedData.data,
+        });
+        const blob = new Blob([csvContent], { type: "text/csv" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `merged_bro_${mergedData.data.length}_rows.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+
+      setProgress({
+        current: mergedData.data.length,
+        total: mergedData.data.length,
+        status: "Download complete!",
+      });
+    } catch (error) {
+      console.error("Error downloading CSV:", error);
+      alert(
+        "Error creating download. File may be too large for browser memory."
+      );
+    }
+  };
+
+  return (
+    <div className="csv-formatter">
+      <header className="page-header">
+        <h1>🧑‍🤝‍🧑 Merge Bro</h1>
+        <p>Upload multiple CSVs and merge all rows into one file.</p>
+      </header>
+      <main className="csv-formatter-main">
+        <div className="formatter-content">
+          <div className="step-content">
+            <div className="step-header">
+              <h2>Step 1: Upload CSV Files</h2>
+              <label
+                htmlFor="merge-csv-upload"
+                style={{
+                  display: "inline-block",
+                  padding: "1.2rem 2.5rem",
+                  background: "#7c4dff",
+                  color: "#fff",
+                  borderRadius: "8px",
+                  fontWeight: 600,
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                  marginBottom: "1.2rem",
+                  boxShadow: "0 2px 8px rgba(124,77,255,0.08)",
+                }}
+              >
+                📁 Select CSV Files
+                <input
+                  id="merge-csv-upload"
+                  type="file"
+                  accept=".csv"
+                  multiple
+                  onChange={handleCsvUpload}
+                  style={{ display: "none" }}
+                />
+              </label>
+              {csvFiles.length > 0 && (
+                <div className="file-info" style={{ marginTop: "0.5rem" }}>
+                  <strong>{csvFiles.length} file(s) selected:</strong>
+                  <ul style={{ margin: 0, paddingLeft: 20 }}>
+                    {csvFiles.map((file, idx) => (
+                      <li key={idx}>{file.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={mergeCSVs}
+              className="process-button"
+              disabled={csvFiles.length < 2 || isProcessing}
+              style={{ marginTop: "1rem" }}
+            >
+              {isProcessing ? "🔄 Processing..." : "🔄 Merge CSVs"}
+            </button>
+
+            {/* Progress indicator */}
+            {isProcessing && (
+              <div
+                style={{
+                  marginTop: "1rem",
+                  padding: "1rem",
+                  backgroundColor: "#f5f5f5",
+                  borderRadius: "8px",
+                }}
+              >
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <strong>
+                    Progress: {progress.current} / {progress.total}
+                  </strong>
+                </div>
+                <div
+                  style={{
+                    width: "100%",
+                    backgroundColor: "#ddd",
+                    borderRadius: "10px",
+                    height: "20px",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${
+                        progress.total > 0
+                          ? (progress.current / progress.total) * 100
+                          : 0
+                      }%`,
+                      backgroundColor: "#7c4dff",
+                      height: "100%",
+                      borderRadius: "10px",
+                      transition: "width 0.3s ease",
+                    }}
+                  ></div>
+                </div>
+                <div style={{ fontSize: "0.9rem", color: "#666" }}>
+                  {progress.status}
+                </div>
+              </div>
+            )}
+
+            {downloadReady && mergedData && (
+              <div className="process-results" style={{ marginTop: "2rem" }}>
+                <p>
+                  ✅ Successfully merged{" "}
+                  <strong>{mergedData.data.length}</strong> rows from{" "}
+                  <strong>{csvFiles.length}</strong> files.
+                </p>
+                {mergedData.data.length > 10000 && (
+                  <p style={{ color: "#ff9800", fontSize: "0.9rem" }}>
+                    ⚠️ Large dataset detected ({mergedData.data.length} rows).
+                    Download may take a moment...
+                  </p>
+                )}
+                <button
+                  onClick={downloadMergedCSV}
+                  className="download-button"
+                  disabled={isProcessing}
+                >
+                  📥 Download Merged CSV ({mergedData.data.length} rows)
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default MergeBro;

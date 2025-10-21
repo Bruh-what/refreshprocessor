@@ -917,7 +917,7 @@ const ContactCategorizer = () => {
         const isTrulyUngrouped = originalGroups.length === 0;
         const newGroups = [...originalGroups];
         let changesMade = [];
-        
+
         // FIXED: Preserve all original tags without parsing them
         const originalTagsString = updatedRecord["Tags"] || "";
         let newTagsToAdd = [];
@@ -1025,7 +1025,7 @@ const ContactCategorizer = () => {
 
         // Update the record with new groups and tags
         updatedRecord["Groups"] = newGroups.join(",");
-        
+
         // FIXED: Preserve original tags and add new ones
         let finalTags = [];
         if (originalTagsString && originalTagsString.trim()) {
@@ -1086,25 +1086,32 @@ const ContactCategorizer = () => {
       // Count combined unique contacts (changed + anniversary)
       const changedRecords = new Set();
       const anniversaryRecords = new Set();
-      
-      processedData.forEach(record => {
-        const key = `${record["First Name"]}_${record["Last Name"]}_${record["Email"] || record["Personal Email"] || ""}`;
-        
+
+      processedData.forEach((record) => {
+        const key = `${record["First Name"]}_${record["Last Name"]}_${
+          record["Email"] || record["Personal Email"] || ""
+        }`;
+
         // Track changed contacts
-        if (record["Changes Made"] && 
-            record["Changes Made"] !== "Category=Contact" && 
-            record["Changes Made"].trim() !== "") {
+        if (
+          record["Changes Made"] &&
+          record["Changes Made"] !== "Category=Contact" &&
+          record["Changes Made"].trim() !== ""
+        ) {
           changedRecords.add(key);
         }
-        
+
         // Track anniversary contacts
-        if (record["Home Anniversary"] && 
-            record["Home Anniversary"].toString().trim() !== "") {
+        if (
+          record["Home Anniversary"] &&
+          record["Home Anniversary"].toString().trim() !== ""
+        ) {
           anniversaryRecords.add(key);
         }
       });
-      
-      const combinedCount = new Set([...changedRecords, ...anniversaryRecords]).size;
+
+      const combinedCount = new Set([...changedRecords, ...anniversaryRecords])
+        .size;
 
       const stats = {
         total: processedData.length,
@@ -1294,23 +1301,29 @@ const ContactCategorizer = () => {
 
     // Combine both sets and remove duplicates using Set
     const combinedRecords = new Map();
-    
+
     // Add all changed contacts
-    changedData.forEach(record => {
-      const key = `${record["First Name"]}_${record["Last Name"]}_${record["Email"] || record["Personal Email"] || ""}`;
+    changedData.forEach((record) => {
+      const key = `${record["First Name"]}_${record["Last Name"]}_${
+        record["Email"] || record["Personal Email"] || ""
+      }`;
       combinedRecords.set(key, record);
     });
-    
+
     // Add all home anniversary contacts
-    homeAnniversaryData.forEach(record => {
-      const key = `${record["First Name"]}_${record["Last Name"]}_${record["Email"] || record["Personal Email"] || ""}`;
+    homeAnniversaryData.forEach((record) => {
+      const key = `${record["First Name"]}_${record["Last Name"]}_${
+        record["Email"] || record["Personal Email"] || ""
+      }`;
       combinedRecords.set(key, record);
     });
 
     const finalData = Array.from(combinedRecords.values());
 
     if (finalData.length === 0) {
-      alert("No changed contacts or home anniversary contacts found to export!");
+      alert(
+        "No changed contacts or home anniversary contacts found to export!"
+      );
       return;
     }
 
@@ -1486,7 +1499,8 @@ const ContactCategorizer = () => {
                       onClick={exportChangedContacts}
                       className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded"
                     >
-                      ⚡ Changed + Anniversary ({results.stats.changedOrAnniversary})
+                      ⚡ Changed + Anniversary (
+                      {results.stats.changedOrAnniversary})
                     </button>
                   )}
                   {results.stats.ungrouped > 0 && (
@@ -1497,12 +1511,13 @@ const ContactCategorizer = () => {
                       📭 Ungrouped Only ({results.stats.ungrouped})
                     </button>
                   )}
-                  {(results.stats.total - results.stats.ungrouped) > 0 && (
+                  {results.stats.total - results.stats.ungrouped > 0 && (
                     <button
                       onClick={exportAllExceptUngrouped}
                       className="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded"
                     >
-                      📋 All Except Ungrouped ({results.stats.total - results.stats.ungrouped})
+                      📋 All Except Ungrouped (
+                      {results.stats.total - results.stats.ungrouped})
                     </button>
                   )}
                 </div>
