@@ -30,7 +30,7 @@ const Navbar = () => {
               fontWeight: "bold",
             }}
           >
-            Processor
+            {/* Title removed */}
           </Link>
         </div>
         <div
@@ -60,6 +60,16 @@ const Navbar = () => {
             }}
           >
             Import Mapper
+          </Link>
+          <Link
+            to="/phone-consolidator"
+            style={{
+              color: "white",
+              textDecoration: "none",
+              fontSize: "0.875rem",
+            }}
+          >
+            Phone Consolidator
           </Link>
           <Link
             to="/csv-formatter"
@@ -100,16 +110,6 @@ const Navbar = () => {
             }}
           >
             GPT Classifier
-          </Link>
-          <Link
-            to="/phone-consolidator"
-            style={{
-              color: "white",
-              textDecoration: "none",
-              fontSize: "0.875rem",
-            }}
-          >
-            Phone Consolidator
           </Link>
           <Link
             to="/lead-tagger"
