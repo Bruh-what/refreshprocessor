@@ -600,7 +600,7 @@ const SimpleDuplicateTagger = () => {
         
         // Add change tracking for merge
         const existingChanges = masterRecord["Changes Made"] || "";
-        const newChange = `Merged with ${duplicatesInGroup.length} duplicate records`;
+        const newChange = `Merged with ${duplicateRecords.length} duplicate records`;
         masterRecord["Changes Made"] = existingChanges
           ? `${existingChanges}; ${newChange}`
           : newChange;
