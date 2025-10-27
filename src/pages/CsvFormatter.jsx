@@ -684,7 +684,7 @@ function CsvFormatter() {
         });
       }
 
-      // Ensure 'Groups', 'Tags', and 'Notes' columns are added to headers
+      // Ensure 'Groups', 'Tags', 'Notes', and 'Changes Made' columns are added to headers
       if (!saHeaders.includes("Groups")) {
         saHeaders.push("Groups");
       }
@@ -694,8 +694,11 @@ function CsvFormatter() {
       if (!saHeaders.includes("Notes")) {
         saHeaders.push("Notes");
       }
+      if (!saHeaders.includes("Changes Made")) {
+        saHeaders.push("Changes Made");
+      }
 
-      // Initialize Notes column for all existing rows
+      // Initialize columns for all existing rows
       updatedSaRows.forEach((row) => {
         if (!row["Groups"]) {
           row["Groups"] = "";
@@ -705,6 +708,9 @@ function CsvFormatter() {
         }
         if (!row["Notes"]) {
           row["Notes"] = "";
+        }
+        if (!row["Changes Made"]) {
+          row["Changes Made"] = "";
         }
       });
 
@@ -1744,13 +1750,25 @@ function CsvFormatter() {
                     updatedSaRows[saIndex]["Tags"] =
                       existingTagsArray.join(", ");
 
-                    // Add notes about what was done
+                    // PROPER CHANGE TRACKING: Preserve existing changes and add new ones
                     const contactType = contactInfo.isBuyer
                       ? "buyer"
                       : "seller";
-                    const notes = `Updated existing contact as ${contactType}: Added home anniversary date (${anniversaryDate}). Tags added: ${addedTags.join(
-                      ", "
-                    )}`;
+                    const newChanges = [];
+                    newChanges.push(`Updated existing contact as ${contactType}`);
+                    newChanges.push(`Added home anniversary date (${anniversaryDate})`);
+                    if (addedTags.length > 0) {
+                      newChanges.push(`Tags added: ${addedTags.join(", ")}`);
+                    }
+                    
+                    // Preserve existing "Changes Made" and append new changes
+                    const existingChanges = updatedSaRows[saIndex]["Changes Made"] || "";
+                    updatedSaRows[saIndex]["Changes Made"] = existingChanges
+                      ? `${existingChanges}; ${newChanges.join("; ")}`
+                      : newChanges.join("; ");
+                    
+                    // Optional: Also update Notes field for backward compatibility
+                    const notes = newChanges.join(". ");
                     updatedSaRows[saIndex]["Notes"] = notes;
 
                     // Create a unique log entry key
@@ -1817,6 +1835,7 @@ function CsvFormatter() {
                     [saHomeAnnivCol]: anniversaryDate || "", // Home Anniversary Date
                     ["Groups"]: "Past clients", // Groups column value
                     ["Tags"]: newEntryTags, // Tags column value
+                    ["Changes Made"]: `New ${contactType} company contact added: ${companyName}; Anniversary date: ${anniversaryDate}; Tags added: ${newEntryTags}; Added to Past clients group`,
                     ["Notes"]: `New ${contactType} company contact added: ${companyName}. Anniversary date: ${anniversaryDate}. Tags added: ${newEntryTags}`,
                   };
                   updatedSaRows.push(newRow);
@@ -1966,8 +1985,22 @@ function CsvFormatter() {
 
                   updatedSaRows[saIndex]["Tags"] = existingTagsArray.join(", ");
 
-                  // Add notes about what was done
+                  // PROPER CHANGE TRACKING: Preserve existing changes and add new ones
                   const contactType = contactInfo.isBuyer ? "buyer" : "seller";
+                  const newChanges = [];
+                  newChanges.push(`Updated existing contact as ${contactType}`);
+                  newChanges.push(`Added home anniversary date (${anniversaryDate})`);
+                  if (addedTags.length > 0) {
+                    newChanges.push(`Tags added: ${addedTags.join(", ")}`);
+                  }
+                  
+                  // Preserve existing "Changes Made" and append new changes
+                  const existingChanges = updatedSaRows[saIndex]["Changes Made"] || "";
+                  updatedSaRows[saIndex]["Changes Made"] = existingChanges
+                    ? `${existingChanges}; ${newChanges.join("; ")}`
+                    : newChanges.join("; ");
+                  
+                  // Optional: Also update Notes field for backward compatibility
                   const notes = `Updated existing contact as ${contactType}: Added home anniversary date (${anniversaryDate}). Tags added: ${addedTags.join(
                     ", "
                   )}`;
@@ -2040,6 +2073,7 @@ function CsvFormatter() {
                   [saHomeAnnivCol]: anniversaryDate || "", // Home Anniversary Date
                   ["Groups"]: "Past clients", // Groups column value
                   ["Tags"]: newEntryTags, // Tags column value
+                  ["Changes Made"]: `New ${contactType} contact added: ${firstName} ${lastName}; Names cleaned to ${cleanedFirstName} ${cleanedLastName}; Anniversary date: ${anniversaryDate}; Tags added: ${newEntryTags}; Added to Past clients group`,
                   ["Notes"]: `New ${contactType} contact added: ${firstName} ${lastName} (cleaned to ${cleanedFirstName} ${cleanedLastName}). Anniversary date: ${anniversaryDate}. Tags added: ${newEntryTags}`,
                 };
                 updatedSaRows.push(newRow);
@@ -2279,6 +2313,7 @@ function CsvFormatter() {
               [saHomeAnnivCol]: anniversaryDate || "",
               ["Groups"]: "Past clients",
               ["Tags"]: newEntryTags,
+              ["Changes Made"]: `New ${contactType} contact added (fallback processing): ${firstName} ${lastName}; Names cleaned to ${cleanedFirstName} ${cleanedLastName}; Anniversary date: ${anniversaryDate}; Tags added: ${newEntryTags}; Added to Past clients group`,
               ["Notes"]: `New ${contactType} contact added (fallback processing): ${firstName} ${lastName} (cleaned to ${cleanedFirstName} ${cleanedLastName}). Anniversary date: ${anniversaryDate}. Tags added: ${newEntryTags}`,
             };
 

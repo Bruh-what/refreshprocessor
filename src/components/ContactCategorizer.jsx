@@ -918,6 +918,12 @@ const ContactCategorizer = () => {
         const newGroups = [...originalGroups];
         let changesMade = [];
 
+        // PRESERVE EXISTING CHANGES from previous workflow steps
+        const existingChanges = updatedRecord["Changes Made"] || "";
+        if (existingChanges && existingChanges.trim()) {
+          changesMade.push(existingChanges);
+        }
+
         // FIXED: Preserve all original tags without parsing them
         const originalTagsString = updatedRecord["Tags"] || "";
         let newTagsToAdd = [];
