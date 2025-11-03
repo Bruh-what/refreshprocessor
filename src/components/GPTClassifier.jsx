@@ -659,7 +659,10 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
 
           // Add tags including group change tracking
           const existingTags = updatedContact["Tags"] || "";
-          const newTags = ["CRM: GPT Classified", `Ungrouped → ${gptResult}`];
+          const newTags = [
+            "CRM: GPT Classified",
+            `CRM: Ungrouped > ${gptResult}`,
+          ];
 
           updatedContact["Tags"] = existingTags
             ? `${existingTags}, ${newTags.join(", ")}`
@@ -1001,7 +1004,7 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
         if (!unchangedContact["Category"]) unchangedContact["Category"] = "";
         if (!unchangedContact["Groups"]) unchangedContact["Groups"] = "";
         if (!unchangedContact["Tags"]) unchangedContact["Tags"] = "";
-        // PRESERVE existing "Changes Made" - don't overwrite with empty string  
+        // PRESERVE existing "Changes Made" - don't overwrite with empty string
         if (!unchangedContact["Changes Made"])
           unchangedContact["Changes Made"] = "";
         return unchangedContact;

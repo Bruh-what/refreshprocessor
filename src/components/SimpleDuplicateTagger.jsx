@@ -190,7 +190,7 @@ const SimpleDuplicateTagger = () => {
               record["Tags"] = existingTags
                 ? `${existingTags},CRM:Duplicate`
                 : "CRM:Duplicate";
-              
+
               // Add change tracking
               const existingChanges = record["Changes Made"] || "";
               const newChange = "Tagged as CRM:Duplicate";
@@ -597,7 +597,7 @@ const SimpleDuplicateTagger = () => {
           updatedTags.push("CRM:Merged");
         }
         masterRecord["Tags"] = updatedTags.join(",");
-        
+
         // Add change tracking for merge
         const existingChanges = masterRecord["Changes Made"] || "";
         const newChange = `Merged with ${duplicateRecords.length} duplicate records`;
