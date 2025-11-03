@@ -998,8 +998,24 @@ function CsvFormatter() {
           // WORKFLOW RULE: Keep the first given name, ignore middle initials after the comma
           if (firstPart) {
             const firstParts = firstPart.split(/\s+/);
-            // Always use the first word as the first name (ignore middle initials)
-            firstName = toTitleCase(firstParts[0] || "");
+            let cleanFirstName = firstParts[0] || "";
+            
+            // If first part is just an initial, try to use the next substantial part
+            if (
+              firstParts.length > 1 &&
+              (firstParts[0].length === 1 ||
+                (firstParts[0].length === 2 && firstParts[0].endsWith(".")))
+            ) {
+              // Look for the next substantial part (not an initial)
+              for (let i = 1; i < firstParts.length; i++) {
+                if (firstParts[i].length > 1 && !firstParts[i].endsWith(".")) {
+                  cleanFirstName = firstParts[i];
+                  break;
+                }
+              }
+            }
+            
+            firstName = toTitleCase(cleanFirstName);
           }
         } else {
           // Handle "First Last" or "First Middle Last" format
