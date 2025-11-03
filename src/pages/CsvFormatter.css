@@ -574,6 +574,41 @@
   box-shadow: none;
 }
 
+/* Missing Agent Warning */
+.missing-agent-warning {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  text-align: center;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+/* Agent Input for Processing Step */
+.agent-input-processing {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.agent-input-processing label {
+  display: block;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.agent-info-text {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .csv-formatter-main {

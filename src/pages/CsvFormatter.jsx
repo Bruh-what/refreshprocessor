@@ -547,8 +547,17 @@ function CsvFormatter() {
 
   // Step 3: Process and merge data
   const processAndMergeData = async () => {
+    console.log("🚀 processAndMergeData called!");
+    console.log("step2Data:", step2Data);
+    console.log("mainSellingAgent:", step2Data.mainSellingAgent);
+
     if (!step2Data.homeAnniversaryCsv || !step2Data.streamAppCsv) {
       alert("Please upload both CSV files before processing.");
+      return;
+    }
+
+    if (!step2Data.mainSellingAgent.trim()) {
+      alert("Please enter the Main Selling Agent name before processing.");
       return;
     }
 
@@ -999,7 +1008,7 @@ function CsvFormatter() {
           if (firstPart) {
             const firstParts = firstPart.split(/\s+/);
             let cleanFirstName = firstParts[0] || "";
-            
+
             // If first part is just an initial, try to use the next substantial part
             if (
               firstParts.length > 1 &&
@@ -1014,7 +1023,7 @@ function CsvFormatter() {
                 }
               }
             }
-            
+
             firstName = toTitleCase(cleanFirstName);
           }
         } else {
@@ -1022,9 +1031,25 @@ function CsvFormatter() {
           const parts = name.split(/\s+/).filter((part) => part.length > 0);
 
           if (parts.length >= 2) {
-            // First word is first name, last word is last name (ignore middle parts)
             firstName = toTitleCase(parts[0]);
-            lastName = toTitleCase(parts[parts.length - 1]);
+
+            // For the last name, check if the last part is just an initial
+            // If so, we should not use it as the last name - it's likely a middle initial
+            const lastPart = parts[parts.length - 1];
+            if (
+              lastPart.length === 1 ||
+              (lastPart.length === 2 && lastPart.endsWith("."))
+            ) {
+              // Last part is an initial, so we don't have a proper last name
+              // Use the substantial part before the initial if it exists
+              if (parts.length >= 3) {
+                lastName = toTitleCase(parts[parts.length - 2]);
+              } else {
+                lastName = ""; // No substantial last name available
+              }
+            } else {
+              lastName = toTitleCase(lastPart);
+            }
           } else if (parts.length === 1) {
             firstName = toTitleCase(parts[0]);
             lastName = "";
@@ -3555,6 +3580,13 @@ function CsvFormatter() {
                       </div>
                     )}
 
+                    {!step2Data.mainSellingAgent.trim() && (
+                      <div className="missing-agent-warning">
+                        ⚠️ Please enter the Main Selling Agent name above before
+                        processing
+                      </div>
+                    )}
+
                     <button
                       onClick={processAndMergeData}
                       className="process-button"
@@ -3565,6 +3597,8 @@ function CsvFormatter() {
                     >
                       {step3Data.isProcessing
                         ? "🔄 Processing..."
+                        : !step2Data.mainSellingAgent.trim()
+                        ? "⚠️ Enter Agent Name First"
                         : "🔄 Process Data"}
                     </button>
                   </div>
