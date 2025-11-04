@@ -378,9 +378,6 @@ function CsvFormatter() {
         );
       }
 
-      // Log which address column we found
-      console.log("Using address column:", addressColumn);
-
       if (addressColumn) {
         // Add new address fields to headers if they don't exist
         const newAddressHeaders = [
@@ -395,7 +392,6 @@ function CsvFormatter() {
         newAddressHeaders.forEach((header) => {
           if (!headers.includes(header)) {
             headers.push(header);
-            console.log(`Added new header: ${header}`);
           }
         });
 
@@ -410,12 +406,6 @@ function CsvFormatter() {
             row["Home Address City"] = parsedAddress.city;
             row["Home Address State"] = parsedAddress.state;
             row["Home Address Zip"] = parsedAddress.zip;
-
-            // Add log for debugging
-            console.log(
-              `Parsed address "${row[addressColumn]}" into:`,
-              parsedAddress
-            );
           }
         });
       }
@@ -547,10 +537,6 @@ function CsvFormatter() {
 
   // Step 3: Process and merge data
   const processAndMergeData = async () => {
-    console.log("🚀 processAndMergeData called!");
-    console.log("step2Data:", step2Data);
-    console.log("mainSellingAgent:", step2Data.mainSellingAgent);
-
     if (!step2Data.homeAnniversaryCsv || !step2Data.streamAppCsv) {
       alert("Please upload both CSV files before processing.");
       return;
@@ -856,7 +842,41 @@ function CsvFormatter() {
           });
         }
 
-        // Split by "&" as normal
+        // ENHANCED: Handle "Last, First & First2" format properly
+        if (normalizedName.includes(",") && normalizedName.includes("&")) {
+          // DEBUG: Log Rhodes case specifically
+          if (normalizedName.includes("Rhodes")) {
+            console.log(
+              "🔍 Rhodes Debug - preprocessBuyerName:",
+              normalizedName
+            );
+          }
+
+          const [lastPart, firstPart] = normalizedName
+            .split(",")
+            .map((part) => part.trim());
+
+          // Split the first name part by "&" and reconstruct full names
+          const firstNames = firstPart
+            .split(/\s*&\s*/)
+            .map((name) => name.trim());
+
+          const result = firstNames.map(
+            (firstName) => `${lastPart},${firstName}`
+          );
+
+          // DEBUG: Log Rhodes result
+          if (normalizedName.includes("Rhodes")) {
+            console.log(
+              "🔍 Rhodes Debug - preprocessBuyerName result:",
+              result
+            );
+          }
+
+          return result;
+        }
+
+        // Split by "&" as normal for other cases
         return normalizedName.split(/\s*&\s*/).map((name) => name.trim());
       };
 
@@ -915,6 +935,23 @@ function CsvFormatter() {
                       isBuyer ? "Home anniversary" : "Closed"
                     } date: ${anniversaryDate}; Tags added to Past clients group`,
                   };
+
+                  // DEBUG: Log Rhodes CSV output
+                  if (
+                    cleanFirst.includes("Kent") ||
+                    cleanFirst.includes("Marsha") ||
+                    cleanLast.includes("Rhodes") ||
+                    fullName.includes("Marsha") ||
+                    fullName.includes("Rhodes")
+                  ) {
+                    console.log("🔍 Rhodes Debug - CSV row created:", {
+                      fullName: fullName,
+                      firstName: cleanFirst,
+                      lastName: cleanLast,
+                      fullRow: newRow,
+                    });
+                  }
+
                   separateRows.push(newRow);
                 }
               });
@@ -982,6 +1019,15 @@ function CsvFormatter() {
       const parseIndividualName = (name) => {
         if (!name || typeof name !== "string") {
           return { firstName: "", lastName: "", isValid: false };
+        }
+
+        // DEBUG: Log Rhodes parsing specifically
+        if (
+          name.includes("Rhodes") ||
+          name.includes("Kent") ||
+          name.includes("Marsha")
+        ) {
+          console.log("🔍 Rhodes Debug - parseIndividualName input:", name);
         }
 
         // Check if it's a company (keep existing company logic)
@@ -1056,11 +1102,22 @@ function CsvFormatter() {
           }
         }
 
-        return {
+        const result = {
           firstName: firstName,
           lastName: lastName,
           isValid: firstName.length >= 1, // Must have at least first name
         };
+
+        // DEBUG: Log Rhodes parsing result
+        if (
+          name.includes("Rhodes") ||
+          name.includes("Kent") ||
+          name.includes("Marsha")
+        ) {
+          console.log("🔍 Rhodes Debug - parseIndividualName result:", result);
+        }
+
+        return result;
       };
 
       // NEW: Proper title case conversion
@@ -1132,17 +1189,6 @@ function CsvFormatter() {
             const cleanSellingAgent = sellingAgent.trim().toLowerCase();
             const cleanListingAgent = listingAgent.trim().toLowerCase();
 
-            // Debug logging for the 70 Dalfonso case
-            if (address.includes("70 Dalfonso")) {
-              console.log("70 Dalfonso Debug:", {
-                cleanMainAgentName,
-                cleanSellingAgent,
-                buyerNameRaw,
-                sellerNameRaw,
-                includes: cleanSellingAgent.includes(cleanMainAgentName),
-              });
-            }
-
             // Enhanced agent matching that handles middle initials
             // This means our agent is the selling agent (buyer's agent)
             const matchesAgent = (agentInFile, targetAgent) => {
@@ -1193,24 +1239,6 @@ function CsvFormatter() {
               isOurAgentListingAgent ||
               Math.random() < 0.1; // Increased sample rate
 
-            if (shouldDebugThis) {
-              console.log("🔍 Agent Matching Debug:", {
-                address: address,
-                cleanMainAgentName: cleanMainAgentName,
-                cleanSellingAgent: cleanSellingAgent || "[EMPTY]",
-                cleanListingAgent: cleanListingAgent || "[EMPTY]",
-                isOurAgentSellingAgent: isOurAgentSellingAgent,
-                isOurAgentListingAgent: isOurAgentListingAgent,
-                buyerNameRaw: buyerNameRaw || "[EMPTY]",
-                sellerNameRaw: sellerNameRaw || "[EMPTY]",
-                willProcess: isOurAgentSellingAgent
-                  ? "BUYER ONLY"
-                  : isOurAgentListingAgent
-                  ? "SELLER ONLY (if seller name exists)"
-                  : "SKIP - NOT OUR TRANSACTION",
-              });
-            }
-
             // Process contacts based on agent role
             const contactsToProcess = [];
 
@@ -1218,6 +1246,15 @@ function CsvFormatter() {
               // Our agent represents the buyer - ONLY process buyer, NEVER process seller
               if (buyerNameRaw && buyerNameRaw.trim()) {
                 const buyerNames = preprocessBuyerName(buyerNameRaw);
+
+                // DEBUG: Log Rhodes buyer processing
+                if (buyerNameRaw.includes("Rhodes")) {
+                  console.log("🔍 Rhodes Debug - Buyer processing:", {
+                    original: buyerNameRaw,
+                    processed: buyerNames,
+                  });
+                }
+
                 buyerNames.forEach((name) => {
                   if (name && name.trim()) {
                     contactsToProcess.push({
@@ -1229,12 +1266,6 @@ function CsvFormatter() {
                 totalBuyersProcessed += buyerNames.length;
               }
               // CRITICAL: When our agent is selling agent, NEVER process seller
-              console.log(
-                "Selling agent case - only processing buyer:",
-                buyerNameRaw,
-                "SKIPPING seller:",
-                sellerNameRaw
-              );
             } else if (isOurAgentListingAgent) {
               // Our agent represents the seller - ONLY process seller, NEVER process buyer
               if (sellerNameRaw && sellerNameRaw.trim()) {
@@ -1248,44 +1279,13 @@ function CsvFormatter() {
                   }
                 });
                 totalSellersProcessed += sellerNames.length;
-                console.log(
-                  "✅ Listing agent case - processing seller:",
-                  sellerNameRaw,
-                  "SKIPPING buyer:",
-                  buyerNameRaw
-                );
               } else {
                 // ENHANCED: Handle case where seller name is empty but we're the listing agent
-                console.log(
-                  "⚠️ Listing agent case - SELLER NAME IS EMPTY:",
-                  "Address:",
-                  address,
-                  "Listing Agent:",
-                  listingAgent,
-                  "Seller Name Raw:",
-                  sellerNameRaw || "[EMPTY]",
-                  "Buyer Name:",
-                  buyerNameRaw || "[EMPTY]"
-                );
-
                 // Still skip processing since we don't have seller name data
-                // But at least we're logging this so you know what's happening
               }
             } else {
               // Our agent is neither selling nor listing agent - SKIP this transaction entirely
-              console.log(
-                "SKIPPING transaction - our agent not involved:",
-                "Selling Agent:",
-                sellingAgent,
-                "Listing Agent:",
-                listingAgent,
-                "Address:",
-                address,
-                "SKIPPING buyer:",
-                buyerNameRaw,
-                "SKIPPING seller:",
-                sellerNameRaw
-              );
+
               return; // Skip this entire transaction
             }
 
@@ -1635,12 +1635,6 @@ function CsvFormatter() {
                 .join(" ");
 
               // Enhanced name matching logic - STRICT with proper middle name handling
-              console.log(
-                `Attempting to match: ${JSON.stringify(
-                  nameInfo
-                )} with ${saFirstName} ${saLastName} (Core: ${saBasicFirstName} ${saBasicLastName})`
-              );
-
               // For comma-separated names (Last,First format)
               if (nameInfo.lastName && nameInfo.firstName) {
                 // Check if one side has initials and the other doesn't - if so, be very strict
@@ -1676,9 +1670,34 @@ function CsvFormatter() {
                     };
                   }
                 }
-                // 1. Exact match on both first and last - highest confidence
-                const exactFirstMatch =
-                  saPrimaryFirst === nameInfo.firstName.toLowerCase();
+                // DEBUG: Log all matching attempts for Marsha
+                if (
+                  nameInfo.firstName &&
+                  nameInfo.firstName.toLowerCase().includes("marsha")
+                ) {
+                  console.log("🔍 STRICT MATCHING DEBUG:", {
+                    nameInfoFirstName: nameInfo.firstName,
+                    nameInfoLastName: nameInfo.lastName,
+                    saPrimaryFirst: saPrimaryFirst,
+                    saPrimaryLast: saPrimaryLast,
+                    saActualLast: saActualLast,
+                  });
+                }
+
+                // SMART MATCHING: Detect multiple people vs middle names
+                const contactHasMultiplePeople = saFirstName.toLowerCase().includes("&") || 
+                                                saFirstName.toLowerCase().includes(" and ");
+                
+                let exactFirstMatch;
+                if (contactHasMultiplePeople) {
+                  // If contact has multiple people (&), require EXACT full first name match
+                  exactFirstMatch = saFirstName.toLowerCase() === nameInfo.firstName.toLowerCase();
+                } else {
+                  // If contact has single person, allow first-word matching (handles middle initials)
+                  exactFirstMatch = saPrimaryFirst === nameInfo.firstName.toLowerCase();
+                }
+
+                // Last name must be an exact match in all cases
                 const exactLastMatch =
                   saPrimaryLast === nameInfo.lastName.toLowerCase() ||
                   saActualLast === nameInfo.lastName.toLowerCase();
@@ -1686,10 +1705,17 @@ function CsvFormatter() {
                 if (exactFirstMatch && exactLastMatch) {
                   return {
                     matched: true,
-                    matchType: "exact-name-match",
-                    details: `Exact match: "${nameInfo.firstName} ${nameInfo.lastName}" with "${saPrimaryFirst} ${saLastName}"`,
+                    matchType: contactHasMultiplePeople ? "exact-multiple-people-match" : "exact-single-person-match",
+                    details: `Match: "${nameInfo.firstName} ${nameInfo.lastName}" with "${saFirstName} ${saLastName}" (${contactHasMultiplePeople ? 'multiple people - exact match required' : 'single person - first word match allowed'})`,
                   };
                 }
+
+                // No match found
+                return {
+                  matched: false,
+                  matchType: "no-match",
+                  details: `No match: "${nameInfo.firstName} ${nameInfo.lastName}" vs "${saFirstName} ${saLastName}" (${contactHasMultiplePeople ? 'multiple people contact' : 'single person contact'})`,
+                };
 
                 // 2. Simplified name match - using the simplifyName function to handle middle names/initials
                 const simplifiedBuyerName = simplifyName(
@@ -1761,16 +1787,10 @@ function CsvFormatter() {
                   };
                 }
 
-                // 5. Handle first name with middle - REQUIRES EXACT LAST NAME MATCH
-                const firstNameMiddleMatch =
-                  exactLastMatch && // Must have exact last name match
-                  saFirstName
-                    .toLowerCase()
-                    .includes(nameInfo.firstName.toLowerCase()) &&
-                  // Make sure first name is a complete word in first name with middle
-                  new RegExp(`\\b${nameInfo.firstName.toLowerCase()}\\b`).test(
-                    saFirstName.toLowerCase()
-                  );
+                // 5. Handle first name with middle - DISABLED to prevent over-matching
+                // This was causing "Marsha Rhodes" to match "Marsha & Kent Rhodes"
+                // We want individual contacts to create separate entries, not match combined contacts
+                const firstNameMiddleMatch = false;
 
                 if (firstNameMiddleMatch) {
                   return {
@@ -1929,9 +1949,6 @@ function CsvFormatter() {
                 processedKeys &&
                 (processedKeys.has(contactKey) || processedKeys.has(basicKey))
               ) {
-                console.log(
-                  `🚫 Skipping duplicate contact: ${contactName} at ${address}`
-                );
                 return;
               }
 
@@ -1943,6 +1960,18 @@ function CsvFormatter() {
 
               // Generate name matching formats
               const nameInfo = generateNameMatchFormats(contactName);
+
+              // DEBUG: Log Marsha Rhodes processing decision
+              if (
+                contactName.includes("Marsha") &&
+                contactName.includes("Rhodes")
+              ) {
+                console.log("🔍 MARSHA RHODES PROCESSING:", {
+                  contactName: contactName,
+                  isCompany: nameInfo.isCompany,
+                  nameInfo: nameInfo,
+                });
+              }
 
               // Handle company names
               if (nameInfo.isCompany) {
@@ -1971,6 +2000,20 @@ function CsvFormatter() {
                     saLastName,
                     saCompany
                   );
+
+                  // DEBUG: Log Marsha matching specifically
+                  if (
+                    contactName.toLowerCase().includes("marsha") &&
+                    contactName.toLowerCase().includes("rhodes")
+                  ) {
+                    console.log("🔍 MARSHA RHODES MATCH DEBUG:", {
+                      contactName: contactName,
+                      saFirstName: saFirstName,
+                      saLastName: saLastName,
+                      matchResult: matchResult,
+                    });
+                  }
+
                   if (matchResult.matched) {
                     matchFound = true;
 
@@ -2171,6 +2214,14 @@ function CsvFormatter() {
               // For comma-separated names or multiple word names without comma
               let firstName, lastName;
 
+              // DEBUG: Log all person processing for Marsha
+              if (contactName.toLowerCase().includes("marsha")) {
+                console.log("🔍 PERSON PROCESSING DEBUG:", {
+                  contactName: contactName,
+                  nameInfo: nameInfo,
+                });
+              }
+
               if (contactName.includes(",")) {
                 const parts = contactName.split(",").map((part) => part.trim());
                 lastName = parts[0];
@@ -2226,12 +2277,33 @@ function CsvFormatter() {
                   return;
                 }
 
+                // DEBUG: Log Marsha matching against each contact
+                if (contactName.toLowerCase().includes("marsha")) {
+                  console.log("🔍 MARSHA MATCHING AGAINST:", {
+                    contactName: contactName,
+                    saFirstName: saFirstName,
+                    saLastName: saLastName,
+                    saIndex: saIndex,
+                  });
+                }
+
                 // Check if this contact matches using our enhanced matching function
                 const matchResult = isNameMatch(
                   nameInfo,
                   saFirstName,
                   saLastName
                 );
+
+                // DEBUG: Log Marsha match results
+                if (contactName.toLowerCase().includes("marsha")) {
+                  console.log("🔍 MARSHA MATCH RESULT:", {
+                    contactName: contactName,
+                    saFirstName: saFirstName,
+                    saLastName: saLastName,
+                    matchResult: matchResult,
+                  });
+                }
+
                 if (matchResult.matched) {
                   matchFound = true;
 
@@ -2479,21 +2551,6 @@ function CsvFormatter() {
             const cleanSellingAgent = sellingAgent.trim().toLowerCase();
             const cleanListingAgent = listingAgent.trim().toLowerCase();
 
-            // Debug logging for the 70 Dalfonso case (fallback processing)
-            if (
-              address.includes("70 Dalfonso") ||
-              address.includes("16 Shari Dr")
-            ) {
-              console.log("Debug (Fallback):", {
-                address: address,
-                cleanMainAgentName,
-                cleanSellingAgent,
-                buyerNameRaw,
-                sellerNameRaw,
-                includes: cleanSellingAgent.includes(cleanMainAgentName),
-              });
-            }
-
             // Enhanced agent matching that handles middle initials (same as main processing)
             // This means our agent is the selling agent (buyer's agent)
             const matchesAgentFallback = (agentInFile, targetAgent) => {
@@ -2545,12 +2602,6 @@ function CsvFormatter() {
                   ? buyerNameRaw.trim()
                   : null;
               isBuyer = true;
-              console.log(
-                "Fallback: Selling agent case - processing buyer:",
-                nameToProcess,
-                "SKIPPING seller:",
-                sellerNameRaw
-              );
             } else if (isOurAgentListingAgent) {
               // Our agent represents the seller - ONLY process seller, NEVER process buyer
               nameToProcess =
@@ -2558,27 +2609,9 @@ function CsvFormatter() {
                   ? sellerNameRaw.trim()
                   : null;
               isBuyer = false;
-              console.log(
-                "Fallback: Listing agent case - processing seller:",
-                nameToProcess,
-                "SKIPPING buyer:",
-                buyerNameRaw
-              );
             } else {
               // Our agent is neither selling nor listing agent - SKIP this transaction entirely
-              console.log(
-                "Fallback: SKIPPING transaction - our agent not involved:",
-                "Selling Agent:",
-                sellingAgent,
-                "Listing Agent:",
-                listingAgent,
-                "Address:",
-                address,
-                "SKIPPING buyer:",
-                buyerNameRaw,
-                "SKIPPING seller:",
-                sellerNameRaw
-              );
+
               return; // Skip this entire transaction
             }
 
@@ -2676,16 +2709,6 @@ function CsvFormatter() {
         headers: saHeaders,
         rows: updatedSaRows,
       };
-
-      // Generate detailed stats for the user
-      console.log(`Total change log entries: ${changeLog.length}`);
-
-      // Create a log distribution summary to help troubleshoot
-      const logTypeCounts = {};
-      changeLog.forEach((log) => {
-        logTypeCounts[log.type] = (logTypeCounts[log.type] || 0) + 1;
-      });
-      console.log("Change log entry types:", logTypeCounts);
 
       // Enhanced summary reporting
       console.log("📊 PROCESSING SUMMARY:");
@@ -3881,6 +3904,18 @@ function CsvFormatter() {
                         </div>
                       </div>
                     )}
+
+                    <button
+                      onClick={processAndMergeData}
+                      className="download-button"
+                      style={{
+                        backgroundColor: "#28a745",
+                        marginRight: "10px",
+                      }}
+                      title="Reprocess with same data - useful for testing changes"
+                    >
+                      🔄 Reprocess
+                    </button>
 
                     <button
                       onClick={downloadProcessedCSV}

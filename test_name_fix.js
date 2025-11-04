@@ -2,7 +2,7 @@
 const testNameParsing = () => {
   // Test case that was failing
   const testName = "Rhodes,r Kent & Marsha J";
-  
+
   // Simulate the parseIndividualName function logic
   const parseIndividualName = (name) => {
     if (!name || typeof name !== "string") {
@@ -14,9 +14,7 @@ const testNameParsing = () => {
 
     // Handle "Last, First Middle-Initial" format
     if (name.includes(",")) {
-      const [lastPart, firstPart] = name
-        .split(",")
-        .map((part) => part.trim());
+      const [lastPart, firstPart] = name.split(",").map((part) => part.trim());
 
       lastName = lastPart;
 
@@ -24,7 +22,7 @@ const testNameParsing = () => {
       if (firstPart) {
         const firstParts = firstPart.split(/\s+/);
         let cleanFirstName = firstParts[0] || "";
-        
+
         // If first part is just an initial, try to use the next substantial part
         if (
           firstParts.length > 1 &&
@@ -39,7 +37,7 @@ const testNameParsing = () => {
             }
           }
         }
-        
+
         firstName = cleanFirstName;
       }
     }
@@ -52,15 +50,19 @@ const testNameParsing = () => {
   };
 
   console.log("Testing: 'Rhodes,r Kent & Marsha J'");
-  
+
   // Split by & first
   const names = testName.split(" & ");
   console.log("Split by &:", names);
-  
+
   // Parse each name
   names.forEach((name, index) => {
     const parsed = parseIndividualName(name.trim());
-    console.log(`Name ${index + 1}: "${name.trim()}" -> ${parsed.firstName} ${parsed.lastName}`);
+    console.log(
+      `Name ${index + 1}: "${name.trim()}" -> ${parsed.firstName} ${
+        parsed.lastName
+      }`
+    );
   });
 };
 

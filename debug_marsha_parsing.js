@@ -1,7 +1,5 @@
-// Debug test using EXACT code from CsvFormatter.jsx
-console.log("=== EXACT CsvFormatter.jsx Logic Test ===");
+// Test the parseIndividualName function specifically for the Marsha case
 
-// Exact toTitleCase from the file
 const toTitleCase = (str) => {
   if (!str) return str;
   return str
@@ -30,8 +28,8 @@ const toTitleCase = (str) => {
     .join(" ");
 };
 
-// Exact isLikelyCompany logic (simplified for this test)
 const isLikelyCompany = (name) => {
+  // List of business identifiers/suffixes
   const businessTerms = [
     "llc",
     "inc",
@@ -53,20 +51,25 @@ const isLikelyCompany = (name) => {
     "fund",
     "capital",
   ];
+
   const lowerName = name.toLowerCase();
+
+  // Check for business identifiers
   for (const term of businessTerms) {
-    if (lowerName.includes(term)) return true;
+    if (lowerName.includes(term)) {
+      return true;
+    }
   }
+
+  // Check for multiple words without comma (likely a company name)
   if (!name.includes(",") && name.split(/\s+/).length > 2) {
     return true;
   }
+
   return false;
 };
 
-// EXACT parseIndividualName function from CsvFormatter.jsx
 const parseIndividualName = (name) => {
-  console.log(`parseIndividualName called with: "${name}"`);
-
   if (!name || typeof name !== "string") {
     return { firstName: "", lastName: "", isValid: false };
   }
@@ -88,18 +91,11 @@ const parseIndividualName = (name) => {
     const [lastPart, firstPart] = name.split(",").map((part) => part.trim());
 
     lastName = toTitleCase(lastPart);
-    console.log(
-      `  Comma format: lastPart="${lastPart}" -> lastName="${lastName}"`
-    );
 
     // WORKFLOW RULE: Keep the first given name, ignore middle initials after the comma
     if (firstPart) {
       const firstParts = firstPart.split(/\s+/);
       let cleanFirstName = firstParts[0] || "";
-      console.log(
-        `  firstParts: [${firstParts.map((p) => `"${p}"`).join(", ")}]`
-      );
-      console.log(`  initial cleanFirstName: "${cleanFirstName}"`);
 
       // If first part is just an initial, try to use the next substantial part
       if (
@@ -107,21 +103,16 @@ const parseIndividualName = (name) => {
         (firstParts[0].length === 1 ||
           (firstParts[0].length === 2 && firstParts[0].endsWith(".")))
       ) {
-        console.log(
-          `  "${firstParts[0]}" detected as initial, looking for substantial name...`
-        );
         // Look for the next substantial part (not an initial)
         for (let i = 1; i < firstParts.length; i++) {
           if (firstParts[i].length > 1 && !firstParts[i].endsWith(".")) {
             cleanFirstName = firstParts[i];
-            console.log(`  Found substantial name: "${cleanFirstName}"`);
             break;
           }
         }
       }
 
       firstName = toTitleCase(cleanFirstName);
-      console.log(`  final firstName: "${firstName}"`);
     }
   } else {
     // Handle "First Last" or "First Middle Last" format
@@ -153,43 +144,46 @@ const parseIndividualName = (name) => {
     }
   }
 
-  const result = {
+  return {
     firstName: firstName,
     lastName: lastName,
     isValid: firstName.length >= 1, // Must have at least first name
   };
-
-  console.log(
-    `  -> Result: firstName="${result.firstName}", lastName="${result.lastName}", isValid=${result.isValid}`
-  );
-  return result;
 };
 
-// Test the exact scenario from processNameIntoSeparateRows
-console.log("\n=== Testing Rhodes,r Kent & Marsha J ===");
-const nameString = "Rhodes,r Kent & Marsha J";
-console.log(`Input: "${nameString}"`);
+// Test cases
+console.log("=== TESTING parseIndividualName ===");
 
-// Step 1: Split by comma (from processNameIntoSeparateRows logic)
-const [lastPart, firstPart] = nameString.split(",").map((part) => part.trim());
-console.log(
-  `After comma split: lastPart="${lastPart}", firstPart="${firstPart}"`
-);
+const testCases = [
+  "Rhodes, r Kent",
+  "Rhodes, Marsha J",
+  "Rhodes, Marsha",
+  "Marsha J Rhodes",
+  "r Kent Rhodes",
+];
 
-if (firstPart && firstPart.includes("&")) {
-  console.log("Contains &, splitting firstPart...");
-  const firstNames = firstPart
-    .split(/\s*&\s*/)
-    .map((name) => name.trim())
-    .filter(Boolean);
-  console.log(`First names: [${firstNames.map((n) => `"${n}"`).join(", ")}]`);
+testCases.forEach((testCase) => {
+  const result = parseIndividualName(testCase);
+  console.log(`Input: "${testCase}"`);
+  console.log(`  -> firstName: "${result.firstName}"`);
+  console.log(`  -> lastName: "${result.lastName}"`);
+  console.log(`  -> isValid: ${result.isValid}`);
+  console.log("");
+});
 
-  firstNames.forEach((firstName, index) => {
-    console.log(`\n--- Processing name ${index + 1}: "${firstName}" ---`);
-    const fullName = `${lastPart}, ${firstName}`;
-    console.log(`Created fullName: "${fullName}"`);
+console.log("=== WORKFLOW TEST ===");
+console.log("Original: 'Rhodes,r Kent & Marsha J'");
+console.log("Should become two entries:");
 
-    const result = parseIndividualName(fullName);
-    console.log(`FINAL RESULT: ${result.firstName} ${result.lastName}`);
-  });
-}
+// Simulate the workflow
+const originalName = "Rhodes,r Kent & Marsha J";
+const [lastPart, firstPart] = originalName
+  .split(",")
+  .map((part) => part.trim());
+const firstNames = firstPart.split(/\s*&\s*/).map((name) => name.trim());
+
+firstNames.forEach((firstName) => {
+  const fullName = `${lastPart}, ${firstName}`;
+  const result = parseIndividualName(fullName);
+  console.log(`"${fullName}" -> "${result.firstName} ${result.lastName}"`);
+});

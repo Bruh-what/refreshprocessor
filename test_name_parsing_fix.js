@@ -23,9 +23,7 @@ const parseIndividualName = (name) => {
 
   // Handle "Last, First Middle-Initial" format - WORKFLOW COMPLIANT
   if (name.includes(",")) {
-    const [lastPart, firstPart] = name
-      .split(",")
-      .map((part) => part.trim());
+    const [lastPart, firstPart] = name.split(",").map((part) => part.trim());
 
     lastName = toTitleCase(lastPart);
 
@@ -33,7 +31,7 @@ const parseIndividualName = (name) => {
     if (firstPart) {
       const firstParts = firstPart.split(/\s+/);
       let cleanFirstName = firstParts[0] || "";
-      
+
       // If first part is just an initial, try to use the next substantial part
       if (
         firstParts.length > 1 &&
@@ -48,7 +46,7 @@ const parseIndividualName = (name) => {
           }
         }
       }
-      
+
       firstName = toTitleCase(cleanFirstName);
     }
   } else {
@@ -79,13 +77,13 @@ const testCases = [
   "Smith, J Michael",
   "Johnson, A. Robert",
   "Wilson, Mary",
-  "Brown, X Y Z David",  // Extreme case with multiple initials
+  "Brown, X Y Z David", // Extreme case with multiple initials
 ];
 
 console.log("Testing name parsing fix:");
 console.log("=".repeat(50));
 
-testCases.forEach(testCase => {
+testCases.forEach((testCase) => {
   const result = parseIndividualName(testCase);
   console.log(`Input: "${testCase}"`);
   console.log(`Output: First="${result.firstName}", Last="${result.lastName}"`);
@@ -97,27 +95,32 @@ testCases.forEach(testCase => {
 console.log("\nSpecific test for Rhodes case:");
 console.log("=".repeat(50));
 
-const rhodesCases = [
-  "Rhodes, r Kent & Marsha J"
-];
+const rhodesCases = ["Rhodes, r Kent & Marsha J"];
 
-rhodesCases.forEach(fullName => {
+rhodesCases.forEach((fullName) => {
   console.log(`\nProcessing full name: "${fullName}"`);
-  
+
   // Simulate the processing logic
   if (fullName.includes(",")) {
-    const [lastPart, firstPart] = fullName.split(",").map(part => part.trim());
+    const [lastPart, firstPart] = fullName
+      .split(",")
+      .map((part) => part.trim());
     console.log(`Last part: "${lastPart}"`);
     console.log(`First part: "${firstPart}"`);
-    
+
     if (firstPart.includes("&")) {
-      const firstNames = firstPart.split(/\s*&\s*/).map(name => name.trim()).filter(Boolean);
+      const firstNames = firstPart
+        .split(/\s*&\s*/)
+        .map((name) => name.trim())
+        .filter(Boolean);
       console.log(`Split first names:`, firstNames);
-      
-      firstNames.forEach(firstName => {
+
+      firstNames.forEach((firstName) => {
         const fullNameForParsing = `${lastPart}, ${firstName}`;
         const result = parseIndividualName(fullNameForParsing);
-        console.log(`  "${firstName}" -> First="${result.firstName}", Last="${result.lastName}"`);
+        console.log(
+          `  "${firstName}" -> First="${result.firstName}", Last="${result.lastName}"`
+        );
       });
     }
   }
