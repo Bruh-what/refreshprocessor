@@ -1685,16 +1685,20 @@ function CsvFormatter() {
                 }
 
                 // SMART MATCHING: Detect multiple people vs middle names
-                const contactHasMultiplePeople = saFirstName.toLowerCase().includes("&") || 
-                                                saFirstName.toLowerCase().includes(" and ");
-                
+                const contactHasMultiplePeople =
+                  saFirstName.toLowerCase().includes("&") ||
+                  saFirstName.toLowerCase().includes(" and ");
+
                 let exactFirstMatch;
                 if (contactHasMultiplePeople) {
                   // If contact has multiple people (&), require EXACT full first name match
-                  exactFirstMatch = saFirstName.toLowerCase() === nameInfo.firstName.toLowerCase();
+                  exactFirstMatch =
+                    saFirstName.toLowerCase() ===
+                    nameInfo.firstName.toLowerCase();
                 } else {
                   // If contact has single person, allow first-word matching (handles middle initials)
-                  exactFirstMatch = saPrimaryFirst === nameInfo.firstName.toLowerCase();
+                  exactFirstMatch =
+                    saPrimaryFirst === nameInfo.firstName.toLowerCase();
                 }
 
                 // Last name must be an exact match in all cases
@@ -1705,8 +1709,16 @@ function CsvFormatter() {
                 if (exactFirstMatch && exactLastMatch) {
                   return {
                     matched: true,
-                    matchType: contactHasMultiplePeople ? "exact-multiple-people-match" : "exact-single-person-match",
-                    details: `Match: "${nameInfo.firstName} ${nameInfo.lastName}" with "${saFirstName} ${saLastName}" (${contactHasMultiplePeople ? 'multiple people - exact match required' : 'single person - first word match allowed'})`,
+                    matchType: contactHasMultiplePeople
+                      ? "exact-multiple-people-match"
+                      : "exact-single-person-match",
+                    details: `Match: "${nameInfo.firstName} ${
+                      nameInfo.lastName
+                    }" with "${saFirstName} ${saLastName}" (${
+                      contactHasMultiplePeople
+                        ? "multiple people - exact match required"
+                        : "single person - first word match allowed"
+                    })`,
                   };
                 }
 
@@ -1714,7 +1726,13 @@ function CsvFormatter() {
                 return {
                   matched: false,
                   matchType: "no-match",
-                  details: `No match: "${nameInfo.firstName} ${nameInfo.lastName}" vs "${saFirstName} ${saLastName}" (${contactHasMultiplePeople ? 'multiple people contact' : 'single person contact'})`,
+                  details: `No match: "${nameInfo.firstName} ${
+                    nameInfo.lastName
+                  }" vs "${saFirstName} ${saLastName}" (${
+                    contactHasMultiplePeople
+                      ? "multiple people contact"
+                      : "single person contact"
+                  })`,
                 };
 
                 // 2. Simplified name match - using the simplifyName function to handle middle names/initials

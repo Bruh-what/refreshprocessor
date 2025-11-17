@@ -533,7 +533,11 @@ CRITICAL ANALYSIS RULES:
 
 DECISION MANDATE: Be aggressive in finding real estate connections. This is a real estate professional's contact list - most contacts should be Agent or Vendor. Only use Contact for clear non-real estate connections.
 
-Respond with exactly one word: Agent, Vendor, or Contact`;
+Respond in JSON format with your classification and reasoning:
+{
+  "classification": "Agent" or "Vendor" or "Contact",
+  "reason": "Brief explanation (1-2 sentences) of why you classified this contact this way"
+}`;
 
     // Create a promise that rejects after timeout
     const timeoutPromise = new Promise((_, reject) =>
@@ -552,7 +556,7 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
           body: JSON.stringify({
             model: "gpt-3.5-turbo",
             messages: [{ role: "user", content: prompt }],
-            max_tokens: 10,
+            max_tokens: 100,
             temperature: 0.3,
           }),
         }),
@@ -585,12 +589,31 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
       }
 
       const data = await response.json();
-      const classification = data.choices?.[0]?.message?.content?.trim();
+      const rawContent = data.choices?.[0]?.message?.content?.trim();
 
-      if (["Agent", "Vendor", "Contact"].includes(classification)) {
-        return classification;
-      } else {
-        addLog(`⚠️ Invalid GPT response: ${classification}`);
+      // Try to parse JSON response
+      try {
+        const parsed = JSON.parse(rawContent);
+        const classification = parsed.classification;
+        const reason = parsed.reason || "No reason provided";
+
+        if (["Agent", "Vendor", "Contact"].includes(classification)) {
+          return { classification, reason };
+        } else {
+          addLog(
+            `⚠️ Invalid classification in GPT response: ${classification}`
+          );
+          return null;
+        }
+      } catch (parseError) {
+        // Fallback: try to extract classification if not JSON
+        if (["Agent", "Vendor", "Contact"].includes(rawContent)) {
+          return {
+            classification: rawContent,
+            reason: "Legacy response format",
+          };
+        }
+        addLog(`⚠️ Could not parse GPT response: ${rawContent}`);
         return null;
       }
     } catch (error) {
@@ -645,23 +668,31 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
         const gptResult = await classifyWithGPT(contact);
 
         // Debug: Log the classification result
-        addLog(`🤖 GPT classified ${contactName}: "${gptResult}"`);
+        if (gptResult) {
+          addLog(
+            `🤖 GPT classified ${contactName}: "${gptResult.classification}" - ${gptResult.reason}`
+          );
+        }
 
-        if (gptResult === "Agent" || gptResult === "Vendor") {
+        if (
+          gptResult &&
+          (gptResult.classification === "Agent" ||
+            gptResult.classification === "Vendor")
+        ) {
           // Create updated contact with GPT classification
           const updatedContact = { ...contact };
-          updatedContact["Category"] = gptResult;
+          updatedContact["Category"] = gptResult.classification;
           updatedContact["Groups"] =
-            gptResult === "Agent" ? "Agents" : "Vendors";
+            gptResult.classification === "Agent" ? "Agents" : "Vendors";
           updatedContact["Changes Made"] = updatedContact["Changes Made"]
-            ? `${updatedContact["Changes Made"]}; Category=${gptResult} (CRM: GPT Classified)`
-            : `Category=${gptResult} (CRM: GPT Classified)`;
+            ? `${updatedContact["Changes Made"]}; Category=${gptResult.classification} (CRM: GPT Classified - ${gptResult.reason})`
+            : `Category=${gptResult.classification} (CRM: GPT Classified - ${gptResult.reason})`;
 
           // Add tags including group change tracking
           const existingTags = updatedContact["Tags"] || "";
           const newTags = [
             "CRM: GPT Classified",
-            `CRM: Ungrouped > ${gptResult}`,
+            `CRM: Ungrouped > ${gptResult.classification}`,
           ];
 
           updatedContact["Tags"] = existingTags
@@ -670,14 +701,14 @@ Respond with exactly one word: Agent, Vendor, or Contact`;
 
           return {
             contact: updatedContact,
-            result: gptResult,
+            result: gptResult.classification,
             contactName,
             success: true,
           };
         } else {
           return {
             contact: null,
-            result: "Contact",
+            result: gptResult ? gptResult.classification : "Contact",
             contactName,
             success: true,
           };
