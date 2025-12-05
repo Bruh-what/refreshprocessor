@@ -157,11 +157,11 @@ const SimpleDuplicateTagger = () => {
         if (records.length > 1) {
           duplicateGroups++;
 
-          // Sort by information completeness - record with most data becomes master
+          // Sort by Created At date - record with latest date becomes master
           records.sort((a, b) => {
-            const scoreA = calculateInformationScore(a.record);
-            const scoreB = calculateInformationScore(b.record);
-            return scoreB - scoreA; // Highest score first becomes master
+            const dateA = new Date(a.record["Created At"] || "1900-01-01");
+            const dateB = new Date(b.record["Created At"] || "1900-01-01");
+            return dateB - dateA; // Latest date first becomes master
           });
 
           // Tag ALL records in the group as duplicates (including master)
@@ -217,7 +217,7 @@ const SimpleDuplicateTagger = () => {
             }
           }
 
-          // Track which one is the master (oldest) for reporting purposes
+          // Track which one is the master (latest Created At date) for reporting purposes
           const masterIndex = records[0].index;
           masterRecords++;
 
@@ -250,7 +250,7 @@ const SimpleDuplicateTagger = () => {
         `Total records tagged with CRM:Duplicate: ${totalDuplicateRecords}`
       );
       addLog(
-        `Master records (most complete info in each group): ${masterRecords}`
+        `Master records (latest Created At date in each group): ${masterRecords}`
       );
 
       // Verify tags were applied
