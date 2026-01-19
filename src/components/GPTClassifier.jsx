@@ -690,9 +690,10 @@ Respond in JSON format with your classification and reasoning:
 
           // Add tags including group change tracking
           const existingTags = updatedContact["Tags"] || "";
+          const groupName = gptResult.classification === "Agent" ? "Agents" : "Vendors";
           const newTags = [
             "CRM: GPT Classified",
-            `CRM: Ungrouped > ${gptResult.classification}`,
+            `CRM: Ungrouped > ${groupName}`,
           ];
 
           updatedContact["Tags"] = existingTags
