@@ -29,16 +29,38 @@ function CsvFormatter() {
 
   // Helper function to parse CSV using PapaParse
   const parseCSV = (csvText) => {
-    const result = Papa.parse(csvText, {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: false,
-    });
-    return {
-      headers: result.meta.fields,
-      rows: result.data,
-      originalText: csvText,
-    };
+    try {
+      // Check if csvText is valid
+      if (!csvText || typeof csvText !== 'string') {
+        throw new Error('Invalid CSV content');
+      }
+      
+      // Check if csvText is too large (more than 100MB of text)
+      if (csvText.length > 100 * 1024 * 1024) {
+        throw new Error('CSV content is too large to process');
+      }
+      
+      const result = Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: false,
+        // Add some limits to prevent memory issues
+        chunkSize: 10000, // Process in chunks
+      });
+      
+      if (result.errors && result.errors.length > 0) {
+        console.warn('CSV parsing warnings:', result.errors);
+      }
+      
+      return {
+        headers: result.meta.fields || [],
+        rows: result.data || [],
+        originalText: csvText,
+      };
+    } catch (error) {
+      console.error('parseCSV error:', error);
+      throw new Error(`Failed to parse CSV: ${error.message}`);
+    }
   };
 
   // Helper function to convert data back to CSV
@@ -508,15 +530,34 @@ function CsvFormatter() {
   const handleHomeAnniversaryUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
+      // Check file size (limit to 50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        alert(`File is too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Please use a file smaller than 50MB.`);
+        event.target.value = ''; // Clear the input
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onload = (e) => {
-        const csvText = e.target.result;
-        const parsedData = parseCSV(csvText);
-        // We now have a dedicated input in Step 3 for the main agent
-        setStep2Data((prev) => ({
-          ...prev,
-          homeAnniversaryCsv: parsedData,
-        }));
+        try {
+          const csvText = e.target.result;
+          const parsedData = parseCSV(csvText);
+          // We now have a dedicated input in Step 3 for the main agent
+          setStep2Data((prev) => ({
+            ...prev,
+            homeAnniversaryCsv: parsedData,
+          }));
+          console.log(`✅ Home Anniversary CSV loaded: ${parsedData.rows.length} rows`);
+        } catch (error) {
+          console.error('Error parsing home anniversary CSV:', error);
+          alert(`Error processing file: ${error.message}`);
+          event.target.value = ''; // Clear the input
+        }
+      };
+      reader.onerror = (error) => {
+        console.error('FileReader error:', error);
+        alert('Error reading file. Please try again.');
+        event.target.value = ''; // Clear the input
       };
       reader.readAsText(file);
     }
@@ -525,11 +566,30 @@ function CsvFormatter() {
   const handleStreamAppUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
+      // Check file size (limit to 50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        alert(`File is too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Please use a file smaller than 50MB.`);
+        event.target.value = ''; // Clear the input
+        return;
+      }
+      
       const reader = new FileReader();
       reader.onload = (e) => {
-        const csvText = e.target.result;
-        const parsedData = parseCSV(csvText);
-        setStep2Data((prev) => ({ ...prev, streamAppCsv: parsedData }));
+        try {
+          const csvText = e.target.result;
+          const parsedData = parseCSV(csvText);
+          setStep2Data((prev) => ({ ...prev, streamAppCsv: parsedData }));
+          console.log(`✅ Stream App CSV loaded: ${parsedData.rows.length} rows`);
+        } catch (error) {
+          console.error('Error parsing stream app CSV:', error);
+          alert(`Error processing file: ${error.message}`);
+          event.target.value = ''; // Clear the input
+        }
+      };
+      reader.onerror = (error) => {
+        console.error('FileReader error:', error);
+        alert('Error reading file. Please try again.');
+        event.target.value = ''; // Clear the input
       };
       reader.readAsText(file);
     }
@@ -880,6 +940,43 @@ function CsvFormatter() {
           row[saClosedDateCol] = "";
         }
       });
+
+      // NEW: Analyze client transaction history before processing
+      setStep3Data((prev) => ({
+        ...prev,
+        currentOperation: "Analyzing client transaction history...",
+        progress: 10,
+      }));
+      
+      const clientTreatment = analyzeClientTransactionHistory(haRows, haHeaders);
+      
+      console.log("📊 CLIENT TREATMENT ANALYSIS:");
+      console.log(`Found ${clientTreatment.size} unique clients`);
+      
+      // Log some examples for debugging
+      let exampleCount = 0;
+      let buyerSellerCount = 0;
+      let buyerOnlyCount = 0;
+      let sellerOnlyCount = 0;
+      
+      clientTreatment.forEach((treatment, clientName) => {
+        if (treatment.tags.length > 1) {
+          buyerSellerCount++;
+          if (exampleCount < 5) {
+            console.log(`🔍 ${clientName}:`, treatment);
+            exampleCount++;
+          }
+        } else if (treatment.tags.includes("Buyer")) {
+          buyerOnlyCount++;
+        } else if (treatment.tags.includes("Seller")) {
+          sellerOnlyCount++;
+        }
+      });
+      
+      console.log(`📈 Analysis Summary:`);
+      console.log(`  - Buyer + Seller (move-up/same property): ${buyerSellerCount}`);
+      console.log(`  - Buyer only: ${buyerOnlyCount}`);
+      console.log(`  - Seller only: ${sellerOnlyCount}`);
 
       // Helper function to detect if a name is likely a company name
       // Function to clean names for output - remove initials completely
