@@ -596,6 +596,162 @@ function CsvFormatter() {
     };
 
     try {
+      // Helper functions for client transaction history analysis
+      const normalizeNameForComparison = (name) => {
+        if (!name) return "";
+        
+        // Handle "Last, First" format
+        if (name.includes(",")) {
+          const [last, first] = name.split(",").map(part => part.trim());
+          return `${first.toLowerCase()} ${last.toLowerCase()}`.trim();
+        }
+        
+        return name.toLowerCase().trim();
+      };
+
+      const normalizeAddressForComparison = (address) => {
+        if (!address) return "";
+        
+        return address
+          .toLowerCase()
+          .replace(/[^\w\s]/g, '') // Remove punctuation
+          .replace(/\s+/g, ' ') // Normalize whitespace
+          .replace(/\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|circle|cir|court|ct|place|pl)\b/g, '') // Remove common street suffixes
+          .trim();
+      };
+
+      const analyzeClientTransactionHistory = (haRows, haHeaders) => {
+        const haBuyerNameCol = haHeaders.find(
+          (h) =>
+            h &&
+            h.toLowerCase().includes("buyer") &&
+            h.toLowerCase().includes("name")
+        );
+        const haSellerNameCol = haHeaders.find(
+          (h) =>
+            h &&
+            h.toLowerCase().includes("seller") &&
+            h.toLowerCase().includes("name")
+        );
+        const haAddressCol = haHeaders.find((h) =>
+          h.toLowerCase().includes("address")
+        );
+        const haAnnivCol = haHeaders.find(
+          (h) =>
+            h.toLowerCase().includes("anniversary") ||
+            h.toLowerCase().includes("date")
+        );
+
+        const clientHistory = new Map();
+
+        // First pass: collect all transactions for each client
+        haRows.forEach((row) => {
+          const buyerNameRaw = row[haBuyerNameCol] || "";
+          const sellerNameRaw = haSellerNameCol ? row[haSellerNameCol] || "" : "";
+          const address = row[haAddressCol] || "";
+          const date = row[haAnnivCol] || "";
+
+          if (!date) return;
+
+          const parsedDate = new Date(date);
+          if (isNaN(parsedDate.getTime())) return; // Skip invalid dates
+
+          // Process buyer transactions
+          if (buyerNameRaw.trim()) {
+            const buyers = buyerNameRaw.split(/\s*[&|]\s*/).map(name => name.trim()).filter(Boolean);
+            buyers.forEach(buyer => {
+              const normalizedName = normalizeNameForComparison(buyer);
+              if (!clientHistory.has(normalizedName)) {
+                clientHistory.set(normalizedName, { buyer: [], seller: [] });
+              }
+              clientHistory.get(normalizedName).buyer.push({
+                address,
+                date: parsedDate,
+                rawDate: date
+              });
+            });
+          }
+
+          // Process seller transactions
+          if (sellerNameRaw.trim()) {
+            const sellers = sellerNameRaw.split(/\s*[&|]\s*/).map(name => name.trim()).filter(Boolean);
+            sellers.forEach(seller => {
+              const normalizedName = normalizeNameForComparison(seller);
+              if (!clientHistory.has(normalizedName)) {
+                clientHistory.set(normalizedName, { buyer: [], seller: [] });
+              }
+              clientHistory.get(normalizedName).seller.push({
+                address,
+                date: parsedDate,
+                rawDate: date
+              });
+            });
+          }
+        });
+
+        // Second pass: determine treatment for each client
+        const clientTreatment = new Map();
+
+        clientHistory.forEach((transactions, clientName) => {
+          const { buyer, seller } = transactions;
+
+          // Sort transactions by date
+          buyer.sort((a, b) => a.date - b.date);
+          seller.sort((a, b) => a.date - b.date);
+
+          // Default treatment
+          let treatment = {
+            treatAsBuyer: buyer.length > 0 && seller.length === 0,
+            treatAsSeller: buyer.length === 0 && seller.length > 0,
+            homeAnniversaryDate: buyer.length > 0 ? buyer[0].rawDate : null,
+            homeAddress: buyer.length > 0 ? buyer[0].address : null,
+            closedDate: null,
+            tags: []
+          };
+
+          // Handle clients who are both buyers and sellers
+          if (buyer.length > 0 && seller.length > 0) {
+            const firstBuyerTransaction = buyer[0];
+            const firstSellerTransaction = seller[0];
+
+            // Check if any buyer address matches any seller address
+            const addressMatch = buyer.some(b => 
+              seller.some(s => normalizeAddressForComparison(b.address) === normalizeAddressForComparison(s.address))
+            );
+
+            if (addressMatch) {
+              // Rule 2: Same address - treat as seller
+              treatment = {
+                treatAsBuyer: false,
+                treatAsSeller: true,
+                homeAnniversaryDate: null,
+                homeAddress: null,
+                closedDate: firstSellerTransaction.rawDate,
+                tags: ["Buyer", "Seller"]
+              };
+            } else {
+              // Rule 1: Different addresses - treat as buyer
+              treatment = {
+                treatAsBuyer: true,
+                treatAsSeller: false,
+                homeAnniversaryDate: firstBuyerTransaction.rawDate,
+                homeAddress: firstBuyerTransaction.address,
+                closedDate: null,
+                tags: ["Buyer", "Seller"]
+              };
+            }
+          } else if (buyer.length > 0) {
+            treatment.tags = ["Buyer"];
+          } else if (seller.length > 0) {
+            treatment.tags = ["Seller"];
+          }
+
+          clientTreatment.set(clientName, treatment);
+        });
+
+        return clientTreatment;
+      };
+
       // Prepare home anniversary data (filtered CSV)
       const haRows = step2Data.homeAnniversaryCsv.rows;
       const haHeaders = step2Data.homeAnniversaryCsv.headers;
@@ -1239,7 +1395,7 @@ function CsvFormatter() {
               isOurAgentListingAgent ||
               Math.random() < 0.1; // Increased sample rate
 
-            // Process contacts based on agent role
+            // Process contacts based on agent role and client treatment analysis
             const contactsToProcess = [];
 
             if (isOurAgentSellingAgent) {
@@ -1257,9 +1413,13 @@ function CsvFormatter() {
 
                 buyerNames.forEach((name) => {
                   if (name && name.trim()) {
+                    const normalizedName = normalizeNameForComparison(name.trim());
+                    const treatment = clientTreatment.get(normalizedName);
+                    
                     contactsToProcess.push({
                       name: name.trim(),
                       isBuyer: true,
+                      treatment: treatment // Include treatment analysis
                     });
                   }
                 });
@@ -1272,9 +1432,13 @@ function CsvFormatter() {
                 const sellerNames = preprocessBuyerName(sellerNameRaw); // Same preprocessing function works for sellers
                 sellerNames.forEach((name) => {
                   if (name && name.trim()) {
+                    const normalizedName = normalizeNameForComparison(name.trim());
+                    const treatment = clientTreatment.get(normalizedName);
+                    
                     contactsToProcess.push({
                       name: name.trim(),
                       isBuyer: false, // This is a seller
+                      treatment: treatment // Include treatment analysis
                     });
                   }
                 });
@@ -2043,36 +2207,70 @@ function CsvFormatter() {
                     }
 
                     // Update the appropriate date field based on buyer vs seller
-                    let oldValue = "";
-                    if (contactInfo.isBuyer) {
-                      // Buyers get Home Anniversary date
-                      oldValue = saRow[saHomeAnnivCol] || "";
-                      updatedSaRows[saIndex][saHomeAnnivCol] = anniversaryDate;
-                      updatedSaRows[saIndex][saClosedDateCol] = ""; // Clear closed date
+                    // Use client treatment analysis to determine proper tags and date handling
+                    const normalizedContactName = normalizeNameForComparison(contactName);
+                    const treatment = contactInfo.treatment;
+                    
+                    let finalTags = [];
+                    let dateToUse = anniversaryDate;
+                    let useHomeAnniversary = contactInfo.isBuyer;
+                    let useClosedDate = !contactInfo.isBuyer;
+                    
+                    if (treatment) {
+                      // Override with treatment analysis results
+                      finalTags = [...treatment.tags];
+                      
+                      if (treatment.treatAsBuyer) {
+                        // Treat as buyer - use home anniversary date and address
+                        dateToUse = treatment.homeAnniversaryDate || anniversaryDate;
+                        useHomeAnniversary = true;
+                        useClosedDate = false;
+                        // Add standard buyer tags if not already present
+                        if (!finalTags.includes("Buyer")) finalTags.push("Buyer");
+                        finalTags.push("CRM: Home Anniversary");
+                      } else if (treatment.treatAsSeller) {
+                        // Treat as seller - use closed date
+                        dateToUse = treatment.closedDate || anniversaryDate;
+                        useHomeAnniversary = false;
+                        useClosedDate = true;
+                        // Add standard seller tags if not already present
+                        if (!finalTags.includes("Seller")) finalTags.push("Seller");
+                        finalTags.push("CRM: Closed Date");
+                      }
                     } else {
-                      // Sellers get Closed Date
+                      // Fall back to original logic if no treatment available
+                      finalTags = contactInfo.isBuyer ? ["Buyer"] : ["Seller"];
+                      finalTags.push(contactInfo.isBuyer ? "CRM: Home Anniversary" : "CRM: Closed Date");
+                    }
+                    
+                    // Apply appropriate date based on treatment
+                    let oldValue = "";
+                    if (useHomeAnniversary) {
+                      oldValue = saRow[saHomeAnnivCol] || "";
+                      updatedSaRows[saIndex][saHomeAnnivCol] = dateToUse;
+                      updatedSaRows[saIndex][saClosedDateCol] = ""; // Clear closed date
+                    } else if (useClosedDate) {
                       oldValue = saRow[saClosedDateCol] || "";
-                      updatedSaRows[saIndex][saClosedDateCol] = anniversaryDate;
+                      updatedSaRows[saIndex][saClosedDateCol] = dateToUse;
                       updatedSaRows[saIndex][saHomeAnnivCol] = ""; // Clear home anniversary
+                    } else {
+                      // Default behavior
+                      if (contactInfo.isBuyer) {
+                        oldValue = saRow[saHomeAnnivCol] || "";
+                        updatedSaRows[saIndex][saHomeAnnivCol] = dateToUse;
+                        updatedSaRows[saIndex][saClosedDateCol] = ""; // Clear closed date
+                      } else {
+                        oldValue = saRow[saClosedDateCol] || "";
+                        updatedSaRows[saIndex][saClosedDateCol] = dateToUse;
+                        updatedSaRows[saIndex][saHomeAnnivCol] = ""; // Clear home anniversary
+                      }
                     }
 
-                    // Extract year from anniversary date for the sold date tag
-                    const anniversaryYear = anniversaryDate
-                      ? new Date(anniversaryDate).getFullYear()
-                      : "";
-
-                    // Create different tags based on whether this is a buyer or seller
-                    const tagsToAdd = contactInfo.isBuyer
-                      ? [
-                          "CRM: Home Anniversary",
-                          "Buyer",
-                          anniversaryYear ? `${anniversaryYear}` : null,
-                        ].filter(Boolean) // Remove null values
-                      : [
-                          "CRM: Closed Date",
-                          "SELLER-CRMREFRESH",
-                          anniversaryYear ? `${anniversaryYear}` : null,
-                        ].filter(Boolean); // Remove null values
+                    // Extract year from the date we're actually using
+                    const dateYear = dateToUse ? new Date(dateToUse).getFullYear() : "";
+                    if (dateYear) finalTags.push(`${dateYear}`);
+                    
+                    const tagsToAdd = finalTags.filter(Boolean);
 
                     // Update or add the Tags field with consistent formatting
                     const existingTags = updatedSaRows[saIndex]["Tags"] || "";
@@ -2332,37 +2530,70 @@ function CsvFormatter() {
                     matchedCount++;
                   }
 
-                  // Update the appropriate date field based on buyer vs seller
-                  let oldValue = "";
-                  if (contactInfo.isBuyer) {
-                    // Buyers get Home Anniversary date
-                    oldValue = saRow[saHomeAnnivCol] || "";
-                    updatedSaRows[saIndex][saHomeAnnivCol] = anniversaryDate;
-                    updatedSaRows[saIndex][saClosedDateCol] = ""; // Clear closed date
+                  // Use client treatment analysis to determine proper tags and date handling
+                  const normalizedContactName = normalizeNameForComparison(contactName);
+                  const treatment = contactInfo.treatment;
+                  
+                  let finalTags = [];
+                  let dateToUse = anniversaryDate;
+                  let useHomeAnniversary = contactInfo.isBuyer;
+                  let useClosedDate = !contactInfo.isBuyer;
+                  
+                  if (treatment) {
+                    // Override with treatment analysis results
+                    finalTags = [...treatment.tags];
+                    
+                    if (treatment.treatAsBuyer) {
+                      // Treat as buyer - use home anniversary date and address
+                      dateToUse = treatment.homeAnniversaryDate || anniversaryDate;
+                      useHomeAnniversary = true;
+                      useClosedDate = false;
+                      // Add standard buyer tags if not already present
+                      if (!finalTags.includes("Buyer")) finalTags.push("Buyer");
+                      finalTags.push("CRM: Home Anniversary");
+                    } else if (treatment.treatAsSeller) {
+                      // Treat as seller - use closed date
+                      dateToUse = treatment.closedDate || anniversaryDate;
+                      useHomeAnniversary = false;
+                      useClosedDate = true;
+                      // Add standard seller tags if not already present
+                      if (!finalTags.includes("Seller")) finalTags.push("Seller");
+                      finalTags.push("CRM: Closed Date");
+                    }
                   } else {
-                    // Sellers get Closed Date
+                    // Fall back to original logic if no treatment available
+                    finalTags = contactInfo.isBuyer ? ["Buyer"] : ["Seller"];
+                    finalTags.push(contactInfo.isBuyer ? "CRM: Home Anniversary" : "CRM: Closed Date");
+                  }
+                  
+                  // Apply appropriate date based on treatment
+                  let oldValue = "";
+                  if (useHomeAnniversary) {
+                    oldValue = saRow[saHomeAnnivCol] || "";
+                    updatedSaRows[saIndex][saHomeAnnivCol] = dateToUse;
+                    updatedSaRows[saIndex][saClosedDateCol] = ""; // Clear closed date
+                  } else if (useClosedDate) {
                     oldValue = saRow[saClosedDateCol] || "";
-                    updatedSaRows[saIndex][saClosedDateCol] = anniversaryDate;
+                    updatedSaRows[saIndex][saClosedDateCol] = dateToUse;
                     updatedSaRows[saIndex][saHomeAnnivCol] = ""; // Clear home anniversary
+                  } else {
+                    // Default behavior
+                    if (contactInfo.isBuyer) {
+                      oldValue = saRow[saHomeAnnivCol] || "";
+                      updatedSaRows[saIndex][saHomeAnnivCol] = dateToUse;
+                      updatedSaRows[saIndex][saClosedDateCol] = ""; // Clear closed date
+                    } else {
+                      oldValue = saRow[saClosedDateCol] || "";
+                      updatedSaRows[saIndex][saClosedDateCol] = dateToUse;
+                      updatedSaRows[saIndex][saHomeAnnivCol] = ""; // Clear home anniversary
+                    }
                   }
 
-                  // Extract year from anniversary date for the sold date tag
-                  const anniversaryYear = anniversaryDate
-                    ? new Date(anniversaryDate).getFullYear()
-                    : "";
-
-                  // Create different tags based on whether this is a buyer or seller
-                  const tagsToAdd = contactInfo.isBuyer
-                    ? [
-                        "CRM: Home Anniversary", // Changed from "CRM Refresh: Home Anniversary"
-                        "Buyer",
-                        anniversaryYear ? `${anniversaryYear}` : null,
-                      ].filter(Boolean) // Remove null values
-                    : [
-                        "CRM: Closed Date", // Changed from "CRM REFRESH CLOSED DATE"
-                        "Seller",
-                        anniversaryYear ? `${anniversaryYear}` : null,
-                      ].filter(Boolean); // Remove null values            // Update or add the Tags field with consistent formatting
+                  // Extract year from the date we're actually using
+                  const dateYear = dateToUse ? new Date(dateToUse).getFullYear() : "";
+                  if (dateYear) finalTags.push(`${dateYear}`);
+                  
+                  const tagsToAdd = finalTags.filter(Boolean);            // Update or add the Tags field with consistent formatting
                   const existingTags = updatedSaRows[saIndex]["Tags"] || "";
                   let existingTagsArray = existingTags
                     ? existingTags.split(",").map((t) => t.trim())
@@ -2446,21 +2677,44 @@ function CsvFormatter() {
 
                 // Create different tags based on whether this is a buyer or seller
                 const contactType = contactInfo.isBuyer ? "buyer" : "seller";
-                const newEntryTags = contactInfo.isBuyer
-                  ? [
-                      "CRM: Home Anniversary",
-                      "Buyer",
-                      anniversaryYear ? `${anniversaryYear}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(", ")
-                  : [
-                      "CRM: Closed Date",
-                      "Seller",
-                      anniversaryYear ? `${anniversaryYear}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(", ");
+                // Use client treatment analysis to determine proper tags and date handling for new contacts
+                const normalizedContactName = normalizeNameForComparison(contactName);
+                const treatment = contactInfo.treatment;
+                
+                let finalTags = [];
+                let dateToUse = anniversaryDate;
+                let isBuyerForNewContact = contactInfo.isBuyer;
+                
+                if (treatment) {
+                  // Override with treatment analysis results
+                  finalTags = [...treatment.tags];
+                  
+                  if (treatment.treatAsBuyer) {
+                    // Treat as buyer - use home anniversary date
+                    dateToUse = treatment.homeAnniversaryDate || anniversaryDate;
+                    isBuyerForNewContact = true;
+                    // Add standard buyer tags if not already present
+                    if (!finalTags.includes("Buyer")) finalTags.push("Buyer");
+                    finalTags.push("CRM: Home Anniversary");
+                  } else if (treatment.treatAsSeller) {
+                    // Treat as seller - use closed date
+                    dateToUse = treatment.closedDate || anniversaryDate;
+                    isBuyerForNewContact = false;
+                    // Add standard seller tags if not already present
+                    if (!finalTags.includes("Seller")) finalTags.push("Seller");
+                    finalTags.push("CRM: Closed Date");
+                  }
+                } else {
+                  // Fall back to original logic if no treatment available
+                  finalTags = contactInfo.isBuyer ? ["Buyer"] : ["Seller"];
+                  finalTags.push(contactInfo.isBuyer ? "CRM: Home Anniversary" : "CRM: Closed Date");
+                }
+                
+                // Extract year from the date we're actually using
+                const dateYear = dateToUse ? new Date(dateToUse).getFullYear() : "";
+                if (dateYear) finalTags.push(`${dateYear}`);
+                
+                const newEntryTags = finalTags.filter(Boolean).join(", ");
 
                 // Clean first and last names - remove any middle initials/names
                 const cleanedFirstName = cleanNameForOutput(firstName, true);
@@ -2478,17 +2732,17 @@ function CsvFormatter() {
                   ["Groups"]: "Past clients", // Groups column value
                   ["Tags"]: newEntryTags, // Tags column value
                   ["Notes"]: `New ${contactType} contact added. ${
-                    contactInfo.isBuyer ? "Home anniversary" : "Closed"
-                  } date: ${anniversaryDate}. Tags added: ${newEntryTags}`,
+                    isBuyerForNewContact ? "Home anniversary" : "Closed"
+                  } date: ${dateToUse}. Tags added: ${newEntryTags}`,
                 };
 
                 // Use enhanced name processing to create separate rows for each person
                 const separateRows = processNameIntoSeparateRows(
                   `${firstName} ${lastName}`, // Reconstruct the original name
                   baseRowData,
-                  anniversaryDate,
+                  dateToUse,
                   contactType,
-                  contactInfo.isBuyer,
+                  isBuyerForNewContact,
                   saFirstNameCol,
                   saLastNameCol,
                   saHomeAnnivCol,
@@ -2504,7 +2758,7 @@ function CsvFormatter() {
                   type: "no_match_added",
                   contactType: contactType,
                   contactName: `${firstName} ${lastName}`,
-                  anniversaryDate: anniversaryDate,
+                  anniversaryDate: dateToUse,
                   address: address,
                 });
               }
