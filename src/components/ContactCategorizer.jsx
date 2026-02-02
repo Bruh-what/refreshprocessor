@@ -58,7 +58,7 @@ const ContactCategorizer = () => {
 
       // If any email is not from a personal domain, return false
       const isPersonalDomain = personalDomains.some(
-        (pd) => domain === pd || domain.endsWith("." + pd)
+        (pd) => domain === pd || domain.endsWith("." + pd),
       );
 
       if (!isPersonalDomain) {
@@ -579,20 +579,6 @@ const ContactCategorizer = () => {
       reasons.push("Existing agent groups");
     }
 
-    // 6. Notes and background info analysis (matching RealEstateProcessor)
-    if (
-      notes.includes("realtor") ||
-      keyInfo.includes("realtor") ||
-      notes.includes("real estate agent") ||
-      keyInfo.includes("real estate agent") ||
-      (notes.includes("broker") &&
-        !notes.includes("mortgage broker") &&
-        !keyInfo.includes("mortgage broker"))
-    ) {
-      agentConfidence += 20; // Moderate signal - matches RealEstateProcessor
-      reasons.push("Agent indicator in notes/background");
-    }
-
     // VENDOR CLASSIFICATION SIGNALS
 
     // 1. Direct vendor email domain analysis
@@ -624,12 +610,12 @@ const ContactCategorizer = () => {
       });
     }
 
-    // 2. Enhanced vendor keywords in ALL fields (matching RealEstateProcessor scoring)
-    const allFieldText = `${emails.join(
-      " "
-    )} ${company} ${title} ${tags} ${groups} ${notes} ${keyInfo}`.toLowerCase();
+    // 2. Enhanced vendor keywords in business fields only (excluding personal notes)
+    const businessFieldsOnly = `${emails.join(
+      " ",
+    )} ${company} ${title} ${tags} ${groups}`.toLowerCase();
     VENDOR_KEYWORDS.forEach((keyword) => {
-      if (allFieldText.includes(keyword)) {
+      if (businessFieldsOnly.includes(keyword)) {
         vendorConfidence += 30; // Moderate signal for keyword match - matches RealEstateProcessor
         reasons.push(`Vendor keyword found: ${keyword}`);
       }
@@ -659,7 +645,7 @@ const ContactCategorizer = () => {
         // Special case: Don't apply "bank" vendor signal if we already have a direct real estate match
         if (pattern === "bank" && hasDirectRealEstateMatch) {
           reasons.push(
-            `Business pattern "${pattern}" ignored due to direct real estate company match`
+            `Business pattern "${pattern}" ignored due to direct real estate company match`,
           );
           return; // Skip this vendor signal
         }
@@ -943,15 +929,15 @@ const ContactCategorizer = () => {
           } else {
             changesMade.push(
               `Added to Agents group (previously in: ${originalGroups.join(
-                ", "
-              )})`
+                ", ",
+              )})`,
             );
             newTagsToAdd.push(`CRM: ${originalGroups.join(",")} > Agents`);
           }
           changesMade.push(
             `Classified as real estate agent based on ${result.reasons
               .slice(0, 2)
-              .join(", ")}`
+              .join(", ")}`,
           );
         } else if (
           result.category === "Vendor" &&
@@ -967,21 +953,21 @@ const ContactCategorizer = () => {
           } else {
             changesMade.push(
               `Added to Vendors group (previously in: ${originalGroups.join(
-                ", "
-              )})`
+                ", ",
+              )})`,
             );
             newTagsToAdd.push(`CRM: ${originalGroups.join(",")} > Vendors`);
           }
           changesMade.push(
             `Classified as vendor based on ${result.reasons
               .slice(0, 2)
-              .join(", ")}`
+              .join(", ")}`,
           );
         } else {
           // Check if this was a past client override
           const isPastClientOverride = result.reasons.some(
             (reason) =>
-              reason.includes("overriding") && reason.includes("past client")
+              reason.includes("overriding") && reason.includes("past client"),
           );
 
           if (isPastClientOverride) {
@@ -998,7 +984,7 @@ const ContactCategorizer = () => {
           // Contact doesn't fit in any predefined groups, so check if they should go to Leads
           // Check if they're already in a Leads group (case insensitive)
           const isAlreadyInLeadsGroup = originalGroups.some(
-            (group) => group.toLowerCase() === "leads"
+            (group) => group.toLowerCase() === "leads",
           );
 
           // Only move contacts with personal email domains (not company domains)
@@ -1017,8 +1003,8 @@ const ContactCategorizer = () => {
             } else {
               changesMade.push(
                 `Added to Leads group (previously in: ${originalGroups.join(
-                  ", "
-                )})`
+                  ", ",
+                )})`,
               );
               // Add transition tag for group movement
               newTagsToAdd.push(`CRM: ${originalGroups.join(",")} > Leads`);
@@ -1064,29 +1050,29 @@ const ContactCategorizer = () => {
 
       // Generate statistics
       const leadsCount = processedData.filter(
-        (r) => r.Groups && r.Groups.toLowerCase().includes("leads")
+        (r) => r.Groups && r.Groups.toLowerCase().includes("leads"),
       ).length;
 
       const ungroupedCount = processedData.filter(
-        (r) => !r.Groups || r.Groups.trim() === ""
+        (r) => !r.Groups || r.Groups.trim() === "",
       ).length;
 
       const categorizedCount = processedData.filter(
-        (r) => r.Category === "Agent" || r.Category === "Vendor"
+        (r) => r.Category === "Agent" || r.Category === "Vendor",
       ).length;
 
       const changedCount = processedData.filter(
         (r) =>
           r["Changes Made"] &&
           r["Changes Made"] !== "Category=Contact" &&
-          r["Changes Made"].trim() !== ""
+          r["Changes Made"].trim() !== "",
       ).length;
 
       // Count contacts with Home Anniversary values
       const anniversaryCount = processedData.filter(
         (r) =>
           r["Home Anniversary"] &&
-          r["Home Anniversary"].toString().trim() !== ""
+          r["Home Anniversary"].toString().trim() !== "",
       ).length;
 
       // Count combined unique contacts (changed + anniversary)
@@ -1162,7 +1148,7 @@ const ContactCategorizer = () => {
       addLog(`Vendors: ${stats.vendors}`);
       addLog(`Contacts: ${stats.contacts}`);
       addLog(
-        `Leads: ${stats.leads} (${stats.contactsMovedToLeads} moved to leads)`
+        `Leads: ${stats.leads} (${stats.contactsMovedToLeads} moved to leads)`,
       );
 
       setResults({
@@ -1208,7 +1194,7 @@ const ContactCategorizer = () => {
     if (!results) return;
 
     const filteredData = results.processedData.filter(
-      (record) => record.Category === category
+      (record) => record.Category === category,
     );
     if (filteredData.length === 0) {
       alert(`No ${category.toLowerCase()}s found to export!`);
@@ -1231,7 +1217,7 @@ const ContactCategorizer = () => {
     if (!results) return;
 
     const ungroupedData = results.processedData.filter(
-      (record) => !record.Groups || record.Groups.trim() === ""
+      (record) => !record.Groups || record.Groups.trim() === "",
     );
 
     if (ungroupedData.length === 0) {
@@ -1251,7 +1237,7 @@ const ContactCategorizer = () => {
     if (!results) return;
 
     const categorizedData = results.processedData.filter(
-      (record) => record.Category === "Agent" || record.Category === "Vendor"
+      (record) => record.Category === "Agent" || record.Category === "Vendor",
     );
 
     if (categorizedData.length === 0) {
@@ -1271,7 +1257,7 @@ const ContactCategorizer = () => {
     if (!results) return;
 
     const groupedData = results.processedData.filter(
-      (record) => record.Groups && record.Groups.trim() !== ""
+      (record) => record.Groups && record.Groups.trim() !== "",
     );
 
     if (groupedData.length === 0) {
@@ -1295,14 +1281,14 @@ const ContactCategorizer = () => {
       (record) =>
         record["Changes Made"] &&
         record["Changes Made"] !== "Category=Contact" &&
-        record["Changes Made"].trim() !== ""
+        record["Changes Made"].trim() !== "",
     );
 
     // Get contacts that have Home Anniversary values
     const homeAnniversaryData = results.processedData.filter(
       (record) =>
         record["Home Anniversary"] &&
-        record["Home Anniversary"].toString().trim() !== ""
+        record["Home Anniversary"].toString().trim() !== "",
     );
 
     // Combine both sets and remove duplicates using Set
@@ -1328,7 +1314,7 @@ const ContactCategorizer = () => {
 
     if (finalData.length === 0) {
       alert(
-        "No changed contacts or home anniversary contacts found to export!"
+        "No changed contacts or home anniversary contacts found to export!",
       );
       return;
     }

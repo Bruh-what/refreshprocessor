@@ -55,7 +55,7 @@ const GPTClassifier = () => {
       addLog(
         `   ${domain}: ${
           isPersonal ? "❌ PERSONAL (ERROR!)" : "✅ Business (Good)"
-        }`
+        }`,
       );
     });
   };
@@ -169,7 +169,7 @@ const GPTClassifier = () => {
       } else {
         const errorData = await response.json();
         addLog(
-          `❌ API key invalid: ${errorData.error?.message || "Unknown error"}`
+          `❌ API key invalid: ${errorData.error?.message || "Unknown error"}`,
         );
         setIsApiKeyValid(false);
         return false;
@@ -226,7 +226,7 @@ const GPTClassifier = () => {
     addLog(
       `🔍 CSV Column Headers: ${Object.keys(data[0] || {})
         .slice(0, 15)
-        .join(", ")}...`
+        .join(", ")}...`,
     );
     addLog(`🔍 Total columns in CSV: ${Object.keys(data[0] || {}).length}`);
 
@@ -258,7 +258,7 @@ const GPTClassifier = () => {
     });
     addLog(`🔍 Step 1: ${step1_allContacts} total contacts`);
     addLog(
-      `🔍 Step 2: ${step2_groupFiltered.length} contacts after group filter (empty or 'ALL CONTACTS')`
+      `🔍 Step 2: ${step2_groupFiltered.length} contacts after group filter (empty or 'ALL CONTACTS')`,
     );
 
     const step3_businessEmailFiltered = step2_groupFiltered.filter(
@@ -283,10 +283,10 @@ const GPTClassifier = () => {
         }
 
         return hasBusiness;
-      }
+      },
     );
     addLog(
-      `🔍 Step 3: ${step3_businessEmailFiltered.length} contacts after business email filter`
+      `🔍 Step 3: ${step3_businessEmailFiltered.length} contacts after business email filter`,
     );
 
     const ungrouped = step3_businessEmailFiltered.filter((contact) => {
@@ -317,7 +317,7 @@ const GPTClassifier = () => {
         // If no name, must have business emails to be worth classifying
         if (emails.length === 0) {
           addLog(
-            `⚠️ EXCLUDED (no name, no emails): Contact with no identifying information`
+            `⚠️ EXCLUDED (no name, no emails): Contact with no identifying information`,
           );
           return false;
         }
@@ -326,8 +326,8 @@ const GPTClassifier = () => {
         if (!hasBusinessEmail(emails)) {
           addLog(
             `⚠️ EXCLUDED (no name, only personal emails): Contact with emails ${emails.join(
-              ", "
-            )} but no name and no business emails`
+              ", ",
+            )} but no name and no business emails`,
           );
           return false;
         }
@@ -335,8 +335,8 @@ const GPTClassifier = () => {
         // Allow nameless contacts if they have business emails (domain-based classification can work)
         addLog(
           `✅ INCLUDED (no name, has business emails): Contact with business emails ${emails.join(
-            ", "
-          )} - can classify by domain`
+            ", ",
+          )} - can classify by domain`,
         );
       } else {
         // Additional check for contacts with names: must have at least first OR last name (not just empty spaces)
@@ -344,7 +344,7 @@ const GPTClassifier = () => {
         const lastName = (contact["Last Name"] || "").trim();
         if (!firstName && !lastName) {
           addLog(
-            `⚠️ EXCLUDED (empty name fields): Contact with empty first/last name fields but name="${name}"`
+            `⚠️ EXCLUDED (empty name fields): Contact with empty first/last name fields but name="${name}"`,
           );
           return false;
         }
@@ -354,7 +354,7 @@ const GPTClassifier = () => {
     });
 
     addLog(
-      `🔍 Step 4: ${ungrouped.length} contacts after final contact info filter`
+      `🔍 Step 4: ${ungrouped.length} contacts after final contact info filter`,
     );
 
     // Debug filter results
@@ -393,10 +393,10 @@ const GPTClassifier = () => {
     addLog(`   Total contacts: ${totalContacts}`);
     addLog(`   Already grouped (meaningful groups): ${groupedContacts}`);
     addLog(
-      `   "ALL CONTACTS" group (treated as ungrouped): ${allContactsGroup}`
+      `   "ALL CONTACTS" group (treated as ungrouped): ${allContactsGroup}`,
     );
     addLog(
-      `   Ungrouped but no business email: ${ungroupedButNoBusinessEmail}`
+      `   Ungrouped but no business email: ${ungroupedButNoBusinessEmail}`,
     );
     addLog(`   Ungrouped but no contact info: ${ungroupedButNoContactInfo}`);
     addLog(`   Final ungrouped with business emails: ${ungrouped.length}`);
@@ -404,7 +404,7 @@ const GPTClassifier = () => {
     setUngroupedContacts(ungrouped);
     setEstimatedCost(ungrouped.length * 0.001); // Rough estimate
     addLog(
-      `✅ Found ${ungrouped.length} ungrouped contacts with business emails`
+      `✅ Found ${ungrouped.length} ungrouped contacts with business emails`,
     );
 
     // Debug: Log some example contacts for verification
@@ -461,7 +461,7 @@ const GPTClassifier = () => {
 
     setPersonalEmailContacts(personalEmailContacts);
     addLog(
-      `Found ${personalEmailContacts.length} ungrouped contacts with only personal emails (for Leads group)`
+      `Found ${personalEmailContacts.length} ungrouped contacts with only personal emails (for Leads group)`,
     );
   };
 
@@ -541,7 +541,7 @@ Respond in JSON format with your classification and reasoning:
 
     // Create a promise that rejects after timeout
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("API call timeout (30s)")), 30000)
+      setTimeout(() => reject(new Error("API call timeout (30s)")), 30000),
     );
 
     try {
@@ -577,10 +577,10 @@ Respond in JSON format with your classification and reasoning:
           addLog(
             `⏳ Retrying API call (attempt ${
               retryCount + 1
-            }/3): ${errorMessage}`
+            }/3): ${errorMessage}`,
           );
           await new Promise((resolve) =>
-            setTimeout(resolve, (retryCount + 1) * 2000)
+            setTimeout(resolve, (retryCount + 1) * 2000),
           );
           return await classifyWithGPT(contact, retryCount + 1);
         }
@@ -601,7 +601,7 @@ Respond in JSON format with your classification and reasoning:
           return { classification, reason };
         } else {
           addLog(
-            `⚠️ Invalid classification in GPT response: ${classification}`
+            `⚠️ Invalid classification in GPT response: ${classification}`,
           );
           return null;
         }
@@ -622,10 +622,10 @@ Respond in JSON format with your classification and reasoning:
         (error.message.includes("timeout") || error.message.includes("network"))
       ) {
         addLog(
-          `⏳ Retrying API call (attempt ${retryCount + 1}/3): ${error.message}`
+          `⏳ Retrying API call (attempt ${retryCount + 1}/3): ${error.message}`,
         );
         await new Promise((resolve) =>
-          setTimeout(resolve, (retryCount + 1) * 2000)
+          setTimeout(resolve, (retryCount + 1) * 2000),
         );
         return await classifyWithGPT(contact, retryCount + 1);
       }
@@ -642,15 +642,15 @@ Respond in JSON format with your classification and reasoning:
     addLog(
       `🔄 [Chunk ${chunkIndex + 1}/${totalChunks}] Starting ${
         contacts.length
-      } contacts...`
+      } contacts...`,
     );
 
     // Create timeout for entire chunk (5 minutes max per chunk)
     const chunkTimeoutPromise = new Promise((_, reject) =>
       setTimeout(
         () => reject(new Error(`Chunk ${chunkIndex + 1} timeout (5 minutes)`)),
-        300000
-      )
+        300000,
+      ),
     );
 
     // Process contacts in parallel within the chunk (respecting rate limits)
@@ -670,7 +670,7 @@ Respond in JSON format with your classification and reasoning:
         // Debug: Log the classification result
         if (gptResult) {
           addLog(
-            `🤖 GPT classified ${contactName}: "${gptResult.classification}" - ${gptResult.reason}`
+            `🤖 GPT classified ${contactName}: "${gptResult.classification}" - ${gptResult.reason}`,
           );
         }
 
@@ -690,7 +690,8 @@ Respond in JSON format with your classification and reasoning:
 
           // Add tags including group change tracking
           const existingTags = updatedContact["Tags"] || "";
-          const groupName = gptResult.classification === "Agent" ? "Agents" : "Vendors";
+          const groupName =
+            gptResult.classification === "Agent" ? "Agents" : "Vendors";
           const newTags = [
             "CRM: GPT Classified",
             `CRM: Ungrouped > ${groupName}`,
@@ -716,7 +717,7 @@ Respond in JSON format with your classification and reasoning:
         }
       } catch (error) {
         addLog(
-          `❌ [Chunk ${chunkIndex + 1}] ${contactName} failed: ${error.message}`
+          `❌ [Chunk ${chunkIndex + 1}] ${contactName} failed: ${error.message}`,
         );
         return {
           contact: null,
@@ -739,13 +740,13 @@ Respond in JSON format with your classification and reasoning:
       addLog(
         `✅ [Chunk ${
           chunkIndex + 1
-        }/${totalChunks}] All contacts processed successfully`
+        }/${totalChunks}] All contacts processed successfully`,
       );
     } catch (error) {
       addLog(
         `💥 [Chunk ${chunkIndex + 1}/${totalChunks}] Chunk failed: ${
           error.message
-        }`
+        }`,
       );
 
       // If chunk times out, try to get partial results
@@ -767,7 +768,7 @@ Respond in JSON format with your classification and reasoning:
       addLog(
         `⚠️ [Chunk ${chunkIndex + 1}] Recovered ${
           chunkResults.filter((r) => r.success).length
-        }/${contacts.length} contacts`
+        }/${contacts.length} contacts`,
       );
     }
 
@@ -780,20 +781,20 @@ Respond in JSON format with your classification and reasoning:
           addLog(
             `✅ [Chunk ${chunkIndex + 1}/${totalChunks}] ${
               result.contactName
-            }: ${result.result}`
+            }: ${result.result}`,
           );
         } else {
           addLog(
             `➡️ [Chunk ${chunkIndex + 1}/${totalChunks}] ${
               result.contactName
-            }: Contact (no change)`
+            }: Contact (no change)`,
           );
         }
       } else {
         addLog(
           `❌ [Chunk ${chunkIndex + 1}/${totalChunks}] Failed to classify ${
             result.contactName
-          }: ${result.error}`
+          }: ${result.error}`,
         );
       }
     }
@@ -825,17 +826,17 @@ Respond in JSON format with your classification and reasoning:
     }
 
     addLog(
-      `🚀 Starting FAST GPT classification of ${ungroupedContacts.length} contacts...`
+      `🚀 Starting FAST GPT classification of ${ungroupedContacts.length} contacts...`,
     );
     addLog(
-      `📦 Processing in ${chunks.length} chunks of ${CHUNK_SIZE} contacts each`
+      `📦 Processing in ${chunks.length} chunks of ${CHUNK_SIZE} contacts each`,
     );
     addLog(
       `⚡ Estimated time: ${Math.ceil(
-        (chunks.length * CHUNK_DELAY) / 1000 / 60
+        (chunks.length * CHUNK_DELAY) / 1000 / 60,
       )} minutes (vs ${Math.ceil(
-        (ungroupedContacts.length * 350) / 1000 / 60
-      )} minutes sequentially)`
+        (ungroupedContacts.length * 350) / 1000 / 60,
+      )} minutes sequentially)`,
     );
 
     const allClassifiedContacts = [];
@@ -852,14 +853,14 @@ Respond in JSON format with your classification and reasoning:
         addLog(
           `📦 Processing chunk ${chunkIndex + 1}/${chunks.length} (${
             chunk.length
-          } contacts)...`
+          } contacts)...`,
         );
 
         // Process this chunk in parallel
         const chunkResult = await processContactChunk(
           chunk,
           chunkIndex,
-          chunks.length
+          chunks.length,
         );
 
         // Accumulate results
@@ -878,7 +879,7 @@ Respond in JSON format with your classification and reasoning:
             chunkResult.vendors
           } vendors, ${chunkResult.contacts} contacts, ${
             chunkResult.errors
-          } errors`
+          } errors`,
         );
 
         // Delay between chunks to respect OpenAI's rate limits
@@ -901,30 +902,30 @@ Respond in JSON format with your classification and reasoning:
 
       addLog(`🎯 FAST GPT Classification Complete!`);
       addLog(
-        `📊 Final Results: ${totalAgents} Agents, ${totalVendors} Vendors, ${totalContacts} Contacts`
+        `📊 Final Results: ${totalAgents} Agents, ${totalVendors} Vendors, ${totalContacts} Contacts`,
       );
       addLog(
         `📈 Classification Rate: ${Math.round(
-          ((totalAgents + totalVendors) / totalProcessed) * 100
-        )}% classified as Agent/Vendor`
+          ((totalAgents + totalVendors) / totalProcessed) * 100,
+        )}% classified as Agent/Vendor`,
       );
       if (totalErrors > 0) {
         addLog(`⚠️ ${totalErrors} contacts failed to classify (API errors)`);
       }
 
       const actualTimeMinutes = Math.ceil(
-        (chunks.length * CHUNK_DELAY) / 1000 / 60
+        (chunks.length * CHUNK_DELAY) / 1000 / 60,
       );
       const sequentialTimeMinutes = Math.ceil(
-        (ungroupedContacts.length * 350) / 1000 / 60
+        (ungroupedContacts.length * 350) / 1000 / 60,
       );
       addLog(
-        `⚡ Completed in ~${actualTimeMinutes} minutes (vs ~${sequentialTimeMinutes} minutes sequentially)`
+        `⚡ Completed in ~${actualTimeMinutes} minutes (vs ~${sequentialTimeMinutes} minutes sequentially)`,
       );
       addLog(
         `🚀 Speed improvement: ~${Math.round(
-          sequentialTimeMinutes / actualTimeMinutes
-        )}x faster!`
+          sequentialTimeMinutes / actualTimeMinutes,
+        )}x faster!`,
       );
     } catch (error) {
       addLog(`❌ Processing failed: ${error.message}`);
@@ -947,7 +948,7 @@ Respond in JSON format with your classification and reasoning:
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `gpt_classified_only_${new Date().toISOString().split("T")[0]}.csv`
+      `gpt_classified_only_${new Date().toISOString().split("T")[0]}.csv`,
     );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
@@ -982,7 +983,7 @@ Respond in JSON format with your classification and reasoning:
           const emails = getAllEmails(contact);
           if (emails.length === 0) {
             addLog(
-              `⚠️ Export Warning: Skipping classified contact with no name and no emails (index ${index})`
+              `⚠️ Export Warning: Skipping classified contact with no name and no emails (index ${index})`,
             );
             return;
           }
@@ -1001,7 +1002,7 @@ Respond in JSON format with your classification and reasoning:
         // Check for key collisions
         if (classifiedMap.has(key)) {
           addLog(
-            `⚠️ Export Warning: Duplicate key detected for ${firstName} ${lastName}, using index suffix`
+            `⚠️ Export Warning: Duplicate key detected for ${firstName} ${lastName}, using index suffix`,
           );
           classifiedMap.set(`${key}_${index}`, contact);
         } else {
@@ -1024,7 +1025,7 @@ Respond in JSON format with your classification and reasoning:
           for (const [mapKey, contact] of classifiedMap.entries()) {
             if (mapKey.startsWith(emailKey)) {
               addLog(
-                `📝 Export: Matched nameless contact by email: ${emails[0]}`
+                `📝 Export: Matched nameless contact by email: ${emails[0]}`,
               );
               return contact;
             }
@@ -1085,7 +1086,7 @@ Respond in JSON format with your classification and reasoning:
       "download",
       `all_contacts_with_gpt_updates_${
         new Date().toISOString().split("T")[0]
-      }.csv`
+      }.csv`,
     );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
@@ -1099,7 +1100,7 @@ Respond in JSON format with your classification and reasoning:
     addLog(`   ✅ ${classifiedCount} contacts with GPT classifications`);
     addLog(`   ➡️ ${unchangedCount} contacts unchanged`);
     addLog(
-      `   📋 Includes ALL contacts from original file (grouped + ungrouped)`
+      `   📋 Includes ALL contacts from original file (grouped + ungrouped)`,
     );
   };
 
@@ -1203,7 +1204,9 @@ Respond in JSON format with your classification and reasoning:
               <div className="text-center">
                 <div className="text-2xl font-bold text-purple-600">
                   {Math.ceil(
-                    (Math.ceil(ungroupedContacts.length / 5) * 2000) / 1000 / 60
+                    (Math.ceil(ungroupedContacts.length / 5) * 2000) /
+                      1000 /
+                      60,
                   )}
                   m
                 </div>

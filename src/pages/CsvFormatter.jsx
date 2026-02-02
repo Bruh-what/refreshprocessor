@@ -31,15 +31,15 @@ function CsvFormatter() {
   const parseCSV = (csvText) => {
     try {
       // Check if csvText is valid
-      if (!csvText || typeof csvText !== 'string') {
-        throw new Error('Invalid CSV content');
+      if (!csvText || typeof csvText !== "string") {
+        throw new Error("Invalid CSV content");
       }
-      
+
       // Check if csvText is too large (more than 100MB of text)
       if (csvText.length > 100 * 1024 * 1024) {
-        throw new Error('CSV content is too large to process');
+        throw new Error("CSV content is too large to process");
       }
-      
+
       const result = Papa.parse(csvText, {
         header: true,
         skipEmptyLines: true,
@@ -47,18 +47,18 @@ function CsvFormatter() {
         // Add some limits to prevent memory issues
         chunkSize: 10000, // Process in chunks
       });
-      
+
       if (result.errors && result.errors.length > 0) {
-        console.warn('CSV parsing warnings:', result.errors);
+        console.warn("CSV parsing warnings:", result.errors);
       }
-      
+
       return {
         headers: result.meta.fields || [],
         rows: result.data || [],
         originalText: csvText,
       };
     } catch (error) {
-      console.error('parseCSV error:', error);
+      console.error("parseCSV error:", error);
       throw new Error(`Failed to parse CSV: ${error.message}`);
     }
   };
@@ -67,7 +67,7 @@ function CsvFormatter() {
   const convertToCSV = (headers, rows) => {
     const csvHeader = headers.map((h) => `"${h}"`).join(",");
     const csvRows = rows.map((row) =>
-      headers.map((header) => `"${row[header] || ""}"`).join(",")
+      headers.map((header) => `"${row[header] || ""}"`).join(","),
     );
     return [csvHeader, ...csvRows].join("\n");
   };
@@ -123,7 +123,7 @@ function CsvFormatter() {
 
         // Check if the last part contains both state and zip
         const stateZipMatch = lastPart.match(
-          /^([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/
+          /^([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/,
         );
 
         if (stateZipMatch) {
@@ -224,12 +224,12 @@ function CsvFormatter() {
         (h) =>
           h &&
           h.toLowerCase().includes("selling") &&
-          h.toLowerCase().includes("agent")
+          h.toLowerCase().includes("agent"),
       ) || headers.find((h) => h && h.toLowerCase().includes("agent"));
 
     if (!agentColumn) {
       alert(
-        "Could not find a selling agent column in the CSV. Please check your file format."
+        "Could not find a selling agent column in the CSV. Please check your file format.",
       );
       return;
     }
@@ -239,7 +239,7 @@ function CsvFormatter() {
       (h) =>
         h &&
         h.toLowerCase().includes("buyer") &&
-        h.toLowerCase().includes("name")
+        h.toLowerCase().includes("name"),
     );
 
     // Create two sets of rows - all rows with formatting and filtered rows
@@ -379,12 +379,12 @@ function CsvFormatter() {
       // Add address parsing for all rows
       // Look for the most likely address column - try various patterns
       let addressColumn = headers.find(
-        (h) => h && h.toLowerCase() === "address" // Exact match first
+        (h) => h && h.toLowerCase() === "address", // Exact match first
       );
 
       if (!addressColumn) {
         addressColumn = headers.find(
-          (h) => h && h.toLowerCase().includes("property address") // Common in real estate data
+          (h) => h && h.toLowerCase().includes("property address"), // Common in real estate data
         );
       }
 
@@ -396,7 +396,7 @@ function CsvFormatter() {
             !h.includes("Line") &&
             !h.includes("City") &&
             !h.includes("State") &&
-            !h.includes("Zip")
+            !h.includes("Zip"),
         );
       }
 
@@ -437,7 +437,7 @@ function CsvFormatter() {
         filteredRows = allFormattedRows.filter(
           (row) =>
             row[agentColumn] &&
-            row[agentColumn].toLowerCase().includes(agentName)
+            row[agentColumn].toLowerCase().includes(agentName),
         );
       } else {
         // If no agent name provided, use all rows
@@ -502,7 +502,7 @@ function CsvFormatter() {
     a.href = url;
     a.download = `filtered_home_anniversaries_${step1Data.sellingAgent.replace(
       /\s+/g,
-      "_"
+      "_",
     )}.csv`;
     document.body.appendChild(a);
     a.click();
@@ -532,11 +532,13 @@ function CsvFormatter() {
     if (file) {
       // Check file size (limit to 50MB)
       if (file.size > 50 * 1024 * 1024) {
-        alert(`File is too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Please use a file smaller than 50MB.`);
-        event.target.value = ''; // Clear the input
+        alert(
+          `File is too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Please use a file smaller than 50MB.`,
+        );
+        event.target.value = ""; // Clear the input
         return;
       }
-      
+
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
@@ -547,17 +549,19 @@ function CsvFormatter() {
             ...prev,
             homeAnniversaryCsv: parsedData,
           }));
-          console.log(`✅ Home Anniversary CSV loaded: ${parsedData.rows.length} rows`);
+          console.log(
+            `✅ Home Anniversary CSV loaded: ${parsedData.rows.length} rows`,
+          );
         } catch (error) {
-          console.error('Error parsing home anniversary CSV:', error);
+          console.error("Error parsing home anniversary CSV:", error);
           alert(`Error processing file: ${error.message}`);
-          event.target.value = ''; // Clear the input
+          event.target.value = ""; // Clear the input
         }
       };
       reader.onerror = (error) => {
-        console.error('FileReader error:', error);
-        alert('Error reading file. Please try again.');
-        event.target.value = ''; // Clear the input
+        console.error("FileReader error:", error);
+        alert("Error reading file. Please try again.");
+        event.target.value = ""; // Clear the input
       };
       reader.readAsText(file);
     }
@@ -568,28 +572,32 @@ function CsvFormatter() {
     if (file) {
       // Check file size (limit to 50MB)
       if (file.size > 50 * 1024 * 1024) {
-        alert(`File is too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Please use a file smaller than 50MB.`);
-        event.target.value = ''; // Clear the input
+        alert(
+          `File is too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Please use a file smaller than 50MB.`,
+        );
+        event.target.value = ""; // Clear the input
         return;
       }
-      
+
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
           const csvText = e.target.result;
           const parsedData = parseCSV(csvText);
           setStep2Data((prev) => ({ ...prev, streamAppCsv: parsedData }));
-          console.log(`✅ Stream App CSV loaded: ${parsedData.rows.length} rows`);
+          console.log(
+            `✅ Stream App CSV loaded: ${parsedData.rows.length} rows`,
+          );
         } catch (error) {
-          console.error('Error parsing stream app CSV:', error);
+          console.error("Error parsing stream app CSV:", error);
           alert(`Error processing file: ${error.message}`);
-          event.target.value = ''; // Clear the input
+          event.target.value = ""; // Clear the input
         }
       };
       reader.onerror = (error) => {
-        console.error('FileReader error:', error);
-        alert('Error reading file. Please try again.');
-        event.target.value = ''; // Clear the input
+        console.error("FileReader error:", error);
+        alert("Error reading file. Please try again.");
+        event.target.value = ""; // Clear the input
       };
       reader.readAsText(file);
     }
@@ -659,24 +667,27 @@ function CsvFormatter() {
       // Helper functions for client transaction history analysis
       const normalizeNameForComparison = (name) => {
         if (!name) return "";
-        
+
         // Handle "Last, First" format
         if (name.includes(",")) {
-          const [last, first] = name.split(",").map(part => part.trim());
+          const [last, first] = name.split(",").map((part) => part.trim());
           return `${first.toLowerCase()} ${last.toLowerCase()}`.trim();
         }
-        
+
         return name.toLowerCase().trim();
       };
 
       const normalizeAddressForComparison = (address) => {
         if (!address) return "";
-        
+
         return address
           .toLowerCase()
-          .replace(/[^\w\s]/g, '') // Remove punctuation
-          .replace(/\s+/g, ' ') // Normalize whitespace
-          .replace(/\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|circle|cir|court|ct|place|pl)\b/g, '') // Remove common street suffixes
+          .replace(/[^\w\s]/g, "") // Remove punctuation
+          .replace(/\s+/g, " ") // Normalize whitespace
+          .replace(
+            /\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|circle|cir|court|ct|place|pl)\b/g,
+            "",
+          ) // Remove common street suffixes
           .trim();
       };
 
@@ -685,21 +696,21 @@ function CsvFormatter() {
           (h) =>
             h &&
             h.toLowerCase().includes("buyer") &&
-            h.toLowerCase().includes("name")
+            h.toLowerCase().includes("name"),
         );
         const haSellerNameCol = haHeaders.find(
           (h) =>
             h &&
             h.toLowerCase().includes("seller") &&
-            h.toLowerCase().includes("name")
+            h.toLowerCase().includes("name"),
         );
         const haAddressCol = haHeaders.find((h) =>
-          h.toLowerCase().includes("address")
+          h.toLowerCase().includes("address"),
         );
         const haAnnivCol = haHeaders.find(
           (h) =>
             h.toLowerCase().includes("anniversary") ||
-            h.toLowerCase().includes("date")
+            h.toLowerCase().includes("date"),
         );
 
         const clientHistory = new Map();
@@ -707,7 +718,9 @@ function CsvFormatter() {
         // First pass: collect all transactions for each client
         haRows.forEach((row) => {
           const buyerNameRaw = row[haBuyerNameCol] || "";
-          const sellerNameRaw = haSellerNameCol ? row[haSellerNameCol] || "" : "";
+          const sellerNameRaw = haSellerNameCol
+            ? row[haSellerNameCol] || ""
+            : "";
           const address = row[haAddressCol] || "";
           const date = row[haAnnivCol] || "";
 
@@ -718,8 +731,11 @@ function CsvFormatter() {
 
           // Process buyer transactions
           if (buyerNameRaw.trim()) {
-            const buyers = buyerNameRaw.split(/\s*[&|]\s*/).map(name => name.trim()).filter(Boolean);
-            buyers.forEach(buyer => {
+            const buyers = buyerNameRaw
+              .split(/\s*[&|]\s*/)
+              .map((name) => name.trim())
+              .filter(Boolean);
+            buyers.forEach((buyer) => {
               const normalizedName = normalizeNameForComparison(buyer);
               if (!clientHistory.has(normalizedName)) {
                 clientHistory.set(normalizedName, { buyer: [], seller: [] });
@@ -727,15 +743,18 @@ function CsvFormatter() {
               clientHistory.get(normalizedName).buyer.push({
                 address,
                 date: parsedDate,
-                rawDate: date
+                rawDate: date,
               });
             });
           }
 
           // Process seller transactions
           if (sellerNameRaw.trim()) {
-            const sellers = sellerNameRaw.split(/\s*[&|]\s*/).map(name => name.trim()).filter(Boolean);
-            sellers.forEach(seller => {
+            const sellers = sellerNameRaw
+              .split(/\s*[&|]\s*/)
+              .map((name) => name.trim())
+              .filter(Boolean);
+            sellers.forEach((seller) => {
               const normalizedName = normalizeNameForComparison(seller);
               if (!clientHistory.has(normalizedName)) {
                 clientHistory.set(normalizedName, { buyer: [], seller: [] });
@@ -743,7 +762,7 @@ function CsvFormatter() {
               clientHistory.get(normalizedName).seller.push({
                 address,
                 date: parsedDate,
-                rawDate: date
+                rawDate: date,
               });
             });
           }
@@ -766,7 +785,7 @@ function CsvFormatter() {
             homeAnniversaryDate: buyer.length > 0 ? buyer[0].rawDate : null,
             homeAddress: buyer.length > 0 ? buyer[0].address : null,
             closedDate: null,
-            tags: []
+            tags: [],
           };
 
           // Handle clients who are both buyers and sellers
@@ -775,8 +794,12 @@ function CsvFormatter() {
             const firstSellerTransaction = seller[0];
 
             // Check if any buyer address matches any seller address
-            const addressMatch = buyer.some(b => 
-              seller.some(s => normalizeAddressForComparison(b.address) === normalizeAddressForComparison(s.address))
+            const addressMatch = buyer.some((b) =>
+              seller.some(
+                (s) =>
+                  normalizeAddressForComparison(b.address) ===
+                  normalizeAddressForComparison(s.address),
+              ),
             );
 
             if (addressMatch) {
@@ -787,7 +810,7 @@ function CsvFormatter() {
                 homeAnniversaryDate: null,
                 homeAddress: null,
                 closedDate: firstSellerTransaction.rawDate,
-                tags: ["Buyer", "Seller"]
+                tags: ["Buyer", "Seller"],
               };
             } else {
               // Rule 1: Different addresses - treat as buyer
@@ -797,7 +820,7 @@ function CsvFormatter() {
                 homeAnniversaryDate: firstBuyerTransaction.rawDate,
                 homeAddress: firstBuyerTransaction.address,
                 closedDate: null,
-                tags: ["Buyer", "Seller"]
+                tags: ["Buyer", "Seller"],
               };
             }
           } else if (buyer.length > 0) {
@@ -821,27 +844,27 @@ function CsvFormatter() {
         (h) =>
           h &&
           h.toLowerCase().includes("buyer") &&
-          h.toLowerCase().includes("name")
+          h.toLowerCase().includes("name"),
       );
       const haSellerNameCol = haHeaders.find(
         (h) =>
           h &&
           h.toLowerCase().includes("seller") &&
-          h.toLowerCase().includes("name")
+          h.toLowerCase().includes("name"),
       );
       const haAddressCol = haHeaders.find((h) =>
-        h.toLowerCase().includes("address")
+        h.toLowerCase().includes("address"),
       );
       const haAnnivCol = haHeaders.find(
         (h) =>
           h.toLowerCase().includes("anniversary") ||
-          h.toLowerCase().includes("date")
+          h.toLowerCase().includes("date"),
       );
       const haSellingAgentCol = haHeaders.find(
         (h) =>
           h &&
           h.toLowerCase().includes("selling") &&
-          h.toLowerCase().includes("agent")
+          h.toLowerCase().includes("agent"),
       );
 
       // Add listing agent column detection
@@ -849,12 +872,12 @@ function CsvFormatter() {
         (h) =>
           h &&
           h.toLowerCase().includes("listing") &&
-          h.toLowerCase().includes("agent")
+          h.toLowerCase().includes("agent"),
       );
 
       if (!haBuyerNameCol || !haAnnivCol) {
         alert(
-          "Could not find buyer name or anniversary date columns in the home anniversary CSV."
+          "Could not find buyer name or anniversary date columns in the home anniversary CSV.",
         );
         return;
       }
@@ -865,22 +888,22 @@ function CsvFormatter() {
 
       // Find relevant columns in stream app CSV
       const saFirstNameCol = saHeaders.find(
-        (h) => h.toLowerCase().replace(/\s/g, "") === "firstname"
+        (h) => h.toLowerCase().replace(/\s/g, "") === "firstname",
       );
       const saLastNameCol = saHeaders.find(
-        (h) => h.toLowerCase().replace(/\s/g, "") === "lastname"
+        (h) => h.toLowerCase().replace(/\s/g, "") === "lastname",
       );
 
       if (!saFirstNameCol || !saLastNameCol) {
         alert(
-          "Could not find first name or last name columns in the Compass contacts CSV."
+          "Could not find first name or last name columns in the Compass contacts CSV.",
         );
         return;
       }
 
       // Check if Home Anniversary column exists, if not we'll create it
       let saHomeAnnivCol = saHeaders.find((h) =>
-        h.toLowerCase().includes("home anniversary")
+        h.toLowerCase().includes("home anniversary"),
       );
 
       // Create a deep copy of the stream app rows to modify
@@ -897,7 +920,7 @@ function CsvFormatter() {
 
       // Add Closed Date column right after Home Anniversary
       let saClosedDateCol = saHeaders.find((h) =>
-        h.toLowerCase().includes("closed date")
+        h.toLowerCase().includes("closed date"),
       );
 
       if (!saClosedDateCol) {
@@ -947,18 +970,21 @@ function CsvFormatter() {
         currentOperation: "Analyzing client transaction history...",
         progress: 10,
       }));
-      
-      const clientTreatment = analyzeClientTransactionHistory(haRows, haHeaders);
-      
+
+      const clientTreatment = analyzeClientTransactionHistory(
+        haRows,
+        haHeaders,
+      );
+
       console.log("📊 CLIENT TREATMENT ANALYSIS:");
       console.log(`Found ${clientTreatment.size} unique clients`);
-      
+
       // Log some examples for debugging
       let exampleCount = 0;
       let buyerSellerCount = 0;
       let buyerOnlyCount = 0;
       let sellerOnlyCount = 0;
-      
+
       clientTreatment.forEach((treatment, clientName) => {
         if (treatment.tags.length > 1) {
           buyerSellerCount++;
@@ -972,9 +998,11 @@ function CsvFormatter() {
           sellerOnlyCount++;
         }
       });
-      
+
       console.log(`📈 Analysis Summary:`);
-      console.log(`  - Buyer + Seller (move-up/same property): ${buyerSellerCount}`);
+      console.log(
+        `  - Buyer + Seller (move-up/same property): ${buyerSellerCount}`,
+      );
       console.log(`  - Buyer only: ${buyerOnlyCount}`);
       console.log(`  - Seller only: ${sellerOnlyCount}`);
 
@@ -1101,7 +1129,7 @@ function CsvFormatter() {
           if (normalizedName.includes("Rhodes")) {
             console.log(
               "🔍 Rhodes Debug - preprocessBuyerName:",
-              normalizedName
+              normalizedName,
             );
           }
 
@@ -1115,14 +1143,14 @@ function CsvFormatter() {
             .map((name) => name.trim());
 
           const result = firstNames.map(
-            (firstName) => `${lastPart},${firstName}`
+            (firstName) => `${lastPart},${firstName}`,
           );
 
           // DEBUG: Log Rhodes result
           if (normalizedName.includes("Rhodes")) {
             console.log(
               "🔍 Rhodes Debug - preprocessBuyerName result:",
-              result
+              result,
             );
           }
 
@@ -1143,7 +1171,7 @@ function CsvFormatter() {
         firstNameCol,
         lastNameCol,
         homeAnnivCol,
-        closedDateCol
+        closedDateCol,
       ) => {
         const separateRows = [];
 
@@ -1510,13 +1538,15 @@ function CsvFormatter() {
 
                 buyerNames.forEach((name) => {
                   if (name && name.trim()) {
-                    const normalizedName = normalizeNameForComparison(name.trim());
+                    const normalizedName = normalizeNameForComparison(
+                      name.trim(),
+                    );
                     const treatment = clientTreatment.get(normalizedName);
-                    
+
                     contactsToProcess.push({
                       name: name.trim(),
                       isBuyer: true,
-                      treatment: treatment // Include treatment analysis
+                      treatment: treatment, // Include treatment analysis
                     });
                   }
                 });
@@ -1529,13 +1559,15 @@ function CsvFormatter() {
                 const sellerNames = preprocessBuyerName(sellerNameRaw); // Same preprocessing function works for sellers
                 sellerNames.forEach((name) => {
                   if (name && name.trim()) {
-                    const normalizedName = normalizeNameForComparison(name.trim());
+                    const normalizedName = normalizeNameForComparison(
+                      name.trim(),
+                    );
                     const treatment = clientTreatment.get(normalizedName);
-                    
+
                     contactsToProcess.push({
                       name: name.trim(),
                       isBuyer: false, // This is a seller
-                      treatment: treatment // Include treatment analysis
+                      treatment: treatment, // Include treatment analysis
                     });
                   }
                 });
@@ -1581,7 +1613,7 @@ function CsvFormatter() {
 
                 // Find non-initial parts for the main name
                 const nonInitialParts = nameParts.filter(
-                  (part) => !isLikelyInitial(part)
+                  (part) => !isLikelyInitial(part),
                 );
 
                 // If we have at least 2 non-initial parts, use first and last of those
@@ -1769,7 +1801,7 @@ function CsvFormatter() {
               nameInfo,
               saFirstName,
               saLastName,
-              saCompany = ""
+              saCompany = "",
             ) => {
               saFirstName = (saFirstName || "").trim().toLowerCase();
               saLastName = (saLastName || "").trim().toLowerCase();
@@ -1817,7 +1849,7 @@ function CsvFormatter() {
                 // Normalized versions for company name matching
                 const normalizedCompanyName = companyName.replace(
                   /[^\w\s]/g,
-                  ""
+                  "",
                 );
                 const normalizedFullName =
                   `${saFirstName} ${saLastName}`.replace(/[^\w\s]/g, "");
@@ -1832,7 +1864,7 @@ function CsvFormatter() {
                 const escapedCompanyName = escapeRegex(companyName);
                 const boundaryMatch =
                   new RegExp(`\\b${escapedCompanyName}\\b`).test(
-                    `${saFirstName} ${saLastName}`
+                    `${saFirstName} ${saLastName}`,
                   ) ||
                   (saCompany &&
                     new RegExp(`\\b${escapedCompanyName}\\b`).test(saCompany));
@@ -1861,13 +1893,13 @@ function CsvFormatter() {
                   matchType: firstNameMatch
                     ? "single-name-first-match"
                     : lastNameMatch
-                    ? "single-name-last-match"
-                    : null,
+                      ? "single-name-last-match"
+                      : null,
                   details: firstNameMatch
                     ? `Single name "${singleName}" matched first name`
                     : lastNameMatch
-                    ? `Single name "${singleName}" matched last name`
-                    : null,
+                      ? `Single name "${singleName}" matched last name`
+                      : null,
                 };
               }
 
@@ -1998,7 +2030,7 @@ function CsvFormatter() {
 
                 // 2. Simplified name match - using the simplifyName function to handle middle names/initials
                 const simplifiedBuyerName = simplifyName(
-                  `${nameInfo.firstName} ${nameInfo.lastName}`
+                  `${nameInfo.firstName} ${nameInfo.lastName}`,
                 ).toLowerCase();
                 const simplifiedBuyerParts = simplifiedBuyerName.split(/\s+/);
                 const simplifiedBuyerFirst = simplifiedBuyerParts[0];
@@ -2052,10 +2084,10 @@ function CsvFormatter() {
                     .includes(nameInfo.lastName.toLowerCase()) &&
                   // Ensure the last name is a complete word OR at the end of the string
                   (new RegExp(`\\b${nameInfo.lastName.toLowerCase()}\\b`).test(
-                    saLastName.toLowerCase()
+                    saLastName.toLowerCase(),
                   ) ||
                     new RegExp(`\\b${nameInfo.lastName.toLowerCase()}$`).test(
-                      saLastName.toLowerCase()
+                      saLastName.toLowerCase(),
                     ));
 
                 if (lastNameMiddleMatch) {
@@ -2134,10 +2166,10 @@ function CsvFormatter() {
                     exactFirstNameMatch &&
                     saLastName.toLowerCase().includes(format.lastName) &&
                     (new RegExp(`\\b${format.lastName}\\b`).test(
-                      saLastName.toLowerCase()
+                      saLastName.toLowerCase(),
                     ) ||
                       new RegExp(`\\b${format.lastName}$`).test(
-                        saLastName.toLowerCase()
+                        saLastName.toLowerCase(),
                       ));
 
                   if (middleNameMatch) {
@@ -2266,7 +2298,7 @@ function CsvFormatter() {
 
                   // Also check the Company field if it exists
                   const saCompanyField = saHeaders.find((h) =>
-                    h.toLowerCase().includes("company")
+                    h.toLowerCase().includes("company"),
                   );
                   const saCompany = saCompanyField
                     ? (saRow[saCompanyField] || "").trim()
@@ -2277,7 +2309,7 @@ function CsvFormatter() {
                     nameInfo,
                     saFirstName,
                     saLastName,
-                    saCompany
+                    saCompany,
                   );
 
                   // DEBUG: Log Marsha matching specifically
@@ -2305,25 +2337,28 @@ function CsvFormatter() {
 
                     // Update the appropriate date field based on buyer vs seller
                     // Use client treatment analysis to determine proper tags and date handling
-                    const normalizedContactName = normalizeNameForComparison(contactName);
+                    const normalizedContactName =
+                      normalizeNameForComparison(contactName);
                     const treatment = contactInfo.treatment;
-                    
+
                     let finalTags = [];
                     let dateToUse = anniversaryDate;
                     let useHomeAnniversary = contactInfo.isBuyer;
                     let useClosedDate = !contactInfo.isBuyer;
-                    
+
                     if (treatment) {
                       // Override with treatment analysis results
                       finalTags = [...treatment.tags];
-                      
+
                       if (treatment.treatAsBuyer) {
                         // Treat as buyer - use home anniversary date and address
-                        dateToUse = treatment.homeAnniversaryDate || anniversaryDate;
+                        dateToUse =
+                          treatment.homeAnniversaryDate || anniversaryDate;
                         useHomeAnniversary = true;
                         useClosedDate = false;
                         // Add standard buyer tags if not already present
-                        if (!finalTags.includes("Buyer")) finalTags.push("Buyer");
+                        if (!finalTags.includes("Buyer"))
+                          finalTags.push("Buyer");
                         finalTags.push("CRM: Home Anniversary");
                       } else if (treatment.treatAsSeller) {
                         // Treat as seller - use closed date
@@ -2331,15 +2366,20 @@ function CsvFormatter() {
                         useHomeAnniversary = false;
                         useClosedDate = true;
                         // Add standard seller tags if not already present
-                        if (!finalTags.includes("Seller")) finalTags.push("Seller");
+                        if (!finalTags.includes("Seller"))
+                          finalTags.push("Seller");
                         finalTags.push("CRM: Closed Date");
                       }
                     } else {
                       // Fall back to original logic if no treatment available
                       finalTags = contactInfo.isBuyer ? ["Buyer"] : ["Seller"];
-                      finalTags.push(contactInfo.isBuyer ? "CRM: Home Anniversary" : "CRM: Closed Date");
+                      finalTags.push(
+                        contactInfo.isBuyer
+                          ? "CRM: Home Anniversary"
+                          : "CRM: Closed Date",
+                      );
                     }
-                    
+
                     // Apply appropriate date based on treatment
                     let oldValue = "";
                     if (useHomeAnniversary) {
@@ -2364,9 +2404,11 @@ function CsvFormatter() {
                     }
 
                     // Extract year from the date we're actually using
-                    const dateYear = dateToUse ? new Date(dateToUse).getFullYear() : "";
+                    const dateYear = dateToUse
+                      ? new Date(dateToUse).getFullYear()
+                      : "";
                     if (dateYear) finalTags.push(`${dateYear}`);
-                    
+
                     const tagsToAdd = finalTags.filter(Boolean);
 
                     // Update or add the Tags field with consistent formatting
@@ -2379,7 +2421,7 @@ function CsvFormatter() {
                     existingTagsArray = existingTagsArray.filter(
                       (tag) =>
                         !tag.toLowerCase().includes("crm refresh") ||
-                        !tag.toLowerCase().includes("home anniversary")
+                        !tag.toLowerCase().includes("home anniversary"),
                     );
 
                     // Add new tags that don't already exist
@@ -2400,10 +2442,10 @@ function CsvFormatter() {
                       : "seller";
                     const newChanges = [];
                     newChanges.push(
-                      `Updated existing contact as ${contactType}`
+                      `Updated existing contact as ${contactType}`,
                     );
                     newChanges.push(
-                      `Added home anniversary date (${anniversaryDate})`
+                      `Added home anniversary date (${anniversaryDate})`,
                     );
                     if (addedTags.length > 0) {
                       newChanges.push(`Tags added: ${addedTags.join(", ")}`);
@@ -2604,7 +2646,7 @@ function CsvFormatter() {
                 const matchResult = isNameMatch(
                   nameInfo,
                   saFirstName,
-                  saLastName
+                  saLastName,
                 );
 
                 // DEBUG: Log Marsha match results
@@ -2628,21 +2670,23 @@ function CsvFormatter() {
                   }
 
                   // Use client treatment analysis to determine proper tags and date handling
-                  const normalizedContactName = normalizeNameForComparison(contactName);
+                  const normalizedContactName =
+                    normalizeNameForComparison(contactName);
                   const treatment = contactInfo.treatment;
-                  
+
                   let finalTags = [];
                   let dateToUse = anniversaryDate;
                   let useHomeAnniversary = contactInfo.isBuyer;
                   let useClosedDate = !contactInfo.isBuyer;
-                  
+
                   if (treatment) {
                     // Override with treatment analysis results
                     finalTags = [...treatment.tags];
-                    
+
                     if (treatment.treatAsBuyer) {
                       // Treat as buyer - use home anniversary date and address
-                      dateToUse = treatment.homeAnniversaryDate || anniversaryDate;
+                      dateToUse =
+                        treatment.homeAnniversaryDate || anniversaryDate;
                       useHomeAnniversary = true;
                       useClosedDate = false;
                       // Add standard buyer tags if not already present
@@ -2654,15 +2698,20 @@ function CsvFormatter() {
                       useHomeAnniversary = false;
                       useClosedDate = true;
                       // Add standard seller tags if not already present
-                      if (!finalTags.includes("Seller")) finalTags.push("Seller");
+                      if (!finalTags.includes("Seller"))
+                        finalTags.push("Seller");
                       finalTags.push("CRM: Closed Date");
                     }
                   } else {
                     // Fall back to original logic if no treatment available
                     finalTags = contactInfo.isBuyer ? ["Buyer"] : ["Seller"];
-                    finalTags.push(contactInfo.isBuyer ? "CRM: Home Anniversary" : "CRM: Closed Date");
+                    finalTags.push(
+                      contactInfo.isBuyer
+                        ? "CRM: Home Anniversary"
+                        : "CRM: Closed Date",
+                    );
                   }
-                  
+
                   // Apply appropriate date based on treatment
                   let oldValue = "";
                   if (useHomeAnniversary) {
@@ -2687,10 +2736,12 @@ function CsvFormatter() {
                   }
 
                   // Extract year from the date we're actually using
-                  const dateYear = dateToUse ? new Date(dateToUse).getFullYear() : "";
+                  const dateYear = dateToUse
+                    ? new Date(dateToUse).getFullYear()
+                    : "";
                   if (dateYear) finalTags.push(`${dateYear}`);
-                  
-                  const tagsToAdd = finalTags.filter(Boolean);            // Update or add the Tags field with consistent formatting
+
+                  const tagsToAdd = finalTags.filter(Boolean); // Update or add the Tags field with consistent formatting
                   const existingTags = updatedSaRows[saIndex]["Tags"] || "";
                   let existingTagsArray = existingTags
                     ? existingTags.split(",").map((t) => t.trim())
@@ -2700,7 +2751,7 @@ function CsvFormatter() {
                   existingTagsArray = existingTagsArray.filter(
                     (tag) =>
                       !tag.toLowerCase().includes("crm refresh") ||
-                      !tag.toLowerCase().includes("home anniversary")
+                      !tag.toLowerCase().includes("home anniversary"),
                   );
 
                   // Add new tags that don't already exist
@@ -2721,7 +2772,7 @@ function CsvFormatter() {
                   newChanges.push(
                     `Added ${
                       contactInfo.isBuyer ? "home anniversary" : "closed"
-                    } date (${anniversaryDate})`
+                    } date (${anniversaryDate})`,
                   );
                   if (addedTags.length > 0) {
                     newChanges.push(`Tags added: ${addedTags.join(", ")}`);
@@ -2736,7 +2787,7 @@ function CsvFormatter() {
                   const notes = `Updated existing contact as ${contactType}: Added ${
                     contactInfo.isBuyer ? "home anniversary" : "closed"
                   } date (${anniversaryDate}). Tags added: ${addedTags.join(
-                    ", "
+                    ", ",
                   )}`;
                   updatedSaRows[saIndex]["Notes"] = notes;
 
@@ -2775,20 +2826,22 @@ function CsvFormatter() {
                 // Create different tags based on whether this is a buyer or seller
                 const contactType = contactInfo.isBuyer ? "buyer" : "seller";
                 // Use client treatment analysis to determine proper tags and date handling for new contacts
-                const normalizedContactName = normalizeNameForComparison(contactName);
+                const normalizedContactName =
+                  normalizeNameForComparison(contactName);
                 const treatment = contactInfo.treatment;
-                
+
                 let finalTags = [];
                 let dateToUse = anniversaryDate;
                 let isBuyerForNewContact = contactInfo.isBuyer;
-                
+
                 if (treatment) {
                   // Override with treatment analysis results
                   finalTags = [...treatment.tags];
-                  
+
                   if (treatment.treatAsBuyer) {
                     // Treat as buyer - use home anniversary date
-                    dateToUse = treatment.homeAnniversaryDate || anniversaryDate;
+                    dateToUse =
+                      treatment.homeAnniversaryDate || anniversaryDate;
                     isBuyerForNewContact = true;
                     // Add standard buyer tags if not already present
                     if (!finalTags.includes("Buyer")) finalTags.push("Buyer");
@@ -2804,13 +2857,19 @@ function CsvFormatter() {
                 } else {
                   // Fall back to original logic if no treatment available
                   finalTags = contactInfo.isBuyer ? ["Buyer"] : ["Seller"];
-                  finalTags.push(contactInfo.isBuyer ? "CRM: Home Anniversary" : "CRM: Closed Date");
+                  finalTags.push(
+                    contactInfo.isBuyer
+                      ? "CRM: Home Anniversary"
+                      : "CRM: Closed Date",
+                  );
                 }
-                
+
                 // Extract year from the date we're actually using
-                const dateYear = dateToUse ? new Date(dateToUse).getFullYear() : "";
+                const dateYear = dateToUse
+                  ? new Date(dateToUse).getFullYear()
+                  : "";
                 if (dateYear) finalTags.push(`${dateYear}`);
-                
+
                 const newEntryTags = finalTags.filter(Boolean).join(", ");
 
                 // Clean first and last names - remove any middle initials/names
@@ -2843,7 +2902,7 @@ function CsvFormatter() {
                   saFirstNameCol,
                   saLastNameCol,
                   saHomeAnnivCol,
-                  saClosedDateCol
+                  saClosedDateCol,
                 );
 
                 // Add all the separate rows
@@ -2861,7 +2920,7 @@ function CsvFormatter() {
               }
             });
           });
-        }
+        },
       );
 
       // Track which entries from the home anniversaries file were processed
@@ -3070,7 +3129,7 @@ function CsvFormatter() {
             // Mark as processed
             processedEntries.add(entryKey);
           });
-        }
+        },
       );
 
       // Create the output CSV with updated headers and rows
@@ -3110,14 +3169,14 @@ function CsvFormatter() {
 
       console.log(`📋 LISTING AGENT ANALYSIS:`);
       console.log(
-        `🏠 Total transactions where you're listing agent: ${listingAgentCount}`
+        `🏠 Total transactions where you're listing agent: ${listingAgentCount}`,
       );
       console.log(
-        `❌ Transactions with empty seller names: ${emptySellerCount}`
+        `❌ Transactions with empty seller names: ${emptySellerCount}`,
       );
       if (emptySellerCount > 0) {
         console.log(
-          `⚠️  ${emptySellerCount} seller transactions were skipped due to missing seller names in your CSV data.`
+          `⚠️  ${emptySellerCount} seller transactions were skipped due to missing seller names in your CSV data.`,
         );
 
         // Show user-friendly notification about missing seller data
@@ -3148,7 +3207,7 @@ function CsvFormatter() {
     } catch (error) {
       console.error("Error processing data:", error);
       alert(
-        "An error occurred while processing the data. Please try again with a smaller file or check the console for details."
+        "An error occurred while processing the data. Please try again with a smaller file or check the console for details.",
       );
 
       setStep3Data((prev) => ({
@@ -3215,7 +3274,7 @@ function CsvFormatter() {
 
     if (!step3Data.processedData || !step2Data.homeAnniversaryCsv) {
       alert(
-        "Please complete processing first to generate the transaction log."
+        "Please complete processing first to generate the transaction log.",
       );
       return;
     }
@@ -3230,37 +3289,37 @@ function CsvFormatter() {
       (h) =>
         h &&
         h.toLowerCase().includes("buyer") &&
-        h.toLowerCase().includes("name")
+        h.toLowerCase().includes("name"),
     );
     const haSellerNameCol = haHeaders.find(
       (h) =>
         h &&
         h.toLowerCase().includes("seller") &&
-        h.toLowerCase().includes("name")
+        h.toLowerCase().includes("name"),
     );
     const haAddressCol = haHeaders.find((h) =>
-      h.toLowerCase().includes("address")
+      h.toLowerCase().includes("address"),
     );
     const haAnnivCol = haHeaders.find(
       (h) =>
         h.toLowerCase().includes("anniversary") ||
-        h.toLowerCase().includes("date")
+        h.toLowerCase().includes("date"),
     );
     const haSalePriceCol = haHeaders.find(
       (h) =>
-        h.toLowerCase().includes("sold") && h.toLowerCase().includes("price")
+        h.toLowerCase().includes("sold") && h.toLowerCase().includes("price"),
     );
     const haSellingAgentCol = haHeaders.find(
       (h) =>
         h &&
         h.toLowerCase().includes("selling") &&
-        h.toLowerCase().includes("agent")
+        h.toLowerCase().includes("agent"),
     );
     const haListingAgentCol = haHeaders.find(
       (h) =>
         h &&
         h.toLowerCase().includes("listing") &&
-        h.toLowerCase().includes("agent")
+        h.toLowerCase().includes("agent"),
     );
 
     // Helper function for agent matching (same as main processing)
@@ -3356,7 +3415,7 @@ function CsvFormatter() {
           if (searchFirst && searchLast) {
             // Debug: show what we're searching for
             console.log(
-              `🔍 Looking for buyer: "${searchFirst}" "${searchLast}"`
+              `🔍 Looking for buyer: "${searchFirst}" "${searchLast}"`,
             );
 
             processedContacts.forEach((contact) => {
@@ -3381,14 +3440,14 @@ function CsvFormatter() {
                 console.log(
                   `✅ Found match: "${firstName}" "${lastName}" - Phone: ${
                     contact["Primary Mobile Phone"] || "none"
-                  } - Email: ${contact["Primary Work Email"] || "none"}`
+                  } - Email: ${contact["Primary Work Email"] || "none"}`,
                 );
               }
             });
 
             if (!matchedContact) {
               console.log(
-                `❌ No match found for: "${searchFirst}" "${searchLast}"`
+                `❌ No match found for: "${searchFirst}" "${searchLast}"`,
               );
             }
           }
@@ -3412,7 +3471,7 @@ function CsvFormatter() {
             // Look for phone in any phone column
             const phoneColumns = Object.keys(matchedContact).filter(
               (key) =>
-                key.toLowerCase().includes("phone") && matchedContact[key]
+                key.toLowerCase().includes("phone") && matchedContact[key],
             );
             phone =
               phoneColumns.length > 0 ? matchedContact[phoneColumns[0]] : "";
@@ -3420,7 +3479,7 @@ function CsvFormatter() {
             // Look for email in any email column
             const emailColumns = Object.keys(matchedContact).filter(
               (key) =>
-                key.toLowerCase().includes("email") && matchedContact[key]
+                key.toLowerCase().includes("email") && matchedContact[key],
             );
             email =
               emailColumns.length > 0 ? matchedContact[emailColumns[0]] : "";
@@ -3475,7 +3534,7 @@ function CsvFormatter() {
           if (searchFirst && searchLast) {
             // Debug: show what we're searching for
             console.log(
-              `🔍 Looking for seller: "${searchFirst}" "${searchLast}"`
+              `🔍 Looking for seller: "${searchFirst}" "${searchLast}"`,
             );
 
             processedContacts.forEach((contact) => {
@@ -3500,14 +3559,14 @@ function CsvFormatter() {
                 console.log(
                   `✅ Found match: "${firstName}" "${lastName}" - Phone: ${
                     contact["Primary Mobile Phone"] || "none"
-                  } - Email: ${contact["Primary Work Email"] || "none"}`
+                  } - Email: ${contact["Primary Work Email"] || "none"}`,
                 );
               }
             });
 
             if (!matchedContact) {
               console.log(
-                `❌ No match found for: "${searchFirst}" "${searchLast}"`
+                `❌ No match found for: "${searchFirst}" "${searchLast}"`,
               );
             }
           }
@@ -3531,7 +3590,7 @@ function CsvFormatter() {
             // Look for phone in any phone column
             const phoneColumns = Object.keys(matchedContact).filter(
               (key) =>
-                key.toLowerCase().includes("phone") && matchedContact[key]
+                key.toLowerCase().includes("phone") && matchedContact[key],
             );
             phone =
               phoneColumns.length > 0 ? matchedContact[phoneColumns[0]] : "";
@@ -3539,7 +3598,7 @@ function CsvFormatter() {
             // Look for email in any email column
             const emailColumns = Object.keys(matchedContact).filter(
               (key) =>
-                key.toLowerCase().includes("email") && matchedContact[key]
+                key.toLowerCase().includes("email") && matchedContact[key],
             );
             email =
               emailColumns.length > 0 ? matchedContact[emailColumns[0]] : "";
@@ -3564,7 +3623,7 @@ function CsvFormatter() {
 
     if (transactionLogEntries.length === 0) {
       alert(
-        "No transaction log entries found. Make sure you have processed data with matching agent roles."
+        "No transaction log entries found. Make sure you have processed data with matching agent roles.",
       );
       return;
     }
@@ -3990,8 +4049,8 @@ function CsvFormatter() {
                       {step3Data.isProcessing
                         ? "🔄 Processing..."
                         : !step2Data.mainSellingAgent.trim()
-                        ? "⚠️ Enter Agent Name First"
-                        : "🔄 Process Data"}
+                          ? "⚠️ Enter Agent Name First"
+                          : "🔄 Process Data"}
                     </button>
                   </div>
                 ) : (
@@ -4165,7 +4224,7 @@ function CsvFormatter() {
                                 .filter(
                                   (log) =>
                                     log.type === "match" ||
-                                    log.type === "company_match"
+                                    log.type === "company_match",
                                 )
                                 .map((log, idx) => (
                                   <div key={idx} className="change-entry match">
@@ -4199,7 +4258,7 @@ function CsvFormatter() {
                                 .filter(
                                   (log) =>
                                     log.type === "no_match" ||
-                                    log.type === "no_match_company"
+                                    log.type === "no_match_company",
                                 )
                                 .map((log, idx) => (
                                   <div
@@ -4233,7 +4292,7 @@ function CsvFormatter() {
                                 .filter(
                                   (log) =>
                                     log.type === "skipped_single_name" ||
-                                    log.type === "skipped_incomplete"
+                                    log.type === "skipped_incomplete",
                                 )
                                 .map((log, idx) => (
                                   <div key={idx} className="change-entry skip">
@@ -4254,7 +4313,7 @@ function CsvFormatter() {
                                   (log) =>
                                     log.type === "no_match_added" ||
                                     log.type === "no_match_company_added" ||
-                                    log.type === "single_name_added"
+                                    log.type === "single_name_added",
                                 )
                                 .map((log, idx) => (
                                   <div key={idx} className="change-entry info">
