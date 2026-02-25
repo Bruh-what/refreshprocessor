@@ -11,6 +11,7 @@ import GPTClassifier from "./components/GPTClassifier.jsx";
 import PhoneConsolidator from "./components/PhoneConsolidator.jsx";
 import LeadTagger from "./components/LeadTagger.jsx";
 import MergedBro from "./components/MergedBro.jsx";
+import Demo from "./pages/Demo.jsx";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -19,6 +20,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <Layout>
         <Routes>
           <Route path="/" element={<App />} />
+          <Route path="/demo" element={<Demo />} />
           <Route path="/import-mapper" element={<ImportMapperPage />} />
           <Route path="/csv-formatter" element={<CsvFormatter />} />
           <Route
