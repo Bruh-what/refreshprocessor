@@ -14,6 +14,8 @@ const Demo = () => {
     phoneContacts: null,
   });
 
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const handleFileChange = (fieldName, file) => {
     setFiles((prev) => ({
       ...prev,
@@ -39,24 +41,31 @@ const Demo = () => {
     }
   };
 
-  const handleUpload = (fieldName) => {
-    if (!files[fieldName]) {
-      alert("Please select a file first");
+  const handleProcess = () => {
+    // Check if all files are uploaded
+    if (!files.followupboss || !files.compassContacts || !files.phoneContacts) {
+      alert("Please upload all three files before processing");
       return;
     }
-    
-    // Simulate upload
-    setUploadStatus((prev) => ({
-      ...prev,
-      [fieldName]: "uploading",
-    }));
 
+    setIsProcessing(true);
+
+    // Simulate processing
     setTimeout(() => {
-      setUploadStatus((prev) => ({
-        ...prev,
-        [fieldName]: "success",
-      }));
-    }, 1500);
+      setIsProcessing(false);
+      alert("Files processed successfully!");
+      // Reset files after processing
+      setFiles({
+        followupboss: null,
+        compassContacts: null,
+        phoneContacts: null,
+      });
+      setUploadStatus({
+        followupboss: null,
+        compassContacts: null,
+        phoneContacts: null,
+      });
+    }, 2000);
   };
 
   const getFieldLabel = (fieldName) => {
@@ -73,14 +82,13 @@ const Demo = () => {
     const status = uploadStatus[fieldName];
 
     return (
-      <div className="upload-field">
-        <div className="field-header">
-          <h3>{label}</h3>
-          <p className="field-description">Upload your {label.toLowerCase()} file</p>
+      <div className="upload-field-compact">
+        <div className="field-label">
+          <label htmlFor={`file-${fieldName}`}>{label}</label>
         </div>
 
         <div
-          className={`upload-area ${file ? "has-file" : ""}`}
+          className={`upload-area-compact ${file ? "has-file" : ""}`}
           onDragOver={handleDragOver}
           onDrop={(e) => handleDrop(e, fieldName)}
         >
@@ -95,11 +103,11 @@ const Demo = () => {
           />
 
           {!file ? (
-            <label htmlFor={`file-${fieldName}`} className="upload-label">
-              <div className="upload-icon">
+            <label htmlFor={`file-${fieldName}`} className="upload-label-compact">
+              <div className="upload-icon-small">
                 <svg
-                  width="24"
-                  height="24"
+                  width="20"
+                  height="20"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -110,17 +118,14 @@ const Demo = () => {
                   <line x1="12" y1="3" x2="12" y2="15"></line>
                 </svg>
               </div>
-              <span className="upload-text">
-                <strong>Click to upload</strong> or drag and drop
-              </span>
-              <span className="upload-hint">CSV or Excel files</span>
+              <span className="upload-text-compact">Click or drag file</span>
             </label>
           ) : (
-            <div className="file-info">
-              <div className="file-icon">
+            <div className="file-info-compact">
+              <div className="file-icon-small">
                 <svg
-                  width="24"
-                  height="24"
+                  width="18"
+                  height="18"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -130,17 +135,17 @@ const Demo = () => {
                   <polyline points="13 2 13 9 20 9"></polyline>
                 </svg>
               </div>
-              <div className="file-details">
-                <p className="file-name">{file.name}</p>
-                <p className="file-size">
+              <div className="file-details-compact">
+                <p className="file-name-compact">{file.name}</p>
+                <p className="file-size-compact">
                   {(file.size / 1024 / 1024).toFixed(2)} MB
                 </p>
               </div>
               {status === "success" && (
-                <div className="status-icon success">
+                <div className="status-icon-compact success">
                   <svg
-                    width="20"
-                    height="20"
+                    width="18"
+                    height="18"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -150,66 +155,57 @@ const Demo = () => {
                   </svg>
                 </div>
               )}
-              {status === "uploading" && (
-                <div className="status-icon uploading">
-                  <div className="spinner"></div>
-                </div>
-              )}
             </div>
           )}
         </div>
-
-        <button
-          className={`upload-button ${status === "success" ? "success" : ""} ${
-            status === "uploading" ? "uploading" : ""
-          }`}
-          onClick={() => handleUpload(fieldName)}
-          disabled={!file || status === "uploading"}
-        >
-          {status === "uploading"
-            ? "Uploading..."
-            : status === "success"
-            ? "Uploaded"
-            : "Upload File"}
-        </button>
       </div>
     );
   };
 
+  const allFilesUploaded =
+    files.followupboss && files.compassContacts && files.phoneContacts;
+
   return (
-    <div className="demo-page">
-      <div className="demo-container">
+    <div className="demo-page-fullscreen">
+      <div className="demo-container-fullscreen">
         {/* Header */}
-        <div className="demo-header">
-          <h1>Data Import</h1>
-          <p>Upload your contact and lead data files to get started</p>
+        <div className="demo-header-compact">
+          <h1>Import Contact Data</h1>
+          <p>Upload your files and process them together</p>
         </div>
 
-        {/* Upload Fields */}
-        <div className="upload-grid">
+        {/* Upload Fields - Inline */}
+        <div className="upload-grid-inline">
           <UploadField fieldName="followupboss" label="FollowUpBoss" />
           <UploadField fieldName="compassContacts" label="Compass Contacts" />
           <UploadField fieldName="phoneContacts" label="Phone Contacts" />
         </div>
 
-        {/* Info Section */}
-        <div className="info-section">
-          <div className="info-box">
-            <h3>Supported File Formats</h3>
-            <ul>
-              <li>CSV (.csv)</li>
-              <li>Excel (.xlsx, .xls)</li>
-            </ul>
-          </div>
-          <div className="info-box">
-            <h3>File Requirements</h3>
-            <ul>
-              <li>Maximum file size: 50 MB</li>
-              <li>First row must contain column headers</li>
-              <li>UTF-8 encoding recommended</li>
-            </ul>
-          </div>
+        {/* Process Button */}
+        <div className="process-section">
+          <button
+            className={`process-button ${allFilesUploaded ? "ready" : ""} ${
+              isProcessing ? "processing" : ""
+            }`}
+            onClick={handleProcess}
+            disabled={!allFilesUploaded || isProcessing}
+          >
+            {isProcessing ? (
+              <>
+                <span className="spinner-small"></span>
+                Processing...
+              </>
+            ) : (
+              "Process Files"
+            )}
+          </button>
+          {!allFilesUploaded && (
+            <p className="helper-text">
+              Upload all three files to enable processing
+            </p>
+          )}
         </div>
+
       </div>
     </div>
   );
