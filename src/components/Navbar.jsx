@@ -131,6 +131,16 @@ const Navbar = () => {
           >
             Merged Bro
           </Link>
+          <Link
+            to="/demo"
+            style={{
+              color: "white",
+              textDecoration: "none",
+              fontSize: "0.875rem",
+            }}
+          >
+            Demo
+          </Link>
         </div>
       </div>
     </nav>
