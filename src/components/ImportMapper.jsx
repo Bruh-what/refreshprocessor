@@ -1,6 +1,95 @@
 import React, { useState } from "react";
 import Papa from "papaparse";
 
+// Flexible field detection patterns for FUB files (handles custom column names)
+const FIELD_PATTERNS = {
+  firstName: ["first name", "first_name", "fname"],
+  lastName: ["last name", "last_name", "lname"],
+  personalEmail: [
+    "email 1",
+    "email1",
+    "personal email",
+    "primary email",
+    "email",
+  ],
+  workEmail: ["email 2", "email2", "work email", "business email"],
+  personalPhone: [
+    "phone 1",
+    "phone1",
+    "personal phone",
+    "primary phone",
+    "phone",
+    "mobile phone",
+    "cell",
+  ],
+  workPhone: ["phone 2", "phone2", "work phone", "business phone"],
+  title: ["job title", "title", "position", "job"],
+  company: ["company name", "company", "organization"],
+  website: ["website", "work website", "web"],
+  homeAddress: [
+    "property address", // ← PRIORITIZE Property Address
+    "address 1",
+    "address1",
+    "home address",
+    "street address",
+  ],
+  homeCity: [
+    "property city", // ← PRIORITIZE Property City
+    "city",
+    "home city",
+    "property city",
+  ],
+  homeState: [
+    "property state", // ← PRIORITIZE Property State
+    "state",
+    "home state",
+    "property state",
+  ],
+  homeZip: [
+    "property postal code", // ← PRIORITIZE Property Postal Code
+    "property zip",
+    "zip",
+    "zip code",
+    "postal code",
+    "home zip",
+    "property zip",
+  ],
+  homeCountry: ["country", "home country"],
+  workAddress: ["address 2", "address2", "work address"],
+  workCity: ["work city"],
+  workState: ["work state"],
+  workZip: ["work zip"],
+  workCountry: ["work country"],
+  groups: ["stage", "groups", "group", "category"],
+  tags: ["tags", "tag"],
+  birthdate: ["birthday", "birth date", "date of birth", "dob"],
+  homeAnniversary: ["home anniversary", "anniversary", "transaction date"],
+  notes: ["notes", "note", "comments", "comment"],
+};
+
+// Flexible field detection for LOFTY files
+const LOFTY_FIELD_PATTERNS = {
+  firstName: ["first name"],
+  lastName: ["last name"],
+  personalEmail: ["primary email"],
+  workEmail: ["other email"],
+  personalPhone: ["primary phone"],
+  workPhone: ["other phone"],
+  title: ["custom.*title", "title"],
+  company: ["custom.*company", "company"],
+  workAddress: ["custom.*work.*address"],
+  workCity: ["custom.*work.*city"],
+  workState: ["custom.*work.*state"],
+  workZip: ["custom.*work.*zip"],
+  homeAddress: ["street.*address.*mailing", "mailing.*address"],
+  homeCity: ["city.*mailing"],
+  homeState: ["province.*mailing", "state.*mailing"],
+  homeZip: ["postal.*code.*mailing", "zip.*mailing"],
+  birthdate: ["birthday", "date.*birth"],
+  notes: ["note"],
+  tags: ["tag", "tags"],
+};
+
 // Field mappings from the provided CSV
 const FIELD_MAPPINGS = {
   FUB: {
@@ -41,15 +130,12 @@ const FIELD_MAPPINGS = {
     "Custom-Field-Company": "Company",
     "Custom-Field-Work Address": "Work Address Line 1",
     "Custom-Field-Work Address City": "Work City",
-    // Add missing Work Address fields
     "Custom Field-Work Address State": "Work State",
     "Custom Field-Work Address Zip": "Work Zip",
-    // Add Home Address fields
     "Street Address(Mailing  Address)": "Home Address Line 1",
     "City(Mailing Address)": "Home City",
     "Province(Mailing Address)": "Home State",
     "Postal Code(Mailing Address)": "Home Zip",
-    // Other fields
     "Birthday(Detail)": "Birthdate",
     "Note 1": "Notes",
     Tag: "Tags",
@@ -58,7 +144,7 @@ const FIELD_MAPPINGS = {
   },
 };
 
-const ImportMapper = () => {
+const ImportMapper = ({ onCompassDataReady }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [sourceType, setSourceType] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -66,6 +152,34 @@ const ImportMapper = () => {
   const [processedData, setProcessedData] = useState(null);
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState(0);
+
+  // Flexible column matcher - finds the best matching column name
+  const findMatchingColumn = (headers, patterns) => {
+    const normalizedHeaders = headers.map((h) => h.toLowerCase().trim());
+
+    for (const pattern of patterns) {
+      // Try exact match first
+      const exactMatch = normalizedHeaders.findIndex((h) => h === pattern);
+      if (exactMatch !== -1) return headers[exactMatch];
+
+      // Try regex pattern match
+      try {
+        const regex = new RegExp(pattern, "i");
+        const regexMatch = normalizedHeaders.findIndex((h) => regex.test(h));
+        if (regexMatch !== -1) return headers[regexMatch];
+      } catch (e) {
+        // Skip invalid regex patterns
+      }
+
+      // Try includes match
+      const includesMatch = normalizedHeaders.findIndex((h) =>
+        h.includes(pattern),
+      );
+      if (includesMatch !== -1) return headers[includesMatch];
+    }
+
+    return null;
+  };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -108,53 +222,91 @@ const ImportMapper = () => {
           setProcessingStatus("Converting data...");
           setProgress(50);
 
-          const mapping =
-            sourceType === "FUB" ? FIELD_MAPPINGS.FUB : FIELD_MAPPINGS.LOFTY;
+          const patterns =
+            sourceType === "FUB" ? FIELD_PATTERNS : LOFTY_FIELD_PATTERNS;
           const processedRows = convertToCompassFormat(
             results.data,
-            mapping,
-            sourceType
+            results.meta.fields,
+            patterns,
+            sourceType,
           );
 
           setProcessingStatus("Conversion complete");
           setProgress(100);
           setProcessedData(processedRows);
           setIsProcessing(false);
+
+          // Notify parent component when data is ready
+          if (onCompassDataReady) {
+            onCompassDataReady(processedRows);
+          }
         } catch (err) {
+          console.error("Error processing data:", err);
           setError(`Error processing data: ${err.message}`);
           setIsProcessing(false);
         }
       },
       error: (err) => {
+        console.error("CSV parse error:", err);
         setError(`Error parsing file: ${err.message}`);
         setIsProcessing(false);
       },
     });
   };
 
-  const convertToCompassFormat = (data, mapping, sourceType) => {
+  const convertToCompassFormat = (data, headers, patterns, sourceType) => {
+    // Find all matching columns for each Compass field
+    const columnMappings = {};
+
+    Object.entries(patterns).forEach(([compassField, fieldPatterns]) => {
+      const matchedColumn = findMatchingColumn(headers, fieldPatterns);
+      if (matchedColumn) {
+        columnMappings[compassField] = matchedColumn;
+      }
+    });
+
+    console.log("Column mappings found:", columnMappings);
+
+    // Define Compass output field names
+    const compassFieldNames = {
+      firstName: "First Name",
+      lastName: "Last Name",
+      personalEmail: "Personal Email",
+      workEmail: "Work Email",
+      personalPhone: "Personal Phone",
+      workPhone: "Work Phone",
+      title: "Title",
+      company: "Company",
+      website: "Work Website",
+      homeAddress: "Home Address Line 1",
+      homeCity: "Home City",
+      homeState: "Home State",
+      homeZip: "Home Zip",
+      homeCountry: "Home Country",
+      workAddress: "Work Address Line 1",
+      workCity: "Work City",
+      workState: "Work State",
+      workZip: "Work Zip",
+      workCountry: "Work Country",
+      groups: "Groups",
+      tags: "Tags",
+      birthdate: "Birthdate",
+      homeAnniversary: "Home Anniversary",
+      notes: "Notes",
+    };
+
     return data.map((row) => {
       const compassRow = {};
 
-      // Map fields based on the mapping configuration
-      Object.entries(mapping).forEach(([sourceField, compassField]) => {
-        if (row[sourceField]) {
-          compassRow[compassField] = row[sourceField];
+      // Map each Compass field from the source data
+      Object.entries(columnMappings).forEach(([compassField, sourceColumn]) => {
+        if (row[sourceColumn]) {
+          const outputFieldName = compassFieldNames[compassField];
+          if (outputFieldName) {
+            compassRow[outputFieldName] = row[sourceColumn];
+          }
         }
       });
-
-      // Special handling for FUB files (email fields)
-      if (sourceType === "FUB") {
-        // Handle Email fields properly (they're split into address and type columns)
-        if (row["Email 2"] && !compassRow["Work Email"]) {
-          compassRow["Work Email"] = row["Email 2"];
-        }
-
-        // Consolidate Tags fields
-        if (row["Tags"] && !compassRow["Tags"]) {
-          compassRow["Tags"] = row["Tags"];
-        }
-      }
 
       return compassRow;
     });
@@ -163,10 +315,41 @@ const ImportMapper = () => {
   const downloadCSV = () => {
     if (!processedData || processedData.length === 0) return;
 
-    // Get all unique headers from the processed data
-    const headers = Array.from(
-      new Set(processedData.flatMap((row) => Object.keys(row)))
-    );
+    // Get all unique headers from the processed data, in a logical order
+    const standardFieldOrder = [
+      "First Name",
+      "Last Name",
+      "Personal Email",
+      "Work Email",
+      "Personal Phone",
+      "Work Phone",
+      "Title",
+      "Company",
+      "Work Website",
+      "Home Address Line 1",
+      "Home City",
+      "Home State",
+      "Home Zip",
+      "Home Country",
+      "Work Address Line 1",
+      "Work City",
+      "Work State",
+      "Work Zip",
+      "Work Country",
+      "Birthdate",
+      "Home Anniversary",
+      "Groups",
+      "Tags",
+      "Notes",
+    ];
+
+    // Use standard order where possible, then add any extra fields
+    const headers = [
+      ...standardFieldOrder.filter((h) => processedData.some((row) => row[h])),
+      ...Array.from(
+        new Set(processedData.flatMap((row) => Object.keys(row))),
+      ).filter((h) => !standardFieldOrder.includes(h)),
+    ];
 
     // Convert data to CSV
     const csv = Papa.unparse({
@@ -181,11 +364,12 @@ const ImportMapper = () => {
     link.href = url;
     link.setAttribute(
       "download",
-      `compass_format_${new Date().toISOString().split("T")[0]}.csv`
+      `compass_format_${new Date().toISOString().split("T")[0]}.csv`,
     );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -235,22 +419,34 @@ const ImportMapper = () => {
           </label>
           <input
             type="file"
-            accept=".csv"
+            accept=".csv,.xlsx,.xls"
             onChange={handleFileChange}
-            disabled={!sourceType}
             style={{
               width: "100%",
               padding: "0.5rem",
               borderRadius: "4px",
               border: "1px solid #ccc",
-              background: !sourceType ? "#f5f5f5" : "white",
+              background: "white",
+              cursor: "pointer",
             }}
           />
+          {selectedFile && (
+            <div
+              style={{
+                fontSize: "0.9em",
+                color: "#28a745",
+                marginTop: "0.3rem",
+              }}
+            >
+              ✓ Selected: {selectedFile.name}
+            </div>
+          )}
           <div
             style={{ fontSize: "0.8em", color: "#666", marginTop: "0.3rem" }}
           >
-            Select a CSV file from {sourceType || "the selected source"} to
-            convert to Compass format
+            Select a CSV or Excel file from{" "}
+            {sourceType || "the selected source"} to convert to Compass format.
+            Supports custom column names.
           </div>
         </div>
 

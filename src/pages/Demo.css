@@ -2,9 +2,9 @@
   min-height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #f9fafb 100%);
   padding: 60px 20px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-    sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
+    "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
 }
 
 .demo-container-fullscreen {
@@ -266,7 +266,8 @@
 
 .info-box-compact:hover {
   border-color: #cbd5e1;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05),
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
     0 2px 4px -1px rgba(0, 0, 0, 0.03);
 }
 
@@ -297,6 +298,118 @@
   left: 0;
   color: #cbd5e1;
 }
+/* Processing Section - Logs */
+.processing-section {
+  margin-top: 40px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.logs-container {
+  padding: 20px;
+}
+
+.logs-container h3 {
+  margin: 0 0 16px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.logs-output {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-family: "Monaco", "Courier New", monospace;
+  font-size: 12px;
+}
+
+.log-entry {
+  color: #475569;
+  margin-bottom: 8px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.log-entry:last-child {
+  margin-bottom: 0;
+}
+
+/* Results Section */
+.results-section {
+  margin-top: 40px;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border-radius: 8px;
+  border: 1px solid #6ee7b7;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.results-header {
+  margin-bottom: 24px;
+}
+
+.results-header h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #047857;
+}
+
+.results-header p {
+  margin: 0;
+  font-size: 14px;
+  color: #059669;
+}
+
+.download-button {
+  padding: 12px 32px;
+  font-size: 15px;
+  font-weight: 600;
+  background: #059669;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.download-button:hover {
+  background: #047857;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
+}
+
+.download-button:active {
+  transform: translateY(1px);
+}
+
+/* Error Section */
+.error-section {
+  margin-top: 40px;
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  border-radius: 8px;
+  border: 1px solid #fca5a5;
+  padding: 24px;
+}
+
+.error-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
+.error-section p {
+  margin: 0;
+  font-size: 14px;
+  color: #dc2626;
+  line-height: 1.5;
+}
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -323,5 +436,18 @@
 
   .info-grid {
     grid-template-columns: 1fr;
+  }
+
+  .logs-output {
+    max-height: 300px;
+    font-size: 11px;
+  }
+
+  .results-section {
+    padding: 20px 16px;
+  }
+
+  .download-button {
+    width: 100%;
   }
 }

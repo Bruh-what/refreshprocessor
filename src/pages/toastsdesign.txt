@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>shadcn Sonner Toasts</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Inter',sans-serif;background:#f8fafc;color:#0f172a;padding:40px;line-height:1.5;}
+    
+    /* Demo Card */
+    .demo-card {
+      background: linear-gradient(135deg, #eef3f9 0%, #d9e5f6 40%, #c9d8ee 100%);
+      width: 400px; height: 320px; margin: 0 auto 40px;
+      border-radius: 22px; padding: 24px; display: flex; flex-direction: column;
+      gap: 20px; align-items: center; justify-content: center;
+    }
+    
+    .upload-row {display: flex; flex-direction: row; align-items: stretch; gap: 20px; width: 100%;}
+    .upload-area {flex: 1;}
+    .upload-label {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; cursor: pointer; color: #64748b; font-weight: 500; font-size: 15px;
+      padding: 12px 20px; border: 2px dashed #cbd5e1; border-radius: 24px;
+      background: rgba(255,255,255,0.6); text-align: center; width: 100%; height: 100%;
+      transition: all 0.2s;
+    }
+    .upload-label:hover {border-color: #4a8cff; background: rgba(255,255,255,0.8);}
+    .upload-label input {display: none;}
+    
+    .btn-primary, .process-btn {
+      background: linear-gradient(180deg, #4a8cff 0%, #2f6df6 100%);
+      color: white; border: none; padding: 8px 20px; border-radius: 999px;
+      font-weight: 600; font-size: 15px; cursor: pointer; height: 48px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 140px;
+    }
+    
+    /* shadcn Sonner-style Toasts */
+    .toast-container {
+      position: fixed; top: 24px; right: 24px; z-index: 10000;
+      max-width: 448px; display: flex; flex-direction: column; gap: 12px;
+    }
+    
+    .toast {
+      background: white;
+      border: 1px solid #181818;
+      border-radius: 999px;
+      padding: 16px 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.09), 0 0 0 1px rgba(0,0,0,0.05);
+      display: flex; align-items: flex-start; gap: 12px;
+      font-size: 14px; color: #374151; font-weight: 500;
+      max-width: 100%;
+    }
+    
+    .toast-icon {
+      width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 600; flex-shrink: 0; margin-top: 1px;
+      color: #6b7280;
+    }
+    
+    .processing .toast-icon {background: #dbeafe; color: #3b82f6;}
+    .duplicate .toast-icon {background: #fef3c7; color: #f59e0b;}
+    .categorizing .toast-icon {background: #d1fae5; color: #10b981;}
+    .complete .toast-icon {background: #dbeafe; color: #3b82f6;}
+    
+    .toast-content {min-width: 0; flex: 1;}
+    .toast-title {font-weight: 600; font-size: 15px; color: #111827; margin: 0 0 2px 0;}
+    .toast-description {font-size: 14px; color: #6b7280; margin: 0;}
+    
+    .demo-trigger {margin: 20px auto; padding: 12px 24px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; font-weight: 500;}
+    .demo-trigger + .demo-trigger {margin-left: 12px;}
+  </style>
+</head>
+<body>
+  <!-- Demo Upload Card -->
+  <div class="demo-card">
+    <div class="upload-row">
+      <div class="upload-area">
+        <label for="crm-upload" class="upload-label">
+          <span>Upload here</span>
+          <input type="file" id="crm-upload" accept=".csv,.xlsx">
+        </label>
+      </div>
+      <button class="btn-primary process-btn">Process file</button>
+    </div>
+  </div>
+  
+  <!-- Demo Trigger Buttons -->
+  <div style="text-align:center; max-width: 500px; margin: 0 auto;">
+    <button class="demo-trigger" onclick="showProcessingToast()">Processing Toast</button>
+    <button class="demo-trigger" onclick="showFullSequence()">Full Sequence</button>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    const toastMessages = {
+      processing: {
+        icon: '📊',
+        title: 'Processing rows',
+        description: 'Processing 1,247 rows...',
+        class: 'processing'
+      },
+      duplicates: {
+        icon: '🔍',
+        title: 'Tagging duplicates', 
+        description: 'Identifying and tagging duplicates...',
+        class: 'duplicate'
+      },
+      categorizing: {
+        icon: '📂',
+        title: 'Categorizing contacts',
+        description: 'Categorizing contacts via repository...',
+        class: 'categorizing'
+      },
+      complete: {
+        icon: '✅',
+        title: 'Processing complete',
+        description: 'Download ready.',
+        class: 'complete'
+      }
+    };
+
+    function createToast(type) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${toastMessages[type].class}`;
+      toast.innerHTML = `
+        <div class="toast-icon">${toastMessages[type].icon}</div>
+        <div class="toast-content">
+          <div class="toast-title">${toastMessages[type].title}</div>
+          <div class="toast-description">${toastMessages[type].description}</div>
+        </div>
+      `;
+      container.insertBefore(toast, container.firstChild);
+      
+      // Auto-remove after 5s
+      setTimeout(() => {
+        if (toast.parentNode) toast.remove();
+      }, 5000);
+    }
+
+    function showProcessingToast() {
+      createToast('processing');
+    }
+
+    function showFullSequence() {
+      createToast('processing');
+      setTimeout(() => createToast('duplicates'), 800);
+      setTimeout(() => createToast('categorizing'), 1600);
+      setTimeout(() => createToast('complete'), 2400);
+    }
+
+    // Connect to process button
+    document.addEventListener('DOMContentLoaded', () => {
+      const processBtn = document.querySelector('.process-btn');
+      const fileInput = document.getElementById('crm-upload');
+      processBtn.onclick = () => {
+        if (!fileInput.files.length) {
+          createToast('complete');
+          return;
+        }
+        showFullSequence();
+      };
+    });
+  </script>
+</body>
+</html>

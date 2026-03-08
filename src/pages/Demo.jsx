@@ -1,5 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import "./Demo.css";
+import {
+  ProcessingPipeline,
+  convertToCSV,
+  downloadCSV,
+} from "../utils/ProcessingPipeline";
 
 const Demo = () => {
   const [files, setFiles] = useState({
@@ -15,8 +20,26 @@ const Demo = () => {
   });
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentStage, setCurrentStage] = useState(0);
+  const [logs, setLogs] = useState([]);
+  const [processedData, setProcessedData] = useState(null);
+  const [processingError, setProcessingError] = useState(null);
+  const logsEndRef = useRef(null);
+
+  // Auto-scroll logs to bottom
+  React.useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
+  const addLog = (message) => {
+    setLogs((prev) => [...prev, message]);
+  };
 
   const handleFileChange = (fieldName, file) => {
+    if (file && file.size > 50 * 1024 * 1024) {
+      alert("File is too large. Maximum size is 50MB.");
+      return;
+    }
     setFiles((prev) => ({
       ...prev,
       [fieldName]: file,
@@ -25,6 +48,10 @@ const Demo = () => {
       ...prev,
       [fieldName]: null,
     }));
+    // Clear previous processing when new files are uploaded
+    setProcessedData(null);
+    setProcessingError(null);
+    setLogs([]);
   };
 
   const handleDragOver = (e) => {
@@ -41,7 +68,7 @@ const Demo = () => {
     }
   };
 
-  const handleProcess = () => {
+  const handleProcess = async () => {
     // Check if all files are uploaded
     if (!files.followupboss || !files.compassContacts || !files.phoneContacts) {
       alert("Please upload all three files before processing");
@@ -49,23 +76,53 @@ const Demo = () => {
     }
 
     setIsProcessing(true);
+    setCurrentStage(1);
+    setLogs([]);
+    setProcessingError(null);
+    setProcessedData(null);
 
-    // Simulate processing
-    setTimeout(() => {
+    try {
+      // Create pipeline with progress callback
+      const pipeline = new ProcessingPipeline((progress) => {
+        if (progress.type === "log") {
+          addLog(progress.message);
+        } else if (progress.type === "stage") {
+          setCurrentStage(progress.stage);
+        } else if (progress.type === "complete") {
+          setProcessedData(progress.data);
+          addLog("🎉 Processing pipeline completed successfully!");
+        } else if (progress.type === "error") {
+          setProcessingError(progress.error);
+          addLog(`❌ Pipeline error: ${progress.error}`);
+        }
+      });
+
+      // Execute the pipeline
+      const result = await pipeline.execute(
+        files.followupboss,
+        files.phoneContacts,
+        files.compassContacts,
+      );
+
+      setProcessedData(result);
+      setProcessingError(null);
+    } catch (error) {
+      console.error("Pipeline execution error:", error);
+      setProcessingError(error.message);
+      addLog(`❌ Fatal error: ${error.message}`);
+    } finally {
       setIsProcessing(false);
-      alert("Files processed successfully!");
-      // Reset files after processing
-      setFiles({
-        followupboss: null,
-        compassContacts: null,
-        phoneContacts: null,
-      });
-      setUploadStatus({
-        followupboss: null,
-        compassContacts: null,
-        phoneContacts: null,
-      });
-    }, 2000);
+    }
+  };
+
+  const handleDownload = () => {
+    if (!processedData) return;
+    const csv = convertToCSV(processedData);
+    downloadCSV(
+      csv,
+      `processed_contacts_${new Date().toISOString().split("T")[0]}.csv`,
+    );
+    addLog("📥 Downloaded processed contacts file");
   };
 
   const getFieldLabel = (fieldName) => {
@@ -103,7 +160,10 @@ const Demo = () => {
           />
 
           {!file ? (
-            <label htmlFor={`file-${fieldName}`} className="upload-label-compact">
+            <label
+              htmlFor={`file-${fieldName}`}
+              className="upload-label-compact"
+            >
               <div className="upload-icon-small">
                 <svg
                   width="20"
@@ -193,7 +253,7 @@ const Demo = () => {
             {isProcessing ? (
               <>
                 <span className="spinner-small"></span>
-                Processing...
+                Processing... (Stage {currentStage}/5)
               </>
             ) : (
               "Process Files"
@@ -206,6 +266,43 @@ const Demo = () => {
           )}
         </div>
 
+        {/* Processing Status & Logs */}
+        {(isProcessing || logs.length > 0) && (
+          <div className="processing-section">
+            <div className="logs-container">
+              <h3>Processing Logs</h3>
+              <div className="logs-output">
+                {logs.map((log, index) => (
+                  <div key={index} className="log-entry">
+                    {log}
+                  </div>
+                ))}
+                <div ref={logsEndRef} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Results Section */}
+        {processedData && (
+          <div className="results-section">
+            <div className="results-header">
+              <h3>Processing Complete</h3>
+              <p>{processedData.length} contacts processed successfully</p>
+            </div>
+            <button className="download-button" onClick={handleDownload}>
+              📥 Download Processed File
+            </button>
+          </div>
+        )}
+
+        {/* Error Section */}
+        {processingError && (
+          <div className="error-section">
+            <h3>⚠️ Processing Error</h3>
+            <p>{processingError}</p>
+          </div>
+        )}
       </div>
     </div>
   );

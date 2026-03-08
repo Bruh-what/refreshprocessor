@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Onboarded</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="logo">
+             <img 
+    src="https://res.cloudinary.com/dqsqmurm6/image/upload/v1772996302/onboardedlogo_n6pxpi.svg"
+    alt="Onboarded logo"
+  />
+        </div>
+
+       <div class="btn-wrapper">
+  <button class="btn-primary">Contact us</button>
+</div>
+    </nav>
+
+
+    <!-- HERO TEXT -->
+    <div class="hero-text">
+
+        <div class="review">
+            POWERED BY CRM REFRESH. TRUSTED BY 500+ AGENTS
+            <span class="stars">★★★★★</span>
+        </div>
+
+        <h1>
+            Start client onboarding <br>
+            With onboarded by refresh
+        </h1>
+
+        <p class="description">
+            To get started, upload your existing crm export like from follow up boss or lofty. 
+            Press the process button and you will automatically receive a compass formatted 
+            file with all your duplicates tagged and contacts categorized into relevant categories.
+        </p>
+
+    </div>
+
+
+    <!-- VISUAL SECTION -->
+    <div class="visual-grid">
+
+    <div class="card large-card">
+  <div class="upload-section">
+    <!-- Upload + Button in horizontal row -->
+    <div class="upload-row">
+      <div class="upload-area">
+        <label for="crm-upload" class="upload-label">
+          <span>Upload here</span>
+          <input type="file" id="crm-upload" accept=".csv,.xlsx">
+        </label>
+      </div>
+      <button class="btn-primary process-btn">Process file</button>
+    </div>
+    
+    <!-- SVG below the row -->
+    <img 
+      src="https://res.cloudinary.com/dqsqmurm6/image/upload/v1772996353/leftsidecardsillustration_zvhoew.svg"
+      class="card-visual"
+    />
+  </div>
+</div>
+
+
+        <div class="card large-card">
+            <img 
+    src="https://res.cloudinary.com/dqsqmurm6/image/upload/v1772996352/rightsidecardsillustration_vaxjdp.svg"
+    alt="CRM integrations illustration"
+    class="card-visual"
+  />
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+}
+
+body{
+font-family: 'Inter', sans-serif;
+background:#f5f5f5;
+color:#111;
+}
+
+.container{
+max-width:1200px;
+margin:auto;
+padding:20px 20px 60px;
+}
+
+/* NAVBAR */
+.navbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:120px;
+}
+
+.logo{
+width:auto;
+height:auto;
+background:none;
+display:flex;
+align-items:center;
+justify-content:start;
+}
+
+.logo img{
+height:50px;
+width:auto;
+display:block;
+}
+
+.btn-primary{
+background: linear-gradient(
+180deg,
+#4a8cff 0%,
+#2f6df6 100%
+);
+color:white;
+border:none;
+padding:12px 24px;      /* Smaller padding */
+border-radius:999px;
+font-family:'Inter',sans-serif;
+font-weight:600;
+font-size:15px;
+cursor:pointer;
+box-shadow:
+inset 0 1px 0 rgba(255,255,255,0.35),
+0 6px 14px rgba(47,109,246,0.35);
+transition:all .2s ease;
+height: 40px;          /* Fixed smaller height */
+display: flex;
+align-items: center;
+justify-content: center;
+}
+
+.btn-primary:hover{
+transform:translateY(-1px);
+box-shadow:
+inset 0 1px 0 rgba(255,255,255,0.35),
+0 8px 18px rgba(47,109,246,0.45);
+}
+
+.btn-wrapper{
+display:inline-block;
+padding:3px;
+border-radius:999px;
+background:#2f6df6;
+box-shadow:0 4px 10px rgba(0,0,0,0.05);
+}
+
+/* HERO */
+.hero-text{
+text-align:center;
+max-width:650px;
+margin:auto;
+}
+
+.review{
+font-size:14px;
+letter-spacing:.05em;
+margin-bottom:20px;
+color:#272727;
+}
+
+.stars{
+color:#f5a623;
+margin-left:6px;
+}
+
+.hero-text h1{
+font-size:56px;
+line-height:1;
+font-weight:600;
+letter-spacing: -3px;
+margin-bottom:16px;
+color: #272727;
+}
+
+.description{
+font-size:16px;
+line-height:1.8;
+color:#535353;
+}
+
+/* VISUAL GRID */
+.visual-grid{
+margin-top:70px;
+display:flex;
+gap:30px;
+}
+
+.large-card {
+  width: 50%;
+  height: 400px;
+
+  background: linear-gradient(
+    135deg,
+    #eef3f9 0%,
+    #d9e5f6 40%,
+    #c9d8ee 100%
+  );
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 10px 25px rgba(0,0,0,0.04),
+    inset 0 1px 0 rgba(255,255,255,0.5);
+  overflow: hidden;
+  padding: 24px;
+  gap: 20px;
+}
+
+.card-visual {
+  max-width: 100%;
+  max-height: 90%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.upload-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+
+.upload-area {
+  flex: 1;
+  margin-bottom:40px;
+}
+
+.upload-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #5a6b7d;
+  font-weight: 500;
+  font-size: 16px;
+  padding: 12px 20px;        /* Smaller padding */
+  border: 2px dashed #9aa8c0;
+  border-radius: 24px;       /* More rounded corners */
+  transition: all 0.2s ease;
+  background: rgba(255,255,255,0.3);
+  text-align: center;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.upload-label:hover {
+  border-color: #4a8cff;
+  background: rgba(255,255,255,0.4);
+}
+
+.upload-label input {
+  display: none;
+}
+
+.process-btn {
+  flex-shrink: 0;
+  width: 140px;              /* Slightly smaller width */
+ 
+}
