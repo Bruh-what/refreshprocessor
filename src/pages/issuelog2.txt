@@ -1,0 +1,21 @@
+0:02 Reviewing the output from the CSV format or for Michelle, and I'm seeing that, actually, we move this so we can see it.
+0:11 Um, okay, I guess we can't, uh, so I'll use a different option. So basically what's happening is the same- being person is being not only updated, but then a second version of them is being added for some reason.
+0:21 So, Geina Allen is one here, and then where's the other one? Uh, Clint Brown? There's two, even though he was a, a buyer and a seller.
+0:32 It put them as separate contacts. Let's see if there's any others. I'm sure there will be. Uh, Robert Chase. There was an existing contact, but it created an extra one.
+0:43 In this case, it was a buyer or seller, as well. Two Rebecca Clayton, except in this case. It's the same date, so both a seller, same date, same transaction.
+0:54 And I'll note one with email and one without, so that's obviously going to contribute to our duplicate. Three Timothy Ferris on three different occasions.
+1:03 Two buyers, two sellers. Three separate contacts, no email, which means that's going to create duplicates. Now the one here with Reggie Garner, one with email, and one without.
+1:14 John Gary, one with email, one without. And we've got our doubled-up last name for it. And Gary, where this is going to be Christopher Gory and his wife.
+1:24 So now we're going to have to go back and figure out what is her first name, switch that out. Don Grissett, one with email, one without.
+1:31 Same transaction. Uhh, like multiple for George. I'm not going to attempt that last name. Again, one with an email, one without.
+1:41 Different transactions in this case. Two Holly Hellbig, same transaction. One with email, one without. Two John the third. Skips his last name.
+1:51 Puts the third. In there, same transaction. One with email, one without. Uhh, revocable. That's going to be a revocable trust.
+2:02 So, meth bat name up. John Jr. Didn't consider the Junior. Multiple Tim. Chris's. One with email, one without. The definitely stuff that we need to tighten up here in the processor.
+2:14 Looks like we've got three, whoop, three Robert McDaniel's. These are different emails, so I'll kinda let the, that one slide.
+2:26 Then, actually, oh no, yeah, so then there would have been Robert's wife at some point, or partner, I suppose. Umm, this is the same transaction.
+2:35 Brian Nola, this is going to be with email without. Anna, same thing with email without, same transaction. So, you can see here where now we have to go back and clean this up.
+2:48 We got Scott Scott here. Gonna have to figure out which one of those is the last name. I'm going to guess the last name is Scott, so this is going to be the wife or partner's name.
+2:57 So, this is what we're constantly having to clean up, is then go back in and manually update all these, and because it's wrong to begin with, the client kind of freaks out.
+3:07 And then we have to go through and cross reference all of it, because we don't even know what's right and what's not.
+3:11 Don't and I'll I'm gonna fix all this before we ever put it in, but obviously that's time consuming. and that's it.
+3:16 We have
