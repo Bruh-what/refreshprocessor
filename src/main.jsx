@@ -13,6 +13,7 @@ import LeadTagger from "./components/LeadTagger.jsx";
 import MergedBro from "./components/MergedBro.jsx";
 import Demo from "./pages/Demo.jsx";
 import Onboarded from "./pages/Onboarded.jsx";
+import FormatTests from "./pages/FormatTests.jsx";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -47,6 +48,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                 />
                 <Route path="/lead-tagger" element={<LeadTagger />} />
                 <Route path="/merged-bro" element={<MergedBro />} />
+                <Route path="/format-tests" element={<FormatTests />} />
               </Routes>
             </Layout>
           }

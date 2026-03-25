@@ -132,6 +132,16 @@ const Navbar = () => {
             Merged Bro
           </Link>
           <Link
+            to="/format-tests"
+            style={{
+              color: "white",
+              textDecoration: "none",
+              fontSize: "0.875rem",
+            }}
+          >
+            Format Tests
+          </Link>
+          <Link
             to="/demo"
             style={{
               color: "white",
