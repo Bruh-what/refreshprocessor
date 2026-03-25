@@ -2816,6 +2816,14 @@ function CsvFormatter() {
 
               // If no match was found, add a new row for unmatched buyers
               if (!matchFound) {
+                // SAFETY CHECK: Prevent creating duplicate entries
+                // If this contact was already matched and updated in a previous loop, skip creating new entry
+                const alreadyMatchedKey = `${firstName}-${lastName}`;
+                if (uniqueContactsUpdated.has(alreadyMatchedKey)) {
+                  // Contact was already updated - don't create duplicate
+                  return;
+                }
+
                 newEntriesCount++;
 
                 // Extract year from anniversary date for the sold date tag
