@@ -2878,13 +2878,15 @@ function CsvFormatter() {
 
                 // Create base row data that will be shared by all persons
                 const baseRowData = {
-                  // Preserve address components from the original row if they exist
-                  ["Home Address Line 1"]:
-                    haRow["Home Address Line 1"] || address || "",
-                  ["Home Address Line 2"]: haRow["Home Address Line 2"] || "",
-                  ["Home Address City"]: haRow["Home Address City"] || "",
-                  ["Home Address State"]: haRow["Home Address State"] || "",
-                  ["Home Address Zip"]: haRow["Home Address Zip"] || "",
+                  // Preserve address components from the original row if they exist (buyers only)
+                  ...(isBuyerForNewContact && {
+                    ["Home Address Line 1"]:
+                      haRow["Home Address Line 1"] || address || "",
+                    ["Home Address Line 2"]: haRow["Home Address Line 2"] || "",
+                    ["Home Address City"]: haRow["Home Address City"] || "",
+                    ["Home Address State"]: haRow["Home Address State"] || "",
+                    ["Home Address Zip"]: haRow["Home Address Zip"] || "",
+                  }),
                   ["Groups"]: "Past clients", // Groups column value
                   ["Tags"]: newEntryTags, // Tags column value
                   ["Notes"]: `New ${contactType} contact added. ${
