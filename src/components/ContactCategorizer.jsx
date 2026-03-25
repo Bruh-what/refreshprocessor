@@ -468,12 +468,20 @@ const ContactCategorizer = () => {
       const lowerEmail = email.toLowerCase();
 
       // Direct classification for obvious agent keywords in email username (before the @)
+      const emailUsername = lowerEmail.includes("@")
+        ? lowerEmail.split("@")[0]
+        : lowerEmail;
       if (
-        lowerEmail.includes("realtor") ||
-        lowerEmail.includes("realestate") ||
-        lowerEmail.includes("homesales") ||
-        (lowerEmail.includes("agent") && !lowerEmail.includes("mortgage")) ||
-        (lowerEmail.includes("broker") && !lowerEmail.includes("mortgage"))
+        emailUsername.includes("realtor") ||
+        emailUsername.includes("realestate") ||
+        emailUsername.includes("homesales") ||
+        emailUsername.includes("homes") ||
+        emailUsername.includes("realty") ||
+        emailUsername.includes("properties") ||
+        (emailUsername.includes("agent") &&
+          !emailUsername.includes("mortgage")) ||
+        (emailUsername.includes("broker") &&
+          !emailUsername.includes("mortgage"))
       ) {
         agentConfidence += 45; // Strong signal - matches RealEstateProcessor
         reasons.push(`Direct agent keyword in email: ${email}`);
@@ -601,19 +609,24 @@ const ContactCategorizer = () => {
         reasons.push(`Direct vendor email: ${email}`);
       }
 
-      // Enhanced vendor keyword matching in email
+      // Only scan the domain part (after @) for vendor keywords - not the username
+      // This prevents false positives like 'law' in 'lawrencemarkovitz@gmail.com'
+      const emailDomainOnly = lowerEmail.includes("@")
+        ? lowerEmail.split("@")[1]
+        : "";
       VENDOR_KEYWORDS.forEach((keyword) => {
-        if (lowerEmail.includes(keyword)) {
+        if (emailDomainOnly && emailDomainOnly.includes(keyword)) {
           vendorConfidence += 15;
-          reasons.push(`Vendor keyword in email: ${keyword}`);
+          reasons.push(`Vendor keyword in email domain: ${keyword}`);
         }
       });
     }
 
-    // 2. Enhanced vendor keywords in business fields only (excluding personal notes)
-    const businessFieldsOnly = `${emails.join(
-      " ",
-    )} ${company} ${title} ${tags} ${groups}`.toLowerCase();
+    // 2. Enhanced vendor keywords in business fields only (company, title, tags, groups)
+    // NOTE: emails intentionally excluded here - email domains checked separately above
+    // This prevents false positives like last name 'Clawson' triggering 'law' keyword
+    const businessFieldsOnly =
+      `${company} ${title} ${tags} ${groups}`.toLowerCase();
     VENDOR_KEYWORDS.forEach((keyword) => {
       if (businessFieldsOnly.includes(keyword)) {
         vendorConfidence += 30; // Moderate signal for keyword match - matches RealEstateProcessor
