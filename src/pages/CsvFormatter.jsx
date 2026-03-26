@@ -3860,6 +3860,415 @@ function CsvFormatter() {
     alert(`Generated ${transactionLogEntries.length} transaction log entries!`);
   };
 
+  // ── Past Client Log ──────────────────────────────────────────────────────
+  // Generates a CRM-import-ready CSV matching the Past Client Log template.
+  // Key rules (from spec):
+  //   • Buyer-only → Buyer record: Home Anniversary date + buyer property address
+  //   • Seller-only → Seller record: Closed date, no address
+  //   • Both Buyer+Seller, SAME address → Seller record: Closed date, no address
+  //   • Both Buyer+Seller, DIFFERENT address → Buyer record: Home Anniversary + buyer address
+  const generatePastClientLog = () => {
+    if (!step3Data.processedData || !step2Data.homeAnniversaryCsv) {
+      alert(
+        "Please complete processing first to generate the Past Client Log.",
+      );
+      return;
+    }
+
+    const processedContacts = step3Data.processedData.rows;
+    const homeAnniversaryData = step2Data.homeAnniversaryCsv.rows;
+    const haHeaders = step2Data.homeAnniversaryCsv.headers;
+
+    // ── Column detection ─────────────────────────────────────────────────
+    const haBuyerNameCol = haHeaders.find(
+      (h) =>
+        h &&
+        h.toLowerCase().includes("buyer") &&
+        h.toLowerCase().includes("name"),
+    );
+    const haSellerNameCol = haHeaders.find(
+      (h) =>
+        h &&
+        h.toLowerCase().includes("seller") &&
+        h.toLowerCase().includes("name"),
+    );
+    const haAddressCol = haHeaders.find((h) =>
+      h.toLowerCase().includes("address"),
+    );
+    const haAnnivCol = haHeaders.find(
+      (h) =>
+        h.toLowerCase().includes("anniversary") ||
+        h.toLowerCase().includes("date"),
+    );
+    const haSalePriceCol = haHeaders.find(
+      (h) =>
+        h.toLowerCase().includes("sold") && h.toLowerCase().includes("price"),
+    );
+    const haSellingAgentCol = haHeaders.find(
+      (h) =>
+        h &&
+        h.toLowerCase().includes("selling") &&
+        h.toLowerCase().includes("agent"),
+    );
+    const haListingAgentCol = haHeaders.find(
+      (h) =>
+        h &&
+        h.toLowerCase().includes("listing") &&
+        h.toLowerCase().includes("agent"),
+    );
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+    const matchesAgentPCL = (agentInFile, targetAgent) => {
+      if (!agentInFile || !targetAgent) return false;
+      const cf = agentInFile.toLowerCase().trim();
+      const ct = targetAgent.toLowerCase().trim();
+      if (cf.includes(ct)) return true;
+      const fp = cf.split(/\s+/).filter(Boolean);
+      const tp = ct.split(/\s+/).filter(Boolean);
+      if (tp.length < 2 || fp.length < 2) return false;
+      return fp[0] === tp[0] && fp[fp.length - 1] === tp[tp.length - 1];
+    };
+
+    // Normalize an address string for comparison
+    const normalizeAddr = (addr) =>
+      (addr || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    // Parse "Last, First" or "First Last" → { firstName, lastName }
+    const parsePCLName = (raw) => {
+      const s = (raw || "").trim();
+      if (!s) return { firstName: "", lastName: "" };
+      if (s.includes(",")) {
+        const ci = s.indexOf(",");
+        const last = s.slice(0, ci).trim();
+        const firstToks = s
+          .slice(ci + 1)
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+        const first =
+          firstToks.find((t) => t.length > 1 && !t.endsWith(".")) ||
+          firstToks[0] ||
+          "";
+        return { firstName: toTitleCase(first), lastName: toTitleCase(last) };
+      }
+      const parts = s.split(/\s+/).filter(Boolean);
+      if (parts.length === 1)
+        return { firstName: toTitleCase(parts[0]), lastName: "" };
+      return {
+        firstName: toTitleCase(parts[0]),
+        lastName: toTitleCase(parts[parts.length - 1]),
+      };
+    };
+
+    // Split a raw name field by & and | into individual raw name strings
+    const splitPCLNames = (raw) =>
+      (raw || "")
+        .split(/\s*[&|]\s*/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+    // Look up phone + email from the processed Compass contacts
+    const lookupContact = (firstName, lastName) => {
+      const fn = firstName.toLowerCase();
+      const ln = lastName.toLowerCase();
+      let found = null;
+      processedContacts.forEach((c) => {
+        const cf = (c["First Name"] || "").toLowerCase().trim();
+        const cl = (c["Last Name"] || "").toLowerCase().trim();
+        if (cf === fn && cl === ln) {
+          if (
+            !found ||
+            (!found["Primary Mobile Phone"] && c["Primary Mobile Phone"]) ||
+            (!found["Primary Work Email"] && c["Primary Work Email"])
+          ) {
+            found = c;
+          }
+        }
+      });
+      if (!found) return { phone: "", email: "" };
+      const phoneCols = Object.keys(found).filter(
+        (k) => k.toLowerCase().includes("phone") && found[k],
+      );
+      const emailCols = Object.keys(found).filter(
+        (k) => k.toLowerCase().includes("email") && found[k],
+      );
+      return {
+        phone: phoneCols.length ? found[phoneCols[0]] : "",
+        email: emailCols.length ? found[emailCols[0]] : "",
+      };
+    };
+
+    // ── Build a map: "firstname|lastname" → { firstName, lastName, buyerRows[], sellerRows[] }
+    const personMap = new Map();
+    const mainAgentName = step2Data.mainSellingAgent.toLowerCase();
+
+    homeAnniversaryData.forEach((haRow) => {
+      const address = haRow[haAddressCol] || "";
+      const anniversaryDate = haRow[haAnnivCol] || "";
+      const salePrice = (haRow[haSalePriceCol] || "")
+        .replace(/['"]/g, "")
+        .trim();
+      const sellingAgent = haRow[haSellingAgentCol] || "";
+      const listingAgent = haListingAgentCol
+        ? haRow[haListingAgentCol] || ""
+        : "";
+      const buyerNameRaw = haRow[haBuyerNameCol] || "";
+      const sellerNameRaw = haSellerNameCol ? haRow[haSellerNameCol] || "" : "";
+
+      if (!anniversaryDate || !address) return;
+
+      const isOurSelling =
+        sellingAgent.trim() !== "" &&
+        matchesAgentPCL(sellingAgent, mainAgentName);
+      const isOurListing =
+        listingAgent.trim() !== "" &&
+        matchesAgentPCL(listingAgent, mainAgentName);
+      const parsedAddress = parseAddress(address);
+
+      if (isOurSelling && buyerNameRaw) {
+        splitPCLNames(buyerNameRaw).forEach((rawName) => {
+          const { firstName, lastName } = parsePCLName(rawName);
+          if (!firstName && !lastName) return;
+          const key = `${firstName.toLowerCase()}|${lastName.toLowerCase()}`;
+          if (!personMap.has(key))
+            personMap.set(key, {
+              firstName,
+              lastName,
+              buyerRows: [],
+              sellerRows: [],
+            });
+          personMap
+            .get(key)
+            .buyerRows.push({
+              address,
+              parsedAddress,
+              anniversaryDate,
+              salePrice,
+            });
+        });
+      }
+
+      if (isOurListing && sellerNameRaw) {
+        splitPCLNames(sellerNameRaw).forEach((rawName) => {
+          const { firstName, lastName } = parsePCLName(rawName);
+          if (!firstName && !lastName) return;
+          const key = `${firstName.toLowerCase()}|${lastName.toLowerCase()}`;
+          if (!personMap.has(key))
+            personMap.set(key, {
+              firstName,
+              lastName,
+              buyerRows: [],
+              sellerRows: [],
+            });
+          personMap
+            .get(key)
+            .sellerRows.push({
+              address,
+              parsedAddress,
+              anniversaryDate,
+              salePrice,
+            });
+        });
+      }
+    });
+
+    // ── Build output rows ─────────────────────────────────────────────────
+    const PCL_HEADERS = [
+      "Remove?",
+      "Bought/Sold with Someone Else?",
+      "First Name",
+      "Last Name",
+      "Home Anniversary Date (Buyers)",
+      "Closed Date (Sellers)",
+      "Buyer / Seller",
+      "Sale Price",
+      "Home Address Line 1",
+      "Home Address Line 2",
+      "Home Address City",
+      "Home Address State",
+      "Home Address Zip Code",
+      "Phone",
+      "Email",
+      "Groups",
+      "Tags",
+    ];
+
+    const outputRows = [];
+
+    personMap.forEach(({ firstName, lastName, buyerRows, sellerRows }) => {
+      const { phone, email } = lookupContact(firstName, lastName);
+
+      if (buyerRows.length > 0 && sellerRows.length === 0) {
+        // Buyer only
+        buyerRows.forEach((br) => {
+          const year = new Date(br.anniversaryDate).getFullYear() || "";
+          outputRows.push({
+            "Remove?": "",
+            "Bought/Sold with Someone Else?": "",
+            "First Name": firstName,
+            "Last Name": lastName,
+            "Home Anniversary Date (Buyers)": br.anniversaryDate,
+            "Closed Date (Sellers)": "",
+            "Buyer / Seller": "Buyer",
+            "Sale Price": br.salePrice,
+            "Home Address Line 1": br.parsedAddress.line1,
+            "Home Address Line 2": br.parsedAddress.line2,
+            "Home Address City": br.parsedAddress.city,
+            "Home Address State": br.parsedAddress.state,
+            "Home Address Zip Code": br.parsedAddress.zip,
+            Phone: phone,
+            Email: email,
+            Groups: "Past Clients",
+            Tags: ["CRM: Home Anniversary", "Buyer", year]
+              .filter(Boolean)
+              .join(", "),
+          });
+        });
+      } else if (buyerRows.length === 0 && sellerRows.length > 0) {
+        // Seller only
+        sellerRows.forEach((sr) => {
+          const year = new Date(sr.anniversaryDate).getFullYear() || "";
+          outputRows.push({
+            "Remove?": "",
+            "Bought/Sold with Someone Else?": "",
+            "First Name": firstName,
+            "Last Name": lastName,
+            "Home Anniversary Date (Buyers)": "",
+            "Closed Date (Sellers)": sr.anniversaryDate,
+            "Buyer / Seller": "Seller",
+            "Sale Price": sr.salePrice,
+            "Home Address Line 1": "",
+            "Home Address Line 2": "",
+            "Home Address City": "",
+            "Home Address State": "",
+            "Home Address Zip Code": "",
+            Phone: phone,
+            Email: email,
+            Groups: "Past Clients",
+            Tags: ["CRM: Closed Date", "Seller", year]
+              .filter(Boolean)
+              .join(", "),
+          });
+        });
+      } else if (buyerRows.length > 0 && sellerRows.length > 0) {
+        // Both Buyer + Seller: apply address-match rule per buyer row
+        buyerRows.forEach((br) => {
+          const buyerAddrNorm = normalizeAddr(br.address);
+          const samePropSeller = sellerRows.find(
+            (sr) => normalizeAddr(sr.address) === buyerAddrNorm,
+          );
+
+          if (samePropSeller) {
+            // Rule 2: same address → Seller record (resale)
+            const year =
+              new Date(samePropSeller.anniversaryDate).getFullYear() || "";
+            outputRows.push({
+              "Remove?": "",
+              "Bought/Sold with Someone Else?": "",
+              "First Name": firstName,
+              "Last Name": lastName,
+              "Home Anniversary Date (Buyers)": "",
+              "Closed Date (Sellers)": samePropSeller.anniversaryDate,
+              "Buyer / Seller": "Buyer, Seller",
+              "Sale Price": samePropSeller.salePrice,
+              "Home Address Line 1": "",
+              "Home Address Line 2": "",
+              "Home Address City": "",
+              "Home Address State": "",
+              "Home Address Zip Code": "",
+              Phone: phone,
+              Email: email,
+              Groups: "Past Clients",
+              Tags: ["CRM: Closed Date", "Buyer", "Seller", year]
+                .filter(Boolean)
+                .join(", "),
+            });
+          } else {
+            // Rule 1: different addresses → Buyer record (move-up/relocation)
+            const year = new Date(br.anniversaryDate).getFullYear() || "";
+            outputRows.push({
+              "Remove?": "",
+              "Bought/Sold with Someone Else?": "",
+              "First Name": firstName,
+              "Last Name": lastName,
+              "Home Anniversary Date (Buyers)": br.anniversaryDate,
+              "Closed Date (Sellers)": "",
+              "Buyer / Seller": "Buyer, Seller",
+              "Sale Price": br.salePrice,
+              "Home Address Line 1": br.parsedAddress.line1,
+              "Home Address Line 2": br.parsedAddress.line2,
+              "Home Address City": br.parsedAddress.city,
+              "Home Address State": br.parsedAddress.state,
+              "Home Address Zip Code": br.parsedAddress.zip,
+              Phone: phone,
+              Email: email,
+              Groups: "Past Clients",
+              Tags: ["CRM: Home Anniversary", "Buyer", "Seller", year]
+                .filter(Boolean)
+                .join(", "),
+            });
+          }
+        });
+
+        // Seller rows whose address wasn't matched to any buyer row get their own entry
+        sellerRows.forEach((sr) => {
+          const sellerAddrNorm = normalizeAddr(sr.address);
+          const alreadyCovered = buyerRows.some(
+            (br) => normalizeAddr(br.address) === sellerAddrNorm,
+          );
+          if (!alreadyCovered) {
+            const year = new Date(sr.anniversaryDate).getFullYear() || "";
+            outputRows.push({
+              "Remove?": "",
+              "Bought/Sold with Someone Else?": "",
+              "First Name": firstName,
+              "Last Name": lastName,
+              "Home Anniversary Date (Buyers)": "",
+              "Closed Date (Sellers)": sr.anniversaryDate,
+              "Buyer / Seller": "Buyer, Seller",
+              "Sale Price": sr.salePrice,
+              "Home Address Line 1": "",
+              "Home Address Line 2": "",
+              "Home Address City": "",
+              "Home Address State": "",
+              "Home Address Zip Code": "",
+              Phone: phone,
+              Email: email,
+              Groups: "Past Clients",
+              Tags: ["CRM: Closed Date", "Buyer", "Seller", year]
+                .filter(Boolean)
+                .join(", "),
+            });
+          }
+        });
+      }
+    });
+
+    if (outputRows.length === 0) {
+      alert(
+        "No Past Client Log entries found. Make sure processing is complete and agent names match.",
+      );
+      return;
+    }
+
+    const csvContent = Papa.unparse({ fields: PCL_HEADERS, data: outputRows });
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `past_client_log_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+
+    alert(`Generated Past Client Log with ${outputRows.length} entries!`);
+  };
+
   return (
     <div className="csv-formatter">
       <header className="page-header">
@@ -4770,6 +5179,18 @@ function CsvFormatter() {
                       }}
                     >
                       📋 Generate Closed Transaction Log
+                    </button>
+
+                    <button
+                      onClick={generatePastClientLog}
+                      className="download-button secondary"
+                      style={{
+                        marginTop: "10px",
+                        backgroundColor: "#0d6efd",
+                        borderColor: "#0d6efd",
+                      }}
+                    >
+                      📋 Generate Past Client Log
                     </button>
                   </div>
                 )}
