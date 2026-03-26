@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Papa from "papaparse";
 import "./CsvFormatter.css";
 
@@ -11,12 +11,186 @@ function CsvFormatter() {
     filteredData: null,
     allFormattedData: null,
     downloadReady: false,
+    nameColumn: "",
+    formatOptions: {
+      splitPipe: true,
+      splitAmpersand: true,
+      stripInitials: true,
+      detectCompany: true,
+      inheritLastName: true,
+    },
   });
   const [step2Data, setStep2Data] = useState({
     homeAnniversaryCsv: null,
     streamAppCsv: null,
     mainSellingAgent: "", // Added to store the main selling agent name
   });
+
+  // ── Step 1 live name preview ────────────────────────────────────────────
+  // Recompute whenever the raw CSV text, selected column, or format options change.
+  // Runs the same formatting logic as filterBySellingAgent but on the first 15 rows only.
+  const step1Preview = useMemo(() => {
+    if (!step1Data.originalCsvText) return [];
+    const parsed = Papa.parse(step1Data.originalCsvText, {
+      header: true,
+      skipEmptyLines: true,
+    });
+    const headers = parsed.meta.fields || [];
+    const rows = parsed.data;
+    const fmt = step1Data.formatOptions;
+
+    // Resolve which column to preview
+    const col =
+      step1Data.nameColumn ||
+      headers.find(
+        (h) =>
+          h &&
+          h.toLowerCase().includes("buyer") &&
+          h.toLowerCase().includes("name"),
+      );
+    if (!col) return [];
+
+    // Inline helpers (mirrors filterBySellingAgent helpers exactly)
+    const _isInitial = (t) =>
+      t.length === 1 || (t.length === 2 && t.endsWith("."));
+    const _firstReal = (tokens) => {
+      for (const t of tokens) if (!_isInitial(t)) return t;
+      return tokens[0] || "";
+    };
+    const _isCompany = (name) => {
+      if (!fmt.detectCompany) return false;
+      const terms = [
+        "llc",
+        "inc",
+        "ltd",
+        "corp",
+        "corporation",
+        "holdings",
+        "enterprises",
+        "group",
+        "associates",
+        "partners",
+        "properties",
+        "realty",
+        "management",
+        "services",
+        "solutions",
+        "trust",
+        "investments",
+        "fund",
+        "capital",
+      ];
+      return terms.some((t) => name.toLowerCase().includes(t));
+    };
+    const _tc = (str) => {
+      if (!str) return str;
+      return str
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => {
+          if (!w) return w;
+          if (w.includes("'"))
+            return w
+              .split("'")
+              .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+              .join("'");
+          if (w.startsWith("mc") && w.length > 2)
+            return "Mc" + w.charAt(2).toUpperCase() + w.slice(3);
+          if (w.startsWith("mac") && w.length > 3)
+            return "Mac" + w.charAt(3).toUpperCase() + w.slice(4);
+          return w.charAt(0).toUpperCase() + w.slice(1);
+        })
+        .join(" ");
+    };
+    const _fmt = (rawName) => {
+      if (!rawName) return { raw: rawName, people: [] };
+      const normalized = rawName.trim().replace(/\s+/g, " ");
+      if (_isCompany(normalized))
+        return { raw: rawName, people: [{ first: _tc(normalized), last: "" }] };
+      const results = [];
+      const pipes =
+        fmt.splitPipe && normalized.includes("|")
+          ? normalized.split(/\s*\|\s*/)
+          : [normalized];
+      let iLast = "";
+      if (pipes[0].includes(",")) iLast = pipes[0].split(",")[0].trim();
+      pipes.forEach((seg) => {
+        seg = seg.trim();
+        if (!seg) return;
+        if (fmt.splitAmpersand && seg.includes("&") && !_isCompany(seg)) {
+          let sharedLast = "";
+          let firstsPart = seg;
+          if (seg.includes(",")) {
+            const ci = seg.indexOf(",");
+            sharedLast = seg.slice(0, ci).trim();
+            firstsPart = seg.slice(ci + 1).trim();
+          } else {
+            sharedLast = fmt.inheritLastName ? iLast : "";
+            firstsPart = seg;
+          }
+          firstsPart.split(/\s*&\s*/).forEach((part) => {
+            const trimmed = part.trim();
+            if (trimmed.includes(",")) {
+              const ci = trimmed.indexOf(",");
+              const ln = trimmed.slice(0, ci).trim();
+              const fnToks = trimmed
+                .slice(ci + 1)
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean);
+              const fn = fmt.stripInitials ? _firstReal(fnToks) : fnToks[0];
+              if (fn) results.push({ first: _tc(fn), last: _tc(ln) });
+            } else {
+              const toks = trimmed.split(/\s+/).filter(Boolean);
+              const fn = fmt.stripInitials ? _firstReal(toks) : toks[0];
+              if (fn) results.push({ first: _tc(fn), last: _tc(sharedLast) });
+            }
+          });
+        } else if (!seg.includes(",") && fmt.inheritLastName && iLast) {
+          const toks = seg.split(/\s+/).filter(Boolean);
+          const fn = fmt.stripInitials ? _firstReal(toks) : toks[0];
+          if (fn) results.push({ first: _tc(fn), last: _tc(iLast) });
+        } else if (seg.includes(",")) {
+          const ci = seg.indexOf(",");
+          const last = seg.slice(0, ci).trim();
+          const firstToks = seg
+            .slice(ci + 1)
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean);
+          const fn = fmt.stripInitials
+            ? _firstReal(firstToks)
+            : firstToks[0] || "";
+          results.push({ first: _tc(fn), last: _tc(last) });
+          iLast = last;
+        } else {
+          results.push({ first: _tc(seg), last: "" });
+        }
+        if (seg.includes(",")) iLast = seg.split(",")[0].trim();
+      });
+      return { raw: rawName, people: results };
+    };
+
+    // Build preview rows from first 15 non-empty name values
+    const out = [];
+    for (let i = 0; i < rows.length && out.length < 15; i++) {
+      const raw = (rows[i][col] || "").trim();
+      if (!raw) continue;
+      const { people } = _fmt(raw);
+      if (people.length === 0) {
+        out.push({ raw, first: "", last: "", empty: true });
+      } else {
+        people.forEach((p) =>
+          out.push({ raw, first: p.first, last: p.last, empty: false }),
+        );
+      }
+    }
+    return out;
+  }, [
+    step1Data.originalCsvText,
+    step1Data.nameColumn,
+    step1Data.formatOptions,
+  ]);
   const [step3Data, setStep3Data] = useState({
     processedData: null,
     downloadReady: false,
@@ -234,146 +408,194 @@ function CsvFormatter() {
       return;
     }
 
-    // Format multiple buyers (replace | with & for multiple buyers) for ALL rows
-    const buyerColumn = headers.find(
-      (h) =>
-        h &&
-        h.toLowerCase().includes("buyer") &&
-        h.toLowerCase().includes("name"),
-    );
+    // ── Format options helpers ────────────────────────────────────────────
+    const fmt = step1Data.formatOptions;
+
+    const isInitialToken = (token) =>
+      token.length === 1 || (token.length === 2 && token.endsWith("."));
+
+    const firstRealWord = (tokens) => {
+      for (const t of tokens) if (!isInitialToken(t)) return t;
+      return tokens[0] || "";
+    };
+
+    const isLikelyCompanyFmt = (name) => {
+      if (!fmt.detectCompany) return false;
+      const terms = [
+        "llc",
+        "inc",
+        "ltd",
+        "corp",
+        "corporation",
+        "holdings",
+        "enterprises",
+        "group",
+        "associates",
+        "partners",
+        "properties",
+        "realty",
+        "management",
+        "services",
+        "solutions",
+        "trust",
+        "investments",
+        "fund",
+        "capital",
+      ];
+      const lower = name.toLowerCase();
+      return terms.some((t) => lower.includes(t));
+    };
+
+    const toTitleCaseFmt = (str) => {
+      if (!str) return str;
+      return str
+        .toLowerCase()
+        .split(/\s+/)
+        .map((word) => {
+          if (!word) return word;
+          if (word.includes("'"))
+            return word
+              .split("'")
+              .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+              .join("'");
+          if (word.startsWith("mc") && word.length > 2)
+            return "Mc" + word.charAt(2).toUpperCase() + word.slice(3);
+          if (word.startsWith("mac") && word.length > 3)
+            return "Mac" + word.charAt(3).toUpperCase() + word.slice(4);
+          return word.charAt(0).toUpperCase() + word.slice(1);
+        })
+        .join(" ");
+    };
+
+    const cleanNameToken = (name, isFirst) => {
+      if (!name) return name;
+      if (!fmt.stripInitials) return toTitleCaseFmt(name.trim());
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (isFirst) return toTitleCaseFmt(firstRealWord(parts));
+      if (parts.length <= 1) return toTitleCaseFmt(name.trim());
+      if (isInitialToken(parts[0]))
+        return toTitleCaseFmt(parts.slice(1).join(" "));
+      return toTitleCaseFmt(parts.join(" "));
+    };
+
+    // Format a raw name field respecting all format options
+    const formatNameWithOptions = (rawName) => {
+      if (!rawName) return rawName;
+      const normalized = rawName.trim().replace(/\s+/g, " ");
+      if (isLikelyCompanyFmt(normalized)) return normalized;
+
+      const results = [];
+      const pipeSegments =
+        fmt.splitPipe && normalized.includes("|")
+          ? normalized.split(/\s*\|\s*/)
+          : [normalized];
+
+      let inheritedLastName = "";
+      // Seed inherited last name from first segment
+      if (pipeSegments[0].includes(",")) {
+        inheritedLastName = pipeSegments[0].split(",")[0].trim();
+      }
+
+      pipeSegments.forEach((seg) => {
+        seg = seg.trim();
+        if (!seg) return;
+
+        if (
+          fmt.splitAmpersand &&
+          seg.includes("&") &&
+          !isLikelyCompanyFmt(seg)
+        ) {
+          let sharedLast = "";
+          let firstsPart = seg;
+          if (seg.includes(",")) {
+            const ci = seg.indexOf(",");
+            sharedLast = seg.slice(0, ci).trim();
+            firstsPart = seg.slice(ci + 1).trim();
+          } else {
+            sharedLast = fmt.inheritLastName ? inheritedLastName : "";
+            firstsPart = seg;
+          }
+          firstsPart.split(/\s*&\s*/).forEach((part) => {
+            const trimmed = part.trim();
+            // If this part already has its own last name (e.g. "Salisbury,James"), use it directly
+            if (trimmed.includes(",")) {
+              const ci = trimmed.indexOf(",");
+              const ln = trimmed.slice(0, ci).trim();
+              const fnTokens = trimmed
+                .slice(ci + 1)
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean);
+              const fn = fmt.stripInitials
+                ? firstRealWord(fnTokens)
+                : fnTokens[0];
+              if (fn)
+                results.push(`${toTitleCaseFmt(ln)},${toTitleCaseFmt(fn)}`);
+            } else {
+              const tokens = trimmed.split(/\s+/).filter(Boolean);
+              const fn = fmt.stripInitials ? firstRealWord(tokens) : tokens[0];
+              if (fn) {
+                results.push(
+                  sharedLast
+                    ? `${toTitleCaseFmt(sharedLast)},${toTitleCaseFmt(fn)}`
+                    : toTitleCaseFmt(fn),
+                );
+              }
+            }
+          });
+        } else if (
+          !seg.includes(",") &&
+          fmt.inheritLastName &&
+          inheritedLastName
+        ) {
+          // Pipe segment with no comma → inherit last name
+          const tokens = seg.split(/\s+/).filter(Boolean);
+          const fn = fmt.stripInitials ? firstRealWord(tokens) : tokens[0];
+          if (fn)
+            results.push(
+              `${toTitleCaseFmt(inheritedLastName)},${toTitleCaseFmt(fn)}`,
+            );
+        } else if (seg.includes(",")) {
+          const ci = seg.indexOf(",");
+          const last = seg.slice(0, ci).trim();
+          const first = seg.slice(ci + 1).trim();
+          results.push(
+            `${cleanNameToken(last, false)},${cleanNameToken(first, true)}`,
+          );
+          inheritedLastName = last; // update for next pipe segment
+        } else {
+          results.push(toTitleCaseFmt(seg));
+        }
+
+        if (seg.includes(",")) {
+          inheritedLastName = seg.split(",")[0].trim();
+        }
+      });
+
+      return results.join(" & ");
+    };
+    // ── End format options helpers ─────────────────────────────────────────
+
+    // Use nameColumn override if set, otherwise auto-detect buyer name column
+    const buyerColumn =
+      step1Data.nameColumn ||
+      headers.find(
+        (h) =>
+          h &&
+          h.toLowerCase().includes("buyer") &&
+          h.toLowerCase().includes("name"),
+      );
 
     // Create two sets of rows - all rows with formatting and filtered rows
     let allFormattedRows = JSON.parse(JSON.stringify(rows));
     let filteredRows = [];
 
     if (buyerColumn) {
-      // Apply formatting to all rows
+      // Apply format-options-aware formatting to all rows
       allFormattedRows.forEach((row) => {
         if (row[buyerColumn]) {
-          // Split by | and check if there are multiple buyers
-          const buyers = row[buyerColumn]
-            .split("|")
-            .map((b) => b.trim())
-            .filter(Boolean);
-          // If more than one buyer, replace | with & (for all rows)
-          if (buyers.length >= 1) {
-            row[buyerColumn] = buyers.join(" & ");
-          }
-
-          // Add name normalization to improve matching
-          if (row[buyerColumn]) {
-            // Process each buyer name in the joined string
-            const normalizedBuyers = row[buyerColumn]
-              .split(/\s*&\s*/)
-              .map((name) => {
-                // Handle company/trust names (all uppercase or contains business terms)
-                if (
-                  name.toUpperCase() === name ||
-                  /\b(LLC|TRUST|INC|CORP|PROPERTIES|GROUP)\b/i.test(name)
-                ) {
-                  return name; // Keep business names as-is
-                }
-
-                // Handle Last,First format (most common in anniversary data)
-                if (name.includes(",")) {
-                  const [lastName, firstName] = name
-                    .split(",")
-                    .map((part) => part.trim());
-
-                  // Format names with consistent capitalization
-                  const formatName = (namePart) => {
-                    if (!namePart) return "";
-                    return namePart
-                      .split(/\s+/)
-                      .map((part) => {
-                        if (part.length <= 1) return part.toUpperCase();
-                        return (
-                          part.charAt(0).toUpperCase() +
-                          part.slice(1).toLowerCase()
-                        );
-                      })
-                      .join(" ");
-                  };
-
-                  return `${formatName(lastName)},${formatName(firstName)}`;
-                }
-
-                return name; // Keep other formats as-is
-              });
-
-            // Join normalized buyers back together
-            row[buyerColumn] = normalizedBuyers.join(" & ");
-          }
-
-          // Normalize buyer names for better matching
-          if (row[buyerColumn]) {
-            // Process each buyer name
-            const normalizedBuyers = row[buyerColumn]
-              .split(/\s*&\s*/)
-              .map((name) => {
-                // Handle company/trust names (all uppercase or contains LLC/TRUST)
-                if (
-                  name.toUpperCase() === name ||
-                  /\b(LLC|TRUST|INC|CORP|PROPERTIES|GROUP)\b/i.test(name)
-                ) {
-                  return name; // Keep business names as-is
-                }
-
-                // Handle Last,First format (most common in anniversary data)
-                if (name.includes(",")) {
-                  // Ensure consistent capitalization for Last,First format
-                  const [lastName, firstName] = name
-                    .split(",")
-                    .map((part) => part.trim());
-
-                  // Capitalize first letter of each name part
-                  const formatName = (namePart) => {
-                    if (!namePart) return "";
-                    return namePart
-                      .split(/\s+/)
-                      .map((part) => {
-                        if (part.length <= 1) return part.toUpperCase();
-                        return (
-                          part.charAt(0).toUpperCase() +
-                          part.slice(1).toLowerCase()
-                        );
-                      })
-                      .join(" ");
-                  };
-
-                  const formattedLastName = formatName(lastName);
-                  const formattedFirstName = formatName(firstName);
-
-                  // Return in consistent Last,First format
-                  return `${formattedLastName},${formattedFirstName}`;
-                }
-
-                // Handle First Last format (less common but possible)
-                const parts = name.split(/\s+/);
-                if (parts.length >= 2) {
-                  // Try to detect if it's already in First Last format and normalize
-                  const formattedParts = parts.map((part) => {
-                    if (part.length <= 1) return part.toUpperCase();
-                    return (
-                      part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
-                    );
-                  });
-
-                  // Convert to Last,First format for consistency
-                  const lastName = formattedParts.pop();
-                  const firstName = formattedParts.join(" ");
-                  return `${lastName},${firstName}`;
-                }
-
-                return name; // Keep single names as-is
-              });
-
-            // Join normalized buyers back together
-            row[buyerColumn] = normalizedBuyers.join(" & ");
-          }
+          row[buyerColumn] = formatNameWithOptions(row[buyerColumn]);
         }
-
-        // We'll handle address parsing outside this block
       });
 
       // Add address parsing for all rows
@@ -1007,55 +1229,29 @@ function CsvFormatter() {
       console.log(`  - Seller only: ${sellerOnlyCount}`);
 
       // Helper function to detect if a name is likely a company name
-      // Function to clean names for output - remove initials completely
+      // Returns true if a token is a middle initial (single letter or "X.")
+      const isInitialToken = (token) =>
+        token.length === 1 || (token.length === 2 && token.endsWith("."));
+
+      // Extract the first NON-initial word from an array of tokens
+      const firstRealWord = (tokens) => {
+        for (const t of tokens) if (!isInitialToken(t)) return t;
+        return tokens[0] || "";
+      };
+
+      // Function to clean names for output - mirrors FormatTests exactly
       const cleanNameForOutput = (name, isFirstName = true) => {
         if (!name || typeof name !== "string") return name;
-
-        let cleanedName;
-
-        // For first names, get just the first substantial word (ignoring middle names/initials)
+        const parts = name.trim().split(/\s+/).filter(Boolean);
         if (isFirstName) {
-          const parts = name.trim().split(/\s+/);
-          cleanedName = parts[0];
-
-          // If first part is just an initial, try to use the next substantial part
-          if (
-            parts.length > 1 &&
-            (parts[0].length === 1 ||
-              (parts[0].length === 2 && parts[0].endsWith(".")))
-          ) {
-            // Look for the next substantial part (not an initial)
-            for (let i = 1; i < parts.length; i++) {
-              if (parts[i].length > 1 && !parts[i].endsWith(".")) {
-                cleanedName = parts[i];
-                break;
-              }
-            }
-          }
+          // Always use firstRealWord to skip any leading initials
+          return toTitleCase(firstRealWord(parts));
+        } else {
+          if (parts.length <= 1) return toTitleCase(name.trim());
+          if (isInitialToken(parts[0]))
+            return toTitleCase(parts.slice(1).join(" "));
+          return toTitleCase(parts.join(" "));
         }
-        // For last names, always remove leading initials
-        else {
-          const parts = name.trim().split(/\s+/);
-
-          // If there's only one part, just return it
-          if (parts.length <= 1) {
-            cleanedName = name;
-          } else {
-            // Check if the first part is an initial (single letter possibly with period)
-            if (
-              parts[0].length === 1 ||
-              (parts[0].length === 2 && parts[0].endsWith("."))
-            ) {
-              // Remove the initial and return the rest
-              cleanedName = parts.slice(1).join(" ");
-            } else {
-              cleanedName = name;
-            }
-          }
-        }
-
-        // Apply title case to the cleaned name
-        return toTitleCase(cleanedName);
       };
 
       const isLikelyCompany = (name) => {
@@ -1100,65 +1296,111 @@ function CsvFormatter() {
       };
 
       // Pre-process buyer name to avoid splitting trusts and businesses incorrectly
-      // Also handle pipe separators (|) that might be in the data
+      // Mirrors FormatTests splitBuyerName logic exactly (pipe + inherited last name)
       const preprocessBuyerName = (buyerNameRaw) => {
         if (!buyerNameRaw) return [];
 
-        // Trim extra whitespace and normalize
         const normalizedName = buyerNameRaw.trim().replace(/\s+/g, " ");
 
-        // If it's a likely business/trust that contains "&", keep it as one entity
+        // Keep company names with & intact
         if (isLikelyCompany(normalizedName) && normalizedName.includes("&")) {
           return [normalizedName];
         }
 
-        // First split by pipe (|) if present, which takes precedence over ampersands
+        // ── Pipe split with inherited last name ──────────────────────────
         if (normalizedName.includes("|")) {
-          return normalizedName.split(/\s*\|\s*/).flatMap((name) => {
-            // Then split each pipe-separated part by "&" if needed
-            if (name.includes("&") && !isLikelyCompany(name)) {
-              return name.split(/\s*&\s*/);
+          const pipeSegments = normalizedName.split(/\s*\|\s*/);
+          let inheritedLastName = "";
+
+          // Seed inherited last name from first segment
+          if (pipeSegments[0].includes(",")) {
+            inheritedLastName = pipeSegments[0].split(",")[0].trim();
+          }
+
+          const results = [];
+          pipeSegments.forEach((seg) => {
+            seg = seg.trim();
+            if (!seg) return;
+
+            if (seg.includes("&") && !isLikelyCompany(seg)) {
+              let sharedLast = "";
+              let firstsPart = seg;
+              if (seg.includes(",")) {
+                const ci = seg.indexOf(",");
+                sharedLast = seg.slice(0, ci).trim();
+                firstsPart = seg.slice(ci + 1).trim();
+              } else {
+                sharedLast = inheritedLastName;
+                firstsPart = seg;
+              }
+              firstsPart.split(/\s*&\s*/).forEach((part) => {
+                const trimmed = part.trim();
+                // If this part already has its own last name (contains comma), use it directly
+                if (trimmed.includes(",")) {
+                  const ci = trimmed.indexOf(",");
+                  const ln = trimmed.slice(0, ci).trim();
+                  const fnTokens = trimmed
+                    .slice(ci + 1)
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean);
+                  const fn = firstRealWord(fnTokens);
+                  if (fn) results.push(`${ln},${fn}`);
+                } else {
+                  const tokens = trimmed.split(/\s+/).filter(Boolean);
+                  const fn = firstRealWord(tokens);
+                  if (fn) results.push(sharedLast ? `${sharedLast},${fn}` : fn);
+                }
+              });
+            } else if (!seg.includes(",") && inheritedLastName) {
+              // No comma → inherit last name from first segment
+              const tokens = seg.split(/\s+/).filter(Boolean);
+              const fn = firstRealWord(tokens);
+              if (fn) results.push(`${inheritedLastName},${fn}`);
+            } else {
+              results.push(seg);
             }
-            return [name.trim()];
+
+            // Update inherited last name for next pipe segment
+            if (seg.includes(",")) {
+              inheritedLastName = seg.split(",")[0].trim();
+            }
           });
+
+          return results.filter(Boolean);
         }
 
-        // ENHANCED: Handle "Last, First & First2" format properly
+        // ── Ampersand with comma "Last, First1 & Last2, First2" or "Last, First1 & First2" ───
         if (normalizedName.includes(",") && normalizedName.includes("&")) {
-          // DEBUG: Log Rhodes case specifically
-          if (normalizedName.includes("Rhodes")) {
-            console.log(
-              "🔍 Rhodes Debug - preprocessBuyerName:",
-              normalizedName,
-            );
-          }
-
-          const [lastPart, firstPart] = normalizedName
-            .split(",")
-            .map((part) => part.trim());
-
-          // Split the first name part by "&" and reconstruct full names
-          const firstNames = firstPart
+          const commaIdx = normalizedName.indexOf(",");
+          const lastPart = normalizedName.slice(0, commaIdx).trim();
+          const firstPart = normalizedName.slice(commaIdx + 1).trim();
+          return firstPart
             .split(/\s*&\s*/)
-            .map((name) => name.trim());
-
-          const result = firstNames.map(
-            (firstName) => `${lastPart},${firstName}`,
-          );
-
-          // DEBUG: Log Rhodes result
-          if (normalizedName.includes("Rhodes")) {
-            console.log(
-              "🔍 Rhodes Debug - preprocessBuyerName result:",
-              result,
-            );
-          }
-
-          return result;
+            .map((f) => f.trim())
+            .filter(Boolean)
+            .map((f) => {
+              // If this part already has its own last name (e.g. "Salisbury,James"), use it directly
+              if (f.includes(",")) {
+                const ci = f.indexOf(",");
+                const ln = f.slice(0, ci).trim();
+                const fnTokens = f
+                  .slice(ci + 1)
+                  .trim()
+                  .split(/\s+/)
+                  .filter(Boolean);
+                const fn = firstRealWord(fnTokens);
+                return fn ? `${ln},${fn}` : f;
+              }
+              return `${lastPart},${f}`;
+            });
         }
 
-        // Split by "&" as normal for other cases
-        return normalizedName.split(/\s*&\s*/).map((name) => name.trim());
+        // ── Plain ampersand split ─────────────────────────────────────────
+        return normalizedName
+          .split(/\s*&\s*/)
+          .map((n) => n.trim())
+          .filter(Boolean);
       };
 
       // NEW: Enhanced name processor that creates separate rows for each person
@@ -1297,24 +1539,16 @@ function CsvFormatter() {
       };
 
       // NEW: Parse individual name with proper case formatting
+      // Mirrors FormatTests parseOnePerson logic exactly
       const parseIndividualName = (name) => {
         if (!name || typeof name !== "string") {
           return { firstName: "", lastName: "", isValid: false };
         }
 
-        // DEBUG: Log Rhodes parsing specifically
-        if (
-          name.includes("Rhodes") ||
-          name.includes("Kent") ||
-          name.includes("Marsha")
-        ) {
-          console.log("🔍 Rhodes Debug - parseIndividualName input:", name);
-        }
-
         // Check if it's a company (keep existing company logic)
         if (isLikelyCompany(name)) {
           return {
-            firstName: toTitleCase(name.trim()), // Put company name in first name field with proper case
+            firstName: toTitleCase(name.trim()),
             lastName: "",
             isValid: true,
           };
@@ -1323,82 +1557,37 @@ function CsvFormatter() {
         let firstName = "";
         let lastName = "";
 
-        // Handle "Last, First Middle-Initial" format - WORKFLOW COMPLIANT
         if (name.includes(",")) {
-          const [lastPart, firstPart] = name
-            .split(",")
-            .map((part) => part.trim());
-
+          // "Last, First [M.]" — use firstRealWord to skip any initials
+          const commaIdx = name.indexOf(",");
+          const lastPart = name.slice(0, commaIdx).trim();
+          const afterComma = name.slice(commaIdx + 1).trim();
+          const tokens = afterComma.split(/\s+/).filter(Boolean);
+          firstName = toTitleCase(firstRealWord(tokens));
           lastName = toTitleCase(lastPart);
-
-          // WORKFLOW RULE: Keep the first given name, ignore middle initials after the comma
-          if (firstPart) {
-            const firstParts = firstPart.split(/\s+/);
-            let cleanFirstName = firstParts[0] || "";
-
-            // If first part is just an initial, try to use the next substantial part
-            if (
-              firstParts.length > 1 &&
-              (firstParts[0].length === 1 ||
-                (firstParts[0].length === 2 && firstParts[0].endsWith(".")))
-            ) {
-              // Look for the next substantial part (not an initial)
-              for (let i = 1; i < firstParts.length; i++) {
-                if (firstParts[i].length > 1 && !firstParts[i].endsWith(".")) {
-                  cleanFirstName = firstParts[i];
-                  break;
-                }
-              }
-            }
-
-            firstName = toTitleCase(cleanFirstName);
-          }
         } else {
-          // Handle "First Last" or "First Middle Last" format
-          const parts = name.split(/\s+/).filter((part) => part.length > 0);
-
-          if (parts.length >= 2) {
-            firstName = toTitleCase(parts[0]);
-
-            // For the last name, check if the last part is just an initial
-            // If so, we should not use it as the last name - it's likely a middle initial
-            const lastPart = parts[parts.length - 1];
-            if (
-              lastPart.length === 1 ||
-              (lastPart.length === 2 && lastPart.endsWith("."))
-            ) {
-              // Last part is an initial, so we don't have a proper last name
-              // Use the substantial part before the initial if it exists
-              if (parts.length >= 3) {
-                lastName = toTitleCase(parts[parts.length - 2]);
-              } else {
-                lastName = ""; // No substantial last name available
-              }
-            } else {
-              lastName = toTitleCase(lastPart);
-            }
-          } else if (parts.length === 1) {
-            firstName = toTitleCase(parts[0]);
+          // "First [M.] Last" format
+          const tokens = name.trim().split(/\s+/).filter(Boolean);
+          if (tokens.length === 1) {
+            firstName = toTitleCase(tokens[0]);
             lastName = "";
+          } else {
+            firstName = toTitleCase(tokens[0]);
+            const lastToken = tokens[tokens.length - 1];
+            // If last token is an initial, step back to second-to-last
+            lastName = isInitialToken(lastToken)
+              ? tokens.length >= 3
+                ? toTitleCase(tokens[tokens.length - 2])
+                : ""
+              : toTitleCase(lastToken);
           }
         }
 
-        const result = {
-          firstName: firstName,
-          lastName: lastName,
-          isValid: firstName.length >= 1, // Must have at least first name
+        return {
+          firstName,
+          lastName,
+          isValid: firstName.length >= 1,
         };
-
-        // DEBUG: Log Rhodes parsing result
-        if (
-          name.includes("Rhodes") ||
-          name.includes("Kent") ||
-          name.includes("Marsha")
-        ) {
-          console.log("🔍 Rhodes Debug - parseIndividualName result:", result);
-        }
-
-        return result;
       };
 
       // NEW: Proper title case conversion
@@ -3750,6 +3939,139 @@ function CsvFormatter() {
                   />
                 </div>
 
+                {/* Format options panel — shown once a file is loaded */}
+                {step1Data.originalCsvText &&
+                  (() => {
+                    const previewParsed = Papa.parse(
+                      step1Data.originalCsvText,
+                      {
+                        header: true,
+                        skipEmptyLines: true,
+                        preview: 1,
+                      },
+                    );
+                    const cols = previewParsed.meta.fields || [];
+                    return (
+                      <div className="format-options-panel">
+                        <h4>Name Column &amp; Format Options</h4>
+
+                        <div className="format-row">
+                          <label>Name column to format:</label>
+                          <select
+                            value={step1Data.nameColumn}
+                            onChange={(e) =>
+                              setStep1Data((prev) => ({
+                                ...prev,
+                                nameColumn: e.target.value,
+                              }))
+                            }
+                            className="text-input"
+                            style={{ width: "auto", minWidth: 220 }}
+                          >
+                            <option value="">Auto-detect (Buyer Name)</option>
+                            {cols.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="format-checkboxes">
+                          {[
+                            {
+                              key: "splitPipe",
+                              label: 'Split by pipe "|" → separate people',
+                            },
+                            {
+                              key: "splitAmpersand",
+                              label: 'Split by "&" → separate people',
+                            },
+                            {
+                              key: "stripInitials",
+                              label: "Strip middle initials (J. → removed)",
+                            },
+                            {
+                              key: "detectCompany",
+                              label:
+                                "Detect & preserve company names (LLC, Trust…)",
+                            },
+                            {
+                              key: "inheritLastName",
+                              label: "Inherit last name across pipe segments",
+                            },
+                          ].map(({ key, label }) => (
+                            <label key={key} className="checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={step1Data.formatOptions[key]}
+                                onChange={(e) =>
+                                  setStep1Data((prev) => ({
+                                    ...prev,
+                                    formatOptions: {
+                                      ...prev.formatOptions,
+                                      [key]: e.target.checked,
+                                    },
+                                  }))
+                                }
+                              />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+
+                        {/* ── Live name preview ── */}
+                        {step1Preview.length > 0 && (
+                          <div className="name-preview">
+                            <p className="name-preview-title">
+                              Preview (first 15 names)
+                            </p>
+                            <div style={{ overflowX: "auto" }}>
+                              <table className="name-preview-table">
+                                <thead>
+                                  <tr>
+                                    <th>Raw Input</th>
+                                    <th>First Name</th>
+                                    <th>Last Name</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {step1Preview.map((r, i) => (
+                                    <tr
+                                      key={i}
+                                      style={{
+                                        background: r.empty
+                                          ? "#fee2e2"
+                                          : i % 2 === 0
+                                            ? "white"
+                                            : "#f9fafb",
+                                      }}
+                                    >
+                                      <td
+                                        style={{
+                                          color: "#6b7280",
+                                          fontStyle: "italic",
+                                        }}
+                                      >
+                                        {r.raw}
+                                      </td>
+                                      <td style={{ fontWeight: 600 }}>
+                                        {r.first}
+                                      </td>
+                                      <td style={{ fontWeight: 600 }}>
+                                        {r.last}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                 <button
                   onClick={filterBySellingAgent}
                   className="filter-button"
@@ -3872,6 +4194,82 @@ function CsvFormatter() {
                   font-size: 12px;
                   color: #666;
                   margin-left: 10px;
+                }
+
+                .format-options-panel {
+                  background: #f8f9fa;
+                  border: 1px solid #dee2e6;
+                  border-radius: 8px;
+                  padding: 16px 20px;
+                  margin: 16px 0;
+                }
+
+                .format-options-panel h4 {
+                  margin: 0 0 12px 0;
+                  font-size: 14px;
+                  font-weight: 600;
+                  color: #333;
+                }
+
+                .format-row {
+                  display: flex;
+                  align-items: center;
+                  gap: 12px;
+                  margin-bottom: 12px;
+                  font-size: 14px;
+                }
+
+                .format-checkboxes {
+                  display: flex;
+                  flex-direction: column;
+                  gap: 8px;
+                }
+
+                .checkbox-label {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  font-size: 14px;
+                  color: #444;
+                  cursor: pointer;
+                }
+
+                .checkbox-label input[type="checkbox"] {
+                  width: 15px;
+                  height: 15px;
+                  cursor: pointer;
+                }
+
+                .name-preview {
+                  margin-top: 14px;
+                  border-top: 1px solid #e2e8f0;
+                  padding-top: 12px;
+                }
+
+                .name-preview-title {
+                  margin: 0 0 8px;
+                  font-size: 13px;
+                  font-weight: 600;
+                  color: #555;
+                }
+
+                .name-preview-table {
+                  width: 100%;
+                  border-collapse: collapse;
+                  font-size: 13px;
+                }
+
+                .name-preview-table th {
+                  background: #f3f4f6;
+                  border: 1px solid #e5e7eb;
+                  padding: 5px 10px;
+                  text-align: left;
+                  font-weight: 600;
+                }
+
+                .name-preview-table td {
+                  border: 1px solid #e5e7eb;
+                  padding: 4px 10px;
                 }
               `}</style>
             </div>
