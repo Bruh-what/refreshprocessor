@@ -39,7 +39,7 @@ function CsvFormatter() {
     const rows = parsed.data;
     const fmt = step1Data.formatOptions;
 
-    // Resolve which column to preview
+    // Resolve which column(s) to preview
     const col =
       step1Data.nameColumn ||
       headers.find(
@@ -48,7 +48,15 @@ function CsvFormatter() {
           h.toLowerCase().includes("buyer") &&
           h.toLowerCase().includes("name"),
       );
-    if (!col) return [];
+    const sellerCol = step1Data.nameColumn
+      ? null
+      : headers.find(
+          (h) =>
+            h &&
+            h.toLowerCase().includes("seller") &&
+            h.toLowerCase().includes("name"),
+        );
+    if (!col && !sellerCol) return [];
 
     // Inline helpers (mirrors filterBySellingAgent helpers exactly)
     const _isInitial = (t) =>
@@ -58,6 +66,9 @@ function CsvFormatter() {
       return tokens[0] || "";
     };
     const _isCompany = (name) => {
+      // Always skip LLC and Trust regardless of the detectCompany toggle
+      const lc = name.toLowerCase();
+      if (lc.includes("llc") || lc.includes("trust")) return true;
       if (!fmt.detectCompany) return false;
       const terms = [
         "llc",
@@ -171,18 +182,60 @@ function CsvFormatter() {
       return { raw: rawName, people: results };
     };
 
-    // Build preview rows from first 15 non-empty name values
+    // Build preview rows from first 15 non-empty name values across buyer + seller columns
     const out = [];
     for (let i = 0; i < rows.length && out.length < 15; i++) {
-      const raw = (rows[i][col] || "").trim();
-      if (!raw) continue;
-      const { people } = _fmt(raw);
-      if (people.length === 0) {
-        out.push({ raw, first: "", last: "", empty: true });
-      } else {
-        people.forEach((p) =>
-          out.push({ raw, first: p.first, last: p.last, empty: false }),
-        );
+      // Buyer column
+      if (col) {
+        const raw = (rows[i][col] || "").trim();
+        if (raw) {
+          const { people } = _fmt(raw);
+          if (people.length === 0) {
+            out.push({
+              raw,
+              first: "",
+              last: "",
+              empty: true,
+              colLabel: "Buyer",
+            });
+          } else {
+            people.forEach((p) =>
+              out.push({
+                raw,
+                first: p.first,
+                last: p.last,
+                empty: false,
+                colLabel: "Buyer",
+              }),
+            );
+          }
+        }
+      }
+      // Seller column
+      if (sellerCol) {
+        const raw = (rows[i][sellerCol] || "").trim();
+        if (raw) {
+          const { people } = _fmt(raw);
+          if (people.length === 0) {
+            out.push({
+              raw,
+              first: "",
+              last: "",
+              empty: true,
+              colLabel: "Seller",
+            });
+          } else {
+            people.forEach((p) =>
+              out.push({
+                raw,
+                first: p.first,
+                last: p.last,
+                empty: false,
+                colLabel: "Seller",
+              }),
+            );
+          }
+        }
       }
     }
     return out;
@@ -420,6 +473,9 @@ function CsvFormatter() {
     };
 
     const isLikelyCompanyFmt = (name) => {
+      // Always skip LLC and Trust regardless of the detectCompany toggle
+      const lc = name.toLowerCase();
+      if (lc.includes("llc") || lc.includes("trust")) return true;
       if (!fmt.detectCompany) return false;
       const terms = [
         "llc",
@@ -586,6 +642,16 @@ function CsvFormatter() {
           h.toLowerCase().includes("name"),
       );
 
+    // Also auto-detect seller name column so it gets the same formatting
+    const sellerColumn = step1Data.nameColumn
+      ? null // if user manually picked a column, only format that one
+      : headers.find(
+          (h) =>
+            h &&
+            h.toLowerCase().includes("seller") &&
+            h.toLowerCase().includes("name"),
+        );
+
     // Create two sets of rows - all rows with formatting and filtered rows
     let allFormattedRows = JSON.parse(JSON.stringify(rows));
     let filteredRows = [];
@@ -595,6 +661,10 @@ function CsvFormatter() {
       allFormattedRows.forEach((row) => {
         if (row[buyerColumn]) {
           row[buyerColumn] = formatNameWithOptions(row[buyerColumn]);
+        }
+        // Also format seller names with the same rules
+        if (sellerColumn && row[sellerColumn]) {
+          row[sellerColumn] = formatNameWithOptions(row[sellerColumn]);
         }
       });
 
@@ -1255,6 +1325,9 @@ function CsvFormatter() {
       };
 
       const isLikelyCompany = (name) => {
+        // Always skip LLC and Trust unconditionally
+        const lc = name.toLowerCase();
+        if (lc.includes("llc") || lc.includes("trust")) return true;
         // List of business identifiers/suffixes
         const businessTerms = [
           "llc",
@@ -4041,14 +4114,12 @@ function CsvFormatter() {
               buyerRows: [],
               sellerRows: [],
             });
-          personMap
-            .get(key)
-            .buyerRows.push({
-              address,
-              parsedAddress,
-              anniversaryDate,
-              salePrice,
-            });
+          personMap.get(key).buyerRows.push({
+            address,
+            parsedAddress,
+            anniversaryDate,
+            salePrice,
+          });
         });
       }
 
@@ -4064,14 +4135,12 @@ function CsvFormatter() {
               buyerRows: [],
               sellerRows: [],
             });
-          personMap
-            .get(key)
-            .sellerRows.push({
-              address,
-              parsedAddress,
-              anniversaryDate,
-              salePrice,
-            });
+          personMap.get(key).sellerRows.push({
+            address,
+            parsedAddress,
+            anniversaryDate,
+            salePrice,
+          });
         });
       }
     });
@@ -4377,7 +4446,9 @@ function CsvFormatter() {
                             className="text-input"
                             style={{ width: "auto", minWidth: 220 }}
                           >
-                            <option value="">Auto-detect (Buyer Name)</option>
+                            <option value="">
+                              Auto-detect (Buyer &amp; Seller Name)
+                            </option>
                             {cols.map((c) => (
                               <option key={c} value={c}>
                                 {c}
@@ -4439,6 +4510,7 @@ function CsvFormatter() {
                               <table className="name-preview-table">
                                 <thead>
                                   <tr>
+                                    <th>Column</th>
                                     <th>Raw Input</th>
                                     <th>First Name</th>
                                     <th>Last Name</th>
@@ -4456,6 +4528,14 @@ function CsvFormatter() {
                                             : "#f9fafb",
                                       }}
                                     >
+                                      <td
+                                        style={{
+                                          color: "#9ca3af",
+                                          fontSize: "0.8em",
+                                        }}
+                                      >
+                                        {r.colLabel}
+                                      </td>
                                       <td
                                         style={{
                                           color: "#6b7280",
