@@ -2862,24 +2862,30 @@ function CsvFormatter() {
                   return;
                 }
               } else {
-                // For "First Last" format
-                const parts = contactName.trim().split(/\s+/);
-                if (parts.length >= 2) {
-                  lastName = parts.pop();
-                  // Clean the first name to get just the first word
-                  firstName = cleanNameForOutput(parts.join(" "), true);
-                  // Clean the last name in case it has initials at the beginning
-                  lastName = cleanNameForOutput(lastName, false);
+                // For "First Last" format — but check for company names first
+                if (isLikelyCompany(contactName)) {
+                  // Treat the whole name as a company (first name only, no last name)
+                  firstName = toTitleCase(contactName.trim());
+                  lastName = "";
                 } else {
-                  // This shouldn't happen due to our earlier check, but just in case
-                  changeLog.push({
-                    type: "parse_error",
-                    contactName: contactName,
-                    contactType: contactInfo.isBuyer ? "buyer" : "seller",
-                    reason: "Could not parse contact name format",
-                    address: address,
-                  });
-                  return;
+                  const parts = contactName.trim().split(/\s+/);
+                  if (parts.length >= 2) {
+                    lastName = parts.pop();
+                    // Clean the first name to get just the first word
+                    firstName = cleanNameForOutput(parts.join(" "), true);
+                    // Clean the last name in case it has initials at the beginning
+                    lastName = cleanNameForOutput(lastName, false);
+                  } else {
+                    // This shouldn't happen due to our earlier check, but just in case
+                    changeLog.push({
+                      type: "parse_error",
+                      contactName: contactName,
+                      contactType: contactInfo.isBuyer ? "buyer" : "seller",
+                      reason: "Could not parse contact name format",
+                      address: address,
+                    });
+                    return;
+                  }
                 }
               }
 
@@ -3166,7 +3172,7 @@ function CsvFormatter() {
 
                 // Use enhanced name processing to create separate rows for each person
                 const separateRows = processNameIntoSeparateRows(
-                  `${firstName} ${lastName}`, // Reconstruct the original name
+                  lastName ? `${firstName} ${lastName}` : firstName, // Reconstruct name (avoid trailing space for companies)
                   baseRowData,
                   dateToUse,
                   contactType,
@@ -4011,9 +4017,30 @@ function CsvFormatter() {
         .trim();
 
     // Parse "Last, First" or "First Last" → { firstName, lastName }
+    // Company names (LLC, Trust, Inc, etc.) go entirely into firstName
+    const isPCLCompany = (name) => {
+      const lc = (name || "").toLowerCase();
+      return (
+        lc.includes("llc") ||
+        lc.includes("trust") ||
+        lc.includes(" inc") ||
+        lc.includes(" ltd") ||
+        lc.includes(" corp") ||
+        lc.includes("holdings") ||
+        lc.includes("properties") ||
+        lc.includes("realty") ||
+        lc.includes("enterprises") ||
+        lc.includes("partners") ||
+        lc.includes("associates")
+      );
+    };
     const parsePCLName = (raw) => {
       const s = (raw || "").trim();
       if (!s) return { firstName: "", lastName: "" };
+      // Keep company names intact — full name in firstName, empty lastName
+      if (isPCLCompany(s)) {
+        return { firstName: toTitleCase(s), lastName: "" };
+      }
       if (s.includes(",")) {
         const ci = s.indexOf(",");
         const last = s.slice(0, ci).trim();
@@ -4147,8 +4174,6 @@ function CsvFormatter() {
 
     // ── Build output rows ─────────────────────────────────────────────────
     const PCL_HEADERS = [
-      "Remove?",
-      "Bought/Sold with Someone Else?",
       "First Name",
       "Last Name",
       "Home Anniversary Date (Buyers)",
@@ -4176,8 +4201,6 @@ function CsvFormatter() {
         buyerRows.forEach((br) => {
           const year = new Date(br.anniversaryDate).getFullYear() || "";
           outputRows.push({
-            "Remove?": "",
-            "Bought/Sold with Someone Else?": "",
             "First Name": firstName,
             "Last Name": lastName,
             "Home Anniversary Date (Buyers)": br.anniversaryDate,
@@ -4202,8 +4225,6 @@ function CsvFormatter() {
         sellerRows.forEach((sr) => {
           const year = new Date(sr.anniversaryDate).getFullYear() || "";
           outputRows.push({
-            "Remove?": "",
-            "Bought/Sold with Someone Else?": "",
             "First Name": firstName,
             "Last Name": lastName,
             "Home Anniversary Date (Buyers)": "",
@@ -4236,8 +4257,6 @@ function CsvFormatter() {
             const year =
               new Date(samePropSeller.anniversaryDate).getFullYear() || "";
             outputRows.push({
-              "Remove?": "",
-              "Bought/Sold with Someone Else?": "",
               "First Name": firstName,
               "Last Name": lastName,
               "Home Anniversary Date (Buyers)": "",
@@ -4260,8 +4279,6 @@ function CsvFormatter() {
             // Rule 1: different addresses → Buyer record (move-up/relocation)
             const year = new Date(br.anniversaryDate).getFullYear() || "";
             outputRows.push({
-              "Remove?": "",
-              "Bought/Sold with Someone Else?": "",
               "First Name": firstName,
               "Last Name": lastName,
               "Home Anniversary Date (Buyers)": br.anniversaryDate,
@@ -4292,8 +4309,6 @@ function CsvFormatter() {
           if (!alreadyCovered) {
             const year = new Date(sr.anniversaryDate).getFullYear() || "";
             outputRows.push({
-              "Remove?": "",
-              "Bought/Sold with Someone Else?": "",
               "First Name": firstName,
               "Last Name": lastName,
               "Home Anniversary Date (Buyers)": "",
