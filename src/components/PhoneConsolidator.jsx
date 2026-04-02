@@ -374,7 +374,7 @@ const PhoneConsolidator = () => {
           matrix[i][j] = Math.min(
             matrix[i - 1][j - 1] + 1, // substitution
             matrix[i][j - 1] + 1, // insertion
-            matrix[i - 1][j] + 1 // deletion
+            matrix[i - 1][j] + 1, // deletion
           );
         }
       }
@@ -469,11 +469,11 @@ const PhoneConsolidator = () => {
       const compassContactsMissingPhones = compassWithNames.filter(
         (contact) => {
           return getAllPhoneNumbers(contact).length === 0;
-        }
+        },
       );
 
       addLog(
-        `📞 Found ${compassContactsMissingPhones.length} Compass contacts missing phone numbers`
+        `📞 Found ${compassContactsMissingPhones.length} Compass contacts missing phone numbers`,
       );
 
       // Create lookup maps for enhanced matching
@@ -484,10 +484,10 @@ const PhoneConsolidator = () => {
       for (const compassContact of compassContactsMissingPhones) {
         const normalizedName = normalizeName(
           compassContact["First Name"],
-          compassContact["Last Name"]
+          compassContact["Last Name"],
         );
         const emails = getAllEmails(compassContact).map((e) =>
-          normalizeEmail(e)
+          normalizeEmail(e),
         );
 
         // Add to name map if we have a valid normalized name
@@ -508,12 +508,12 @@ const PhoneConsolidator = () => {
       }
 
       addLog(
-        `🔍 Created lookup maps: ${emailKeyMap.size} email keys, ${nameKeyMap.size} name keys`
+        `🔍 Created lookup maps: ${emailKeyMap.size} email keys, ${nameKeyMap.size} name keys`,
       );
 
       let phonesAddedCount = 0;
       let contactsUpdatedCount = 0;
-      const updatedContacts = [...compassWithNames];
+      const updatedContacts = [...compassData]; // full dataset — nameless rows preserved in export
 
       // Process phone data in chunks
       const CHUNK_SIZE = 100;
@@ -528,7 +528,7 @@ const PhoneConsolidator = () => {
         addLog(
           `📦 Processing phone chunk ${chunkIndex + 1}/${phoneChunks.length} (${
             chunk.length
-          } records)`
+          } records)`,
         );
 
         for (const phoneContact of chunk) {
@@ -537,10 +537,10 @@ const PhoneConsolidator = () => {
 
           const normalizedName = normalizeName(
             phoneContact["First Name"],
-            phoneContact["Last Name"]
+            phoneContact["Last Name"],
           );
           const emails = getAllEmails(phoneContact).map((e) =>
-            normalizeEmail(e)
+            normalizeEmail(e),
           );
 
           let matchFound = false;
@@ -553,7 +553,7 @@ const PhoneConsolidator = () => {
               if (emailKeyMap.has(key)) {
                 compassContact = emailKeyMap.get(key);
                 addLog(
-                  `📧 Exact name+email match: ${normalizedName} (${email})`
+                  `📧 Exact name+email match: ${normalizedName} (${email})`,
                 );
                 matchFound = true;
                 break;
@@ -593,8 +593,8 @@ const PhoneConsolidator = () => {
                   addLog(
                     `🔍 Fuzzy name match: ${normalizedName} -> ${normalizeName(
                       candidateContact["First Name"],
-                      candidateContact["Last Name"]
-                    )}`
+                      candidateContact["Last Name"],
+                    )}`,
                   );
                   matchFound = true;
                   break;
@@ -628,9 +628,8 @@ const PhoneConsolidator = () => {
                   if (compassContact["Changes Made"]) {
                     compassContact["Changes Made"] += "; ";
                   }
-                  compassContact[
-                    "Changes Made"
-                  ] += `Added phone number: ${formattedPhone}`;
+                  compassContact["Changes Made"] +=
+                    `Added phone number: ${formattedPhone}`;
 
                   phonesAddedCount++;
                   phoneAdded = true;
@@ -645,7 +644,7 @@ const PhoneConsolidator = () => {
               addLog(
                 `✅ Added phone to ${normalizedName}: ${phoneNumbers
                   .map(formatPhoneNumber)
-                  .join(", ")}`
+                  .join(", ")}`,
               );
             }
           }
@@ -664,20 +663,20 @@ const PhoneConsolidator = () => {
       });
 
       addLog(
-        `📞 Final result: ${stillMissingPhones.length} contacts still missing phones after all matching strategies`
+        `📞 Final result: ${stillMissingPhones.length} contacts still missing phones after all matching strategies`,
       );
 
       setResults({
         updatedContacts,
         phonesAddedCount,
         contactsUpdatedCount,
-        totalContacts: compassWithNames.length,
+        totalContacts: compassData.length,
         originalMissingPhones: compassContactsMissingPhones.length,
       });
 
       addLog("🎯 Phone consolidation complete!");
       addLog(
-        `📊 Results: ${phonesAddedCount} phone numbers added to ${contactsUpdatedCount} contacts`
+        `📊 Results: ${phonesAddedCount} phone numbers added to ${contactsUpdatedCount} contacts`,
       );
     } catch (error) {
       addLog(`❌ Error during consolidation: ${error.message}`);
@@ -703,7 +702,7 @@ const PhoneConsolidator = () => {
       "download",
       `compass_with_consolidated_phones_${
         new Date().toISOString().split("T")[0]
-      }.csv`
+      }.csv`,
     );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
@@ -739,7 +738,7 @@ const PhoneConsolidator = () => {
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `contacts_with_added_phones_${new Date().toISOString().split("T")[0]}.csv`
+      `contacts_with_added_phones_${new Date().toISOString().split("T")[0]}.csv`,
     );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
@@ -747,7 +746,7 @@ const PhoneConsolidator = () => {
     document.body.removeChild(link);
 
     addLog(
-      `📁 Exported ${updatedContacts.length} contacts with added phone numbers`
+      `📁 Exported ${updatedContacts.length} contacts with added phone numbers`,
     );
   };
 
