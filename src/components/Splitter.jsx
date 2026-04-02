@@ -7,7 +7,7 @@ function Splitter() {
   const [results, setResults] = useState(null);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
-  const [chunkSize, setChunkSize] = useState(2000); // Default chunk size is 2000
+  const chunkSize = 2000;
   const [processingStats, setProcessingStats] = useState({
     rowsProcessed: 0,
     filesCreated: 0,
@@ -17,7 +17,7 @@ function Splitter() {
   useEffect(() => {
     return () => {
       const progressElement = document.getElementById(
-        "splitter-progress-modal"
+        "splitter-progress-modal",
       );
       if (progressElement) {
         document.body.removeChild(progressElement);
@@ -63,7 +63,7 @@ function Splitter() {
     progressModal.style.textAlign = "center";
 
     progressModal.innerHTML = `
-      <h3>Processing Large CSV File</h3>
+      <h3>Processing CSV File</h3>
       <div style="margin-bottom: 10px;">
         <div id="splitter-progress-text">Starting...</div>
         <div id="splitter-stats-text" style="font-size: 0.9em; color: #666; margin-top: 5px;"></div>
@@ -114,50 +114,38 @@ function Splitter() {
     updateProgressModal(0, "Preparing to process file...");
 
     try {
-      // For larger files, use streaming approach instead of loading entire file at once
-      const maxRowsPerFile = chunkSize; // Use the selected chunk size
       const files = [];
-      let headers = [];
+      let headers = null;
       let totalRows = 0;
       let currentChunk = [];
       let currentFileIndex = 0;
-      let isHeaderProcessed = false;
 
-      // Stream parsing for memory efficiency
+      // Stream parsing for memory efficiency.
+      // header:true ensures PapaParse correctly handles quoted fields,
+      // commas inside values, email addresses, and special characters.
       Papa.parse(file, {
-        header: false, // We'll handle headers manually for better control
+        header: true,
         skipEmptyLines: true,
         chunk: async (results, parser) => {
           // Pause the parser to prevent overwhelming the browser
           parser.pause();
 
-          let rows = results.data;
-
-          // Extract headers from first chunk
-          if (!isHeaderProcessed && rows.length > 0) {
-            headers = rows[0].map((h) => h.trim());
-            isHeaderProcessed = true;
-            rows = rows.slice(1); // Remove header row
+          // Capture column headers from the first chunk's metadata
+          if (!headers && results.meta && results.meta.fields) {
+            headers = results.meta.fields;
             updateProgressModal(5, "Processing file headers...");
           }
 
-          // Convert rows to objects with proper headers
-          const processedRows = rows.map((row) => {
-            const obj = {};
-            headers.forEach((header, index) => {
-              obj[header] = row[index] || "";
-            });
-            return obj;
-          });
+          const rows = results.data;
 
-          // Add processed rows to current chunk
-          currentChunk.push(...processedRows);
-          totalRows += processedRows.length;
+          // Add rows to current accumulation buffer
+          currentChunk.push(...rows);
+          totalRows += rows.length;
 
-          // If current chunk has reached the max rows per file, create a CSV file
-          while (currentChunk.length >= maxRowsPerFile) {
-            const chunkToSave = currentChunk.slice(0, maxRowsPerFile);
-            currentChunk = currentChunk.slice(maxRowsPerFile);
+          // Flush complete 2000-row files whenever we have enough rows
+          while (currentChunk.length >= chunkSize) {
+            const chunkToSave = currentChunk.slice(0, chunkSize);
+            currentChunk = currentChunk.slice(chunkSize);
 
             // Create CSV content
             const csvContent = Papa.unparse({
@@ -165,36 +153,35 @@ function Splitter() {
               data: chunkToSave,
             });
 
-            // Incremental file naming since we don't know total number yet
+            // Temporary name; will be renamed with final total once complete
             currentFileIndex++;
-            const fileName = `${file.name.replace(
-              ".csv",
-              ""
-            )}_part_${currentFileIndex}.csv`;
+            const baseName = file.name.replace(/\.csv$/i, "");
+            const fileName = `${baseName}_part_${currentFileIndex}.csv`;
+            const fileStartRow =
+              totalRows -
+              rows.length -
+              currentChunk.length -
+              chunkToSave.length +
+              1;
+            const fileEndRow = fileStartRow + chunkToSave.length - 1;
 
             files.push({
               name: fileName,
               content: csvContent,
               rows: chunkToSave.length,
-              startRow:
-                totalRows -
-                processedRows.length -
-                currentChunk.length -
-                chunkToSave.length +
-                1,
-              endRow: totalRows - processedRows.length - currentChunk.length,
+              startRow: fileStartRow,
+              endRow: fileEndRow,
             });
 
-            // Update progress
-            setProcessingStats((prev) => ({
+            setProcessingStats({
               rowsProcessed: totalRows,
               filesCreated: currentFileIndex,
-            }));
+            });
 
             updateProgressModal(
-              Math.min(90, (totalRows / (file.size / 100)) * 30), // Estimate progress based on file size
-              `Processing large file in chunks... (${totalRows.toLocaleString()} rows)`,
-              { rowsProcessed: totalRows, filesCreated: currentFileIndex }
+              Math.min(90, (totalRows / (file.size / 100)) * 30),
+              `Processing... (${totalRows.toLocaleString()} rows)`,
+              { rowsProcessed: totalRows, filesCreated: currentFileIndex },
             );
 
             // Yield control back to browser UI for responsiveness
@@ -205,7 +192,7 @@ function Splitter() {
           parser.resume();
         },
         complete: async () => {
-          // Process any remaining rows
+          // Flush any remaining rows into the last file
           if (currentChunk.length > 0) {
             const csvContent = Papa.unparse({
               fields: headers,
@@ -213,10 +200,8 @@ function Splitter() {
             });
 
             currentFileIndex++;
-            const fileName = `${file.name.replace(
-              ".csv",
-              ""
-            )}_part_${currentFileIndex}.csv`;
+            const baseName = file.name.replace(/\.csv$/i, "");
+            const fileName = `${baseName}_part_${currentFileIndex}.csv`;
 
             files.push({
               name: fileName,
@@ -227,11 +212,11 @@ function Splitter() {
             });
           }
 
-          // Update final file names with total count
-          files.forEach((file, index) => {
-            file.name = `${file.name.replace(/part_\d+\.csv$/, "")}part_${
-              index + 1
-            }_of_${files.length}.csv`;
+          // Rename all files now that we know the final total
+          const totalFiles = files.length;
+          const baseName = file.name.replace(/\.csv$/i, "");
+          files.forEach((f, index) => {
+            f.name = `${baseName}_part_${index + 1}_of_${totalFiles}.csv`;
           });
 
           updateProgressModal(100, "Processing complete!", {
@@ -242,7 +227,7 @@ function Splitter() {
           // Remove progress modal after a short delay
           setTimeout(() => {
             const progressElement = document.getElementById(
-              "splitter-progress-modal"
+              "splitter-progress-modal",
             );
             if (progressElement) {
               document.body.removeChild(progressElement);
@@ -263,7 +248,7 @@ function Splitter() {
 
           // Remove progress modal
           const progressElement = document.getElementById(
-            "splitter-progress-modal"
+            "splitter-progress-modal",
           );
           if (progressElement) {
             document.body.removeChild(progressElement);
@@ -276,7 +261,7 @@ function Splitter() {
 
       // Remove progress modal on error
       const progressElement = document.getElementById(
-        "splitter-progress-modal"
+        "splitter-progress-modal",
       );
       if (progressElement) {
         document.body.removeChild(progressElement);
@@ -311,7 +296,6 @@ function Splitter() {
     setError("");
     setProcessing(false);
     setProgress(0);
-    setChunkSize(2000); // Reset to default chunk size
     setProcessingStats({ rowsProcessed: 0, filesCreated: 0 });
   };
 
@@ -327,9 +311,7 @@ function Splitter() {
     >
       <header style={{ textAlign: "center", marginBottom: "2rem" }}>
         <h2>CSV File Splitter</h2>
-        <p>
-          Split large CSV files into smaller files with customizable chunk sizes
-        </p>
+        <p>Split large CSV files into smaller files of 2,000 rows each</p>
       </header>
 
       <div style={{ maxWidth: "800px", margin: "0 auto" }}>
@@ -362,68 +344,11 @@ function Splitter() {
           )}
         </div>
 
-        {/* Chunk Size Selection */}
-        <div style={{ marginBottom: "2rem" }}>
-          <label
-            style={{
-              display: "block",
-              marginBottom: "0.5rem",
-              fontWeight: "bold",
-            }}
-          >
-            Select Chunk Size:
-          </label>
-          <div style={{ display: "flex", gap: "10px" }}>
-            <button
-              onClick={() => setChunkSize(2000)}
-              style={{
-                flex: 1,
-                padding: "0.75rem",
-                backgroundColor: chunkSize === 2000 ? "#4CAF50" : "#e0e0e0",
-                color: chunkSize === 2000 ? "white" : "black",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontWeight: chunkSize === 2000 ? "bold" : "normal",
-              }}
-            >
-              2,000 Rows
-            </button>
-            <button
-              onClick={() => setChunkSize(10000)}
-              style={{
-                flex: 1,
-                padding: "0.75rem",
-                backgroundColor: chunkSize === 10000 ? "#4CAF50" : "#e0e0e0",
-                color: chunkSize === 10000 ? "white" : "black",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontWeight: chunkSize === 10000 ? "bold" : "normal",
-              }}
-            >
-              10,000 Rows
-            </button>
-            <button
-              onClick={() => setChunkSize(50000)}
-              style={{
-                flex: 1,
-                padding: "0.75rem",
-                backgroundColor: chunkSize === 50000 ? "#4CAF50" : "#e0e0e0",
-                color: chunkSize === 50000 ? "white" : "black",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontWeight: chunkSize === 50000 ? "bold" : "normal",
-              }}
-            >
-              50,000 Rows
-            </button>
-          </div>
-          <p style={{ marginTop: "0.5rem", color: "#666", fontSize: "0.9em" }}>
-            Each output file will contain a maximum of{" "}
-            {chunkSize.toLocaleString()} rows.
-          </p>
+        <div
+          style={{ marginBottom: "1.5rem", color: "#555", fontSize: "0.95em" }}
+        >
+          Each output file will contain a maximum of{" "}
+          {chunkSize.toLocaleString()} rows.
         </div>
 
         {/* Error Display */}
@@ -601,24 +526,16 @@ function Splitter() {
         <div style={{ marginTop: "2rem", fontSize: "0.9em", color: "#666" }}>
           <h4>How it works:</h4>
           <ul>
-            <li>Upload a CSV file of any size - even gigabytes!</li>
-            <li>
-              The file will be processed in chunks to handle very large files
-              efficiently
-            </li>
-            <li>
-              Choose your preferred chunk size: 2,000, 10,000, or 50,000 rows
-              per file
-            </li>
+            <li>Upload a CSV file of any size</li>
+            <li>The file is streamed in chunks for memory efficiency</li>
+            <li>Each output file will contain up to 2,000 rows</li>
             <li>Each file will contain the original column headers</li>
+            <li>
+              Email addresses and special characters are preserved correctly
+            </li>
             <li>Download individual files or all files at once</li>
             <li>File names include part numbers for easy organization</li>
           </ul>
-          <p>
-            <strong>Tip:</strong> Smaller chunk sizes (2,000 rows) are better
-            for email attachments and easier processing. Larger sizes (50,000
-            rows) create fewer files but may be harder to work with.
-          </p>
         </div>
       </div>
     </div>
