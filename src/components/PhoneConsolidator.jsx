@@ -515,6 +515,9 @@ const PhoneConsolidator = () => {
       let contactsUpdatedCount = 0;
       const updatedContacts = [...compassData]; // full dataset — nameless rows preserved in export
 
+      // Pre-cache which contacts already have phones so the fuzzy skip check is O(1)
+      const contactsWithPhones = new Set();
+
       // Process phone data in chunks
       const CHUNK_SIZE = 100;
       const phoneChunks = [];
@@ -575,9 +578,15 @@ const PhoneConsolidator = () => {
 
             // If no exact match, try fuzzy matching but be very strict
             if (!matchFound) {
-              for (const candidateContact of contactsArray) {
-                // Skip if already processed
-                if (getAllPhoneNumbers(candidateContact).length > 0) continue;
+              for (let ci = 0; ci < contactsArray.length; ci++) {
+                const candidateContact = contactsArray[ci];
+                // Skip if already matched (O(1) Set lookup instead of scanning 100+ fields)
+                if (contactsWithPhones.has(candidateContact)) continue;
+
+                // Yield every 500 candidates to keep UI responsive
+                if (ci > 0 && ci % 500 === 0) {
+                  await new Promise((resolve) => setTimeout(resolve, 0));
+                }
 
                 // Use enhanced name matching that requires both first and last names
                 if (isNameMatch(phoneContact, candidateContact)) {
@@ -641,6 +650,7 @@ const PhoneConsolidator = () => {
 
             if (phoneAdded) {
               contactsUpdatedCount++;
+              contactsWithPhones.add(compassContact); // mark so fuzzy loop skips it
               addLog(
                 `✅ Added phone to ${normalizedName}: ${phoneNumbers
                   .map(formatPhoneNumber)
@@ -657,13 +667,12 @@ const PhoneConsolidator = () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
-      // Final count of contacts that still need phones
-      const stillMissingPhones = updatedContacts.filter((contact) => {
-        return getAllPhoneNumbers(contact).length === 0;
-      });
+      // Final count of contacts still missing phones (use pre-cached data — no re-scan needed)
+      const stillMissingCount =
+        compassContactsMissingPhones.length - contactsUpdatedCount;
 
       addLog(
-        `📞 Final result: ${stillMissingPhones.length} contacts still missing phones after all matching strategies`,
+        `📞 Final result: ${stillMissingCount} contacts still missing phones after all matching strategies`,
       );
 
       setResults({
