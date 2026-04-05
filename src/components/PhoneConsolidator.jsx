@@ -465,12 +465,19 @@ const PhoneConsolidator = () => {
 
       addLog(`📋 Found ${compassWithNames.length} Compass contacts with names`);
 
-      // Find Compass contacts missing phone numbers
-      const compassContactsMissingPhones = compassWithNames.filter(
-        (contact) => {
-          return getAllPhoneNumbers(contact).length === 0;
-        },
-      );
+      // Find Compass contacts missing phone numbers — done in async chunks to avoid freezing
+      const compassContactsMissingPhones = [];
+      const FILTER_CHUNK_SIZE = 500;
+      for (let i = 0; i < compassWithNames.length; i += FILTER_CHUNK_SIZE) {
+        const filterChunk = compassWithNames.slice(i, i + FILTER_CHUNK_SIZE);
+        for (const contact of filterChunk) {
+          if (getAllPhoneNumbers(contact).length === 0) {
+            compassContactsMissingPhones.push(contact);
+          }
+        }
+        setProgress((i / compassWithNames.length) * 10); // 0–10% for this phase
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
 
       addLog(
         `📞 Found ${compassContactsMissingPhones.length} Compass contacts missing phone numbers`,
@@ -583,8 +590,8 @@ const PhoneConsolidator = () => {
                 // Skip if already matched (O(1) Set lookup instead of scanning 100+ fields)
                 if (contactsWithPhones.has(candidateContact)) continue;
 
-                // Yield every 500 candidates to keep UI responsive
-                if (ci > 0 && ci % 500 === 0) {
+                // Yield every 50 candidates to keep UI responsive on large files
+                if (ci > 0 && ci % 50 === 0) {
                   await new Promise((resolve) => setTimeout(resolve, 0));
                 }
 
@@ -660,8 +667,8 @@ const PhoneConsolidator = () => {
           }
         }
 
-        // Update progress
-        setProgress(((chunkIndex + 1) / phoneChunks.length) * 100);
+        // Update progress: 10–100% for phone processing phase
+        setProgress(10 + ((chunkIndex + 1) / phoneChunks.length) * 90);
 
         // Small delay to keep UI responsive
         await new Promise((resolve) => setTimeout(resolve, 10));
