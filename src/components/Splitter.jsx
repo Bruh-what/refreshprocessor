@@ -7,7 +7,7 @@ function Splitter() {
   const [results, setResults] = useState(null);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
-  const chunkSize = 2000;
+  const chunkSize = 1999;
   const [processingStats, setProcessingStats] = useState({
     rowsProcessed: 0,
     filesCreated: 0,
@@ -119,6 +119,54 @@ function Splitter() {
       let totalRows = 0;
       let currentChunk = [];
       let currentFileIndex = 0;
+      // One-row lookahead buffer: we always hold the most recently seen row
+      // without committing it yet. This lets us inspect the very last row of
+      // the file in `complete` and discard it only if it is the trailing-
+      // newline artifact ([""]). Every other row — including genuinely empty
+      // rows that are part of the data — is committed and preserved.
+      let pendingRow = null;
+
+      const commitPendingRow = () => {
+        if (pendingRow === null) return;
+        currentChunk.push(pendingRow);
+        totalRows++;
+        pendingRow = null;
+
+        if (currentChunk.length >= chunkSize) {
+          const chunkToSave = currentChunk.splice(0, chunkSize);
+
+          const csvContent = Papa.unparse([headers, ...chunkToSave], {
+            quoteChar: '"',
+            escapeChar: '"',
+            newline: "\n",
+          });
+
+          currentFileIndex++;
+          const baseName = file.name.replace(/\.csv$/i, "");
+          const fileName = `${baseName}_part_${currentFileIndex}.csv`;
+          const fileEndRow = totalRows;
+          const fileStartRow = fileEndRow - chunkToSave.length + 1;
+
+          files.push({
+            name: fileName,
+            content: csvContent,
+            rows: chunkToSave.length,
+            startRow: fileStartRow,
+            endRow: fileEndRow,
+          });
+
+          setProcessingStats({
+            rowsProcessed: totalRows,
+            filesCreated: currentFileIndex,
+          });
+
+          updateProgressModal(
+            Math.min(90, (totalRows / (file.size / 100)) * 30),
+            `Processing... (${totalRows.toLocaleString()} rows)`,
+            { rowsProcessed: totalRows, filesCreated: currentFileIndex },
+          );
+        }
+      };
 
       // Stream parsing for memory efficiency.
       // header:false keeps rows as raw arrays so no field values are
@@ -135,48 +183,13 @@ function Splitter() {
             if (!headers) {
               headers = row;
               updateProgressModal(5, "Processing file headers...");
-              continue; // don't count the header row as a data row
+              continue;
             }
 
-            currentChunk.push(row);
-            totalRows++;
-
-            // Flush a complete 2000-row file as soon as we have enough rows
-            if (currentChunk.length >= chunkSize) {
-              const chunkToSave = currentChunk.splice(0, chunkSize);
-
-              // Re-use the exact original header row so nothing is renamed
-              const csvContent = Papa.unparse([headers, ...chunkToSave], {
-                quoteChar: '"',
-                escapeChar: '"',
-                newline: "\n",
-              });
-
-              currentFileIndex++;
-              const baseName = file.name.replace(/\.csv$/i, "");
-              const fileName = `${baseName}_part_${currentFileIndex}.csv`;
-              const fileEndRow = totalRows;
-              const fileStartRow = fileEndRow - chunkToSave.length + 1;
-
-              files.push({
-                name: fileName,
-                content: csvContent,
-                rows: chunkToSave.length,
-                startRow: fileStartRow,
-                endRow: fileEndRow,
-              });
-
-              setProcessingStats({
-                rowsProcessed: totalRows,
-                filesCreated: currentFileIndex,
-              });
-
-              updateProgressModal(
-                Math.min(90, (totalRows / (file.size / 100)) * 30),
-                `Processing... (${totalRows.toLocaleString()} rows)`,
-                { rowsProcessed: totalRows, filesCreated: currentFileIndex },
-              );
-            }
+            // Commit the previously buffered row now that we know a newer
+            // row exists after it (so it is definitely not the last row)
+            commitPendingRow();
+            pendingRow = row;
           }
         },
         complete: () => {
@@ -191,6 +204,16 @@ function Splitter() {
             );
             if (progressElement) document.body.removeChild(progressElement);
             return;
+          }
+
+          // Inspect the final buffered row. Discard it only if it is the
+          // trailing-newline artifact: a single-element array [""].
+          // Every other row — including genuinely empty data rows — is kept.
+          if (
+            pendingRow !== null &&
+            !(pendingRow.length === 1 && pendingRow[0] === "")
+          ) {
+            commitPendingRow();
           }
 
           // Flush any remaining rows into the last file
@@ -272,7 +295,12 @@ function Splitter() {
   };
 
   const downloadFile = (fileData) => {
-    const blob = new Blob([fileData.content], { type: "text/csv" });
+    // Prepend UTF-8 BOM so Excel on Windows opens the file without
+    // mangling accented names and special characters
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + fileData.content], {
+      type: "text/csv;charset=utf-8;",
+    });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -313,7 +341,7 @@ function Splitter() {
     >
       <header style={{ textAlign: "center", marginBottom: "2rem" }}>
         <h2>CSV File Splitter</h2>
-        <p>Split large CSV files into smaller files of 2,000 rows each</p>
+        <p>Split large CSV files into smaller files of 1,999 rows each</p>
       </header>
 
       <div style={{ maxWidth: "800px", margin: "0 auto" }}>
@@ -350,7 +378,7 @@ function Splitter() {
           style={{ marginBottom: "1.5rem", color: "#555", fontSize: "0.95em" }}
         >
           Each output file will contain a maximum of{" "}
-          {chunkSize.toLocaleString()} rows.
+          {chunkSize.toLocaleString()} rows (safe for all importers).
         </div>
 
         {/* Error Display */}
@@ -530,7 +558,7 @@ function Splitter() {
           <ul>
             <li>Upload a CSV file of any size</li>
             <li>The file is streamed in chunks for memory efficiency</li>
-            <li>Each output file will contain up to 2,000 rows</li>
+            <li>Each output file will contain up to 1,999 rows</li>
             <li>Each file will contain the original column headers</li>
             <li>
               Email addresses and special characters are preserved correctly
