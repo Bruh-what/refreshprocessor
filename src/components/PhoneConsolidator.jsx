@@ -648,6 +648,7 @@ const PhoneConsolidator = () => {
         {
           let matchFound = false;
           let compassContact = null;
+          let matchStrategy = "";
 
           // Strategy 1: Exact name + email match (highest confidence)
           for (const email of emails) {
@@ -655,6 +656,7 @@ const PhoneConsolidator = () => {
               const key = `${normalizedName}|${email}`;
               if (emailKeyMap.has(key)) {
                 compassContact = emailKeyMap.get(key);
+                matchStrategy = "name+email";
                 batchLogs.push(
                   `📧 Exact name+email match: ${normalizedName} (${email})`,
                 );
@@ -671,6 +673,7 @@ const PhoneConsolidator = () => {
               const candidates = nameKeyMap.get(normalizedName);
               if (candidates.length === 1) {
                 compassContact = candidates[0];
+                matchStrategy = "exact-name";
                 batchLogs.push(`👤 Exact name match: ${normalizedName}`);
                 matchFound = true;
               }
@@ -703,6 +706,7 @@ const PhoneConsolidator = () => {
                     }
 
                     compassContact = candidateContact;
+                    matchStrategy = "fuzzy-name";
                     batchLogs.push(
                       `🔍 Fuzzy name match: ${normalizedName} -> ${normalizeName(
                         candidateContact["First Name"],
@@ -743,7 +747,7 @@ const PhoneConsolidator = () => {
                     compassContact["Changes Made"] += "; ";
                   }
                   compassContact["Changes Made"] +=
-                    `Added phone number: ${formattedPhone}`;
+                    `Added ${formattedPhone} to ${field} [matched by ${matchStrategy} from ${normalizedName}]`;
 
                   phonesAddedCount++;
                   phoneAdded = true;
@@ -819,7 +823,13 @@ const PhoneConsolidator = () => {
       return;
     }
 
-    const csv = Papa.unparse(results.updatedContacts);
+    // Ensure every row has a "Changes Made" column (empty string if no changes)
+    const dataWithChangesCol = results.updatedContacts.map((contact) => ({
+      ...contact,
+      "Changes Made": contact["Changes Made"] || "",
+    }));
+
+    const csv = Papa.unparse(dataWithChangesCol);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -847,8 +857,7 @@ const PhoneConsolidator = () => {
 
     const updatedContacts = results.updatedContacts.filter((contact) => {
       return (
-        contact["Changes Made"] &&
-        contact["Changes Made"].includes("Added phone number")
+        contact["Changes Made"] && contact["Changes Made"].includes("Added ")
       );
     });
 
