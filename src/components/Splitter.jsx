@@ -27,7 +27,7 @@ function Splitter() {
 
   const handleFileSelect = (event) => {
     const selectedFile = event.target.files[0];
-    if (selectedFile && selectedFile.type === "text/csv") {
+    if (selectedFile && selectedFile.name.toLowerCase().endsWith(".csv")) {
       setFile(selectedFile);
       setError("");
       setResults(null);
@@ -121,82 +121,84 @@ function Splitter() {
       let currentFileIndex = 0;
 
       // Stream parsing for memory efficiency.
-      // header:true ensures PapaParse correctly handles quoted fields,
-      // commas inside values, email addresses, and special characters.
+      // header:false keeps rows as raw arrays so no field values are
+      // transformed, renamed, or dropped (e.g. duplicate column names).
+      // We capture the first row manually as the header row.
       Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        chunk: async (results, parser) => {
-          // Pause the parser to prevent overwhelming the browser
-          parser.pause();
-
-          // Capture column headers from the first chunk's metadata
-          if (!headers && results.meta && results.meta.fields) {
-            headers = results.meta.fields;
-            updateProgressModal(5, "Processing file headers...");
-          }
-
+        header: false,
+        skipEmptyLines: false,
+        chunk: (results, parser) => {
           const rows = results.data;
 
-          // Add rows to current accumulation buffer
-          currentChunk.push(...rows);
-          totalRows += rows.length;
+          for (const row of rows) {
+            // The very first row of the file is the header row
+            if (!headers) {
+              headers = row;
+              updateProgressModal(5, "Processing file headers...");
+              continue; // don't count the header row as a data row
+            }
 
-          // Flush complete 2000-row files whenever we have enough rows
-          while (currentChunk.length >= chunkSize) {
-            const chunkToSave = currentChunk.slice(0, chunkSize);
-            currentChunk = currentChunk.slice(chunkSize);
+            currentChunk.push(row);
+            totalRows++;
 
-            // Create CSV content
-            const csvContent = Papa.unparse({
-              fields: headers,
-              data: chunkToSave,
-            });
+            // Flush a complete 2000-row file as soon as we have enough rows
+            if (currentChunk.length >= chunkSize) {
+              const chunkToSave = currentChunk.splice(0, chunkSize);
 
-            // Temporary name; will be renamed with final total once complete
-            currentFileIndex++;
-            const baseName = file.name.replace(/\.csv$/i, "");
-            const fileName = `${baseName}_part_${currentFileIndex}.csv`;
-            const fileStartRow =
-              totalRows -
-              rows.length -
-              currentChunk.length -
-              chunkToSave.length +
-              1;
-            const fileEndRow = fileStartRow + chunkToSave.length - 1;
+              // Re-use the exact original header row so nothing is renamed
+              const csvContent = Papa.unparse([headers, ...chunkToSave], {
+                quoteChar: '"',
+                escapeChar: '"',
+                newline: "\n",
+              });
 
-            files.push({
-              name: fileName,
-              content: csvContent,
-              rows: chunkToSave.length,
-              startRow: fileStartRow,
-              endRow: fileEndRow,
-            });
+              currentFileIndex++;
+              const baseName = file.name.replace(/\.csv$/i, "");
+              const fileName = `${baseName}_part_${currentFileIndex}.csv`;
+              const fileEndRow = totalRows;
+              const fileStartRow = fileEndRow - chunkToSave.length + 1;
 
-            setProcessingStats({
-              rowsProcessed: totalRows,
-              filesCreated: currentFileIndex,
-            });
+              files.push({
+                name: fileName,
+                content: csvContent,
+                rows: chunkToSave.length,
+                startRow: fileStartRow,
+                endRow: fileEndRow,
+              });
 
-            updateProgressModal(
-              Math.min(90, (totalRows / (file.size / 100)) * 30),
-              `Processing... (${totalRows.toLocaleString()} rows)`,
-              { rowsProcessed: totalRows, filesCreated: currentFileIndex },
+              setProcessingStats({
+                rowsProcessed: totalRows,
+                filesCreated: currentFileIndex,
+              });
+
+              updateProgressModal(
+                Math.min(90, (totalRows / (file.size / 100)) * 30),
+                `Processing... (${totalRows.toLocaleString()} rows)`,
+                { rowsProcessed: totalRows, filesCreated: currentFileIndex },
+              );
+            }
+          }
+        },
+        complete: () => {
+          // Guard: if headers is still null the file was empty
+          if (!headers) {
+            setError(
+              "The uploaded file appears to be empty or has no header row.",
             );
-
-            // Yield control back to browser UI for responsiveness
-            await new Promise((resolve) => setTimeout(resolve, 0));
+            setProcessing(false);
+            const progressElement = document.getElementById(
+              "splitter-progress-modal",
+            );
+            if (progressElement) document.body.removeChild(progressElement);
+            return;
           }
 
-          // Resume parsing
-          parser.resume();
-        },
-        complete: async () => {
           // Flush any remaining rows into the last file
           if (currentChunk.length > 0) {
-            const csvContent = Papa.unparse({
-              fields: headers,
-              data: currentChunk,
+            const csvContent = Papa.unparse([headers, ...currentChunk], {
+              quoteChar: '"',
+              escapeChar: '"',
+              newline: "\n",
             });
 
             currentFileIndex++;
