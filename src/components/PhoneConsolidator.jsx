@@ -144,6 +144,18 @@ const PhoneConsolidator = () => {
 
     // Combine both types of phone numbers and remove duplicates
     const allPhones = [...standardPhoneNumbers, ...phoneExportNumbers];
+
+    // Also handle Google Contacts export format — all phones in a single 'phones' column, newline-separated
+    if (contact["phones"]) {
+      const rawPhones = contact["phones"].split("\n");
+      for (const raw of rawPhones) {
+        const normalized = normalizePhoneNumber(raw.trim());
+        if (normalized && normalized.length >= 10) {
+          allPhones.push(normalized);
+        }
+      }
+    }
+
     const uniquePhones = [...new Set(allPhones)];
 
     return uniquePhones;
@@ -176,7 +188,7 @@ const PhoneConsolidator = () => {
   // Email extraction for matching
   // Get all emails from a contact (matching RealEstateProcessor)
   const getAllEmails = (contact) => {
-    const emailFields = [
+    const emailFields = new Set([
       "Personal Email",
       "Email",
       "Work Email",
@@ -214,10 +226,10 @@ const PhoneConsolidator = () => {
       "Email (Work 3)",
       "Primary Email",
       "Primary Work Email",
-    ];
+    ]);
 
     // Extract all valid email addresses from the specified fields
-    const emails = emailFields
+    const emails = [...emailFields]
       .map((field) => contact[field])
       .filter((email) => email && email.trim() && email.includes("@"))
       .map((email) => email.toLowerCase().trim());
@@ -229,7 +241,7 @@ const PhoneConsolidator = () => {
         if (
           typeof value === "string" &&
           value.includes("@") &&
-          !emailFields.includes(key)
+          !emailFields.has(key)
         ) {
           const emailRegex =
             /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
@@ -456,18 +468,24 @@ const PhoneConsolidator = () => {
     addLog("🚀 Starting phone consolidation process...");
 
     try {
-      // Filter Compass contacts that have names
-      const compassWithNames = compassData.filter((contact) => {
-        const firstName = (contact["First Name"] || "").trim();
-        const lastName = (contact["Last Name"] || "").trim();
-        return firstName || lastName;
-      });
+      // Filter Compass contacts that have names — async chunked to avoid freezing on large files
+      const compassWithNames = [];
+      const NAME_FILTER_CHUNK = 1000;
+      for (let i = 0; i < compassData.length; i += NAME_FILTER_CHUNK) {
+        const chunk = compassData.slice(i, i + NAME_FILTER_CHUNK);
+        for (const contact of chunk) {
+          const firstName = (contact["First Name"] || "").trim();
+          const lastName = (contact["Last Name"] || "").trim();
+          if (firstName || lastName) compassWithNames.push(contact);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
 
       addLog(`📋 Found ${compassWithNames.length} Compass contacts with names`);
 
       // Find Compass contacts missing phone numbers — done in async chunks to avoid freezing
       const compassContactsMissingPhones = [];
-      const FILTER_CHUNK_SIZE = 500;
+      const FILTER_CHUNK_SIZE = 100;
       for (let i = 0; i < compassWithNames.length; i += FILTER_CHUNK_SIZE) {
         const filterChunk = compassWithNames.slice(i, i + FILTER_CHUNK_SIZE);
         for (const contact of filterChunk) {
@@ -483,35 +501,47 @@ const PhoneConsolidator = () => {
         `📞 Found ${compassContactsMissingPhones.length} Compass contacts missing phone numbers`,
       );
 
-      // Create lookup maps for enhanced matching
+      // Create lookup maps for enhanced matching — async chunked to avoid freezing
       const emailKeyMap = new Map(); // email -> contact
       const nameKeyMap = new Map(); // normalized name -> contact
       const contactsArray = [...compassContactsMissingPhones]; // for fuzzy matching
 
-      for (const compassContact of compassContactsMissingPhones) {
-        const normalizedName = normalizeName(
-          compassContact["First Name"],
-          compassContact["Last Name"],
+      const MAP_BUILD_CHUNK = 500;
+      for (
+        let i = 0;
+        i < compassContactsMissingPhones.length;
+        i += MAP_BUILD_CHUNK
+      ) {
+        const mapChunk = compassContactsMissingPhones.slice(
+          i,
+          i + MAP_BUILD_CHUNK,
         );
-        const emails = getAllEmails(compassContact).map((e) =>
-          normalizeEmail(e),
-        );
+        for (const compassContact of mapChunk) {
+          const normalizedName = normalizeName(
+            compassContact["First Name"],
+            compassContact["Last Name"],
+          );
+          const emails = getAllEmails(compassContact).map((e) =>
+            normalizeEmail(e),
+          );
 
-        // Add to name map if we have a valid normalized name
-        if (normalizedName) {
-          if (!nameKeyMap.has(normalizedName)) {
-            nameKeyMap.set(normalizedName, []);
+          // Add to name map if we have a valid normalized name
+          if (normalizedName) {
+            if (!nameKeyMap.has(normalizedName)) {
+              nameKeyMap.set(normalizedName, []);
+            }
+            nameKeyMap.get(normalizedName).push(compassContact);
           }
-          nameKeyMap.get(normalizedName).push(compassContact);
-        }
 
-        // Add to email maps
-        for (const email of emails) {
-          if (email) {
-            const key = `${normalizedName}|${email}`;
-            emailKeyMap.set(key, compassContact);
+          // Add to email maps
+          for (const email of emails) {
+            if (email) {
+              const key = `${normalizedName}|${email}`;
+              emailKeyMap.set(key, compassContact);
+            }
           }
         }
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
       addLog(
@@ -525,34 +555,97 @@ const PhoneConsolidator = () => {
       // Pre-cache which contacts already have phones so the fuzzy skip check is O(1)
       const contactsWithPhones = new Set();
 
-      // Process phone data in chunks
-      const CHUNK_SIZE = 100;
-      const phoneChunks = [];
-      for (let i = 0; i < phoneData.length; i += CHUNK_SIZE) {
-        phoneChunks.push(phoneData.slice(i, i + CHUNK_SIZE));
+      // Pre-cache emails for each candidate so getAllEmails isn't called inside the fuzzy loop
+      const candidateEmailsCache = new Map();
+      // Pre-build a last-name first-letter index to skip 95%+ of candidates before Levenshtein
+      const lastNameBuckets = new Map(); // firstLetter -> [candidateContact, ...]
+      const CACHE_CHUNK = 50;
+      for (let i = 0; i < contactsArray.length; i += CACHE_CHUNK) {
+        const cacheChunk = contactsArray.slice(i, i + CACHE_CHUNK);
+        for (const c of cacheChunk) {
+          const cachedEmails = getAllEmails(c);
+          candidateEmailsCache.set(c, cachedEmails);
+          const ln = (c["Last Name"] || "").toLowerCase().trim();
+          if (ln) {
+            const letter = ln[0];
+            if (!lastNameBuckets.has(letter)) lastNameBuckets.set(letter, []);
+            lastNameBuckets.get(letter).push(c);
+          }
+        }
+        // Show progress 10–20% during this phase so bar visibly moves
+        setProgress(10 + (i / contactsArray.length) * 10);
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
-      for (let chunkIndex = 0; chunkIndex < phoneChunks.length; chunkIndex++) {
-        const chunk = phoneChunks[chunkIndex];
+      addLog(`📇 Pre-cached ${candidateEmailsCache.size} candidate email sets`);
 
-        addLog(
-          `📦 Processing phone chunk ${chunkIndex + 1}/${phoneChunks.length} (${
-            chunk.length
-          } records)`,
-        );
-
-        for (const phoneContact of chunk) {
+      // Pre-compute all phone contact data once — avoids repeating expensive scans inside the loop
+      addLog(`⚙️ Pre-processing ${phoneData.length} phone records...`);
+      const phoneContactsPrepped = [];
+      const PREP_CHUNK = 500;
+      for (let i = 0; i < phoneData.length; i += PREP_CHUNK) {
+        const prepChunk = phoneData.slice(i, i + PREP_CHUNK);
+        for (const phoneContact of prepChunk) {
           const phoneNumbers = getAllPhoneNumbers(phoneContact);
-          if (phoneNumbers.length === 0) continue;
+          if (phoneNumbers.length === 0) continue; // skip contacts with no phones early
 
-          const normalizedName = normalizeName(
-            phoneContact["First Name"],
-            phoneContact["Last Name"],
-          );
+          // Google Contacts export puts the full name in "First Name" and the actual
+          // first name in the "name" column. Detect this by checking if Last Name
+          // is a single word that appears at the end of First Name (e.g. First="Jerry Weinberger", Last="Weinberger")
+          let resolvedFirst = (phoneContact["First Name"] || "").trim();
+          let resolvedLast = (phoneContact["Last Name"] || "").trim();
+          const nameCol = (phoneContact["name"] || "").trim();
+          if (
+            resolvedLast &&
+            resolvedFirst.toLowerCase().endsWith(resolvedLast.toLowerCase()) &&
+            resolvedFirst.toLowerCase() !== resolvedLast.toLowerCase()
+          ) {
+            // First Name is actually the full name — use "name" col as first, Last Name as last
+            resolvedFirst =
+              nameCol ||
+              resolvedFirst
+                .slice(0, resolvedFirst.length - resolvedLast.length)
+                .trim();
+          }
+
+          const normalizedName = normalizeName(resolvedFirst, resolvedLast);
           const emails = getAllEmails(phoneContact).map((e) =>
             normalizeEmail(e),
           );
+          const phoneLn = resolvedLast.toLowerCase();
+          phoneContactsPrepped.push({
+            phoneContact,
+            phoneNumbers,
+            normalizedName,
+            emails,
+            phoneLn,
+            resolvedFirst,
+            resolvedLast,
+          });
+        }
+        // Show progress 20–30% during this phase
+        setProgress(20 + (i / phoneData.length) * 10);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      addLog(
+        `⚙️ ${phoneContactsPrepped.length} phone records have valid phone numbers`,
+      );
 
+      // Process one contact at a time — yield + progress update after every contact
+      // This guarantees the UI never freezes regardless of how long a single fuzzy scan takes
+      const batchLogs = []; // accumulate logs, flush every 20 contacts to reduce re-renders
+
+      for (let pi = 0; pi < phoneContactsPrepped.length; pi++) {
+        const {
+          phoneContact,
+          phoneNumbers,
+          normalizedName,
+          emails,
+          phoneLn,
+          resolvedFirst,
+          resolvedLast,
+        } = phoneContactsPrepped[pi];
+        {
           let matchFound = false;
           let compassContact = null;
 
@@ -562,7 +655,7 @@ const PhoneConsolidator = () => {
               const key = `${normalizedName}|${email}`;
               if (emailKeyMap.has(key)) {
                 compassContact = emailKeyMap.get(key);
-                addLog(
+                batchLogs.push(
                   `📧 Exact name+email match: ${normalizedName} (${email})`,
                 );
                 matchFound = true;
@@ -578,42 +671,47 @@ const PhoneConsolidator = () => {
               const candidates = nameKeyMap.get(normalizedName);
               if (candidates.length === 1) {
                 compassContact = candidates[0];
-                addLog(`👤 Exact name match: ${normalizedName}`);
+                batchLogs.push(`👤 Exact name match: ${normalizedName}`);
                 matchFound = true;
               }
             }
 
             // If no exact match, try fuzzy matching but be very strict
             if (!matchFound) {
-              for (let ci = 0; ci < contactsArray.length; ci++) {
-                const candidateContact = contactsArray[ci];
-                // Skip if already matched (O(1) Set lookup instead of scanning 100+ fields)
-                if (contactsWithPhones.has(candidateContact)) continue;
+              // Skip fuzzy entirely if phone contact has no last name — isNameMatch requires both
+              if (phoneLn) {
+                // Only compare against candidates whose last name starts with the same letter
+                const bucket = lastNameBuckets.get(phoneLn[0]) || [];
+                for (let ci = 0; ci < bucket.length; ci++) {
+                  const candidateContact = bucket[ci];
+                  // Skip if already matched (O(1) Set lookup)
+                  if (contactsWithPhones.has(candidateContact)) continue;
 
-                // Yield every 50 candidates to keep UI responsive on large files
-                if (ci > 0 && ci % 50 === 0) {
-                  await new Promise((resolve) => setTimeout(resolve, 0));
-                }
-
-                // Use enhanced name matching that requires both first and last names
-                if (isNameMatch(phoneContact, candidateContact)) {
-                  // Additional verification: if phone contact has email, compass contact should too
-                  if (emails.length > 0) {
-                    const compassEmails = getAllEmails(candidateContact);
-                    if (compassEmails.length === 0) {
-                      continue; // Skip this match - phone has email but compass doesn't
+                  // Use enhanced name matching with resolved (corrected) names
+                  const phoneContactForMatch = {
+                    "First Name": resolvedFirst,
+                    "Last Name": resolvedLast,
+                  };
+                  if (isNameMatch(phoneContactForMatch, candidateContact)) {
+                    // Additional verification: if phone contact has email, compass contact should too
+                    if (emails.length > 0) {
+                      const compassEmails =
+                        candidateEmailsCache.get(candidateContact) || [];
+                      if (compassEmails.length === 0) {
+                        continue; // Skip this match - phone has email but compass doesn't
+                      }
                     }
-                  }
 
-                  compassContact = candidateContact;
-                  addLog(
-                    `🔍 Fuzzy name match: ${normalizedName} -> ${normalizeName(
-                      candidateContact["First Name"],
-                      candidateContact["Last Name"],
-                    )}`,
-                  );
-                  matchFound = true;
-                  break;
+                    compassContact = candidateContact;
+                    batchLogs.push(
+                      `🔍 Fuzzy name match: ${normalizedName} -> ${normalizeName(
+                        candidateContact["First Name"],
+                        candidateContact["Last Name"],
+                      )}`,
+                    );
+                    matchFound = true;
+                    break;
+                  }
                 }
               }
             }
@@ -658,7 +756,7 @@ const PhoneConsolidator = () => {
             if (phoneAdded) {
               contactsUpdatedCount++;
               contactsWithPhones.add(compassContact); // mark so fuzzy loop skips it
-              addLog(
+              batchLogs.push(
                 `✅ Added phone to ${normalizedName}: ${phoneNumbers
                   .map(formatPhoneNumber)
                   .join(", ")}`,
@@ -667,11 +765,23 @@ const PhoneConsolidator = () => {
           }
         }
 
-        // Update progress: 10–100% for phone processing phase
-        setProgress(10 + ((chunkIndex + 1) / phoneChunks.length) * 90);
+        // Yield + update progress after every single contact
+        setProgress(30 + ((pi + 1) / phoneContactsPrepped.length) * 70);
 
-        // Small delay to keep UI responsive
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        // Flush logs every 20 contacts to reduce React re-renders
+        if (batchLogs.length >= 20 || pi === phoneContactsPrepped.length - 1) {
+          if (batchLogs.length > 0) {
+            const timestamp = new Date().toLocaleTimeString();
+            setLogs((prev) => [
+              ...prev,
+              ...batchLogs.map((m) => `[${timestamp}] ${m}`),
+            ]);
+            batchLogs.length = 0;
+          }
+        }
+
+        // Yield to browser after every contact
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
       // Final count of contacts still missing phones (use pre-cached data — no re-scan needed)
