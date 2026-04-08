@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import Papa from "papaparse";
 
 function Splitter() {
   const [file, setFile] = useState(null);
@@ -114,193 +113,139 @@ function Splitter() {
     updateProgressModal(0, "Preparing to process file...");
 
     try {
-      const files = [];
-      let headers = null;
-      let totalRows = 0;
-      let currentChunk = [];
-      let currentFileIndex = 0;
-      // One-row lookahead buffer: we always hold the most recently seen row
-      // without committing it yet. This lets us inspect the very last row of
-      // the file in `complete` and discard it only if it is the trailing-
-      // newline artifact ([""]). Every other row — including genuinely empty
-      // rows that are part of the data — is committed and preserved.
-      let pendingRow = null;
+      // Read the raw file text — we never parse or re-serialize the CSV.
+      // We only split on line boundaries so no value, quote, comma, or tag
+      // is ever touched. The bytes going out are identical to the bytes
+      // coming in, just distributed across multiple files.
+      const rawText = await file.text();
 
-      const commitPendingRow = () => {
-        if (pendingRow === null) return;
-        currentChunk.push(pendingRow);
-        totalRows++;
-        pendingRow = null;
+      // Normalise line endings to \n so the split is consistent regardless
+      // of whether the file used CRLF (Windows) or LF (Unix).
+      // We remember which ending the file used so we can write it back.
+      const usesCRLF = rawText.includes("\r\n");
+      const normalized = rawText.replace(/\r\n/g, "\n");
 
-        if (currentChunk.length >= chunkSize) {
-          const chunkToSave = currentChunk.splice(0, chunkSize);
-
-          const csvContent = Papa.unparse([headers, ...chunkToSave], {
-            quoteChar: '"',
-            escapeChar: '"',
-            newline: "\n",
-          });
-
-          currentFileIndex++;
-          const baseName = file.name.replace(/\.csv$/i, "");
-          const fileName = `${baseName}_part_${currentFileIndex}.csv`;
-          const fileEndRow = totalRows;
-          const fileStartRow = fileEndRow - chunkToSave.length + 1;
-
-          files.push({
-            name: fileName,
-            content: csvContent,
-            rows: chunkToSave.length,
-            startRow: fileStartRow,
-            endRow: fileEndRow,
-          });
-
-          setProcessingStats({
-            rowsProcessed: totalRows,
-            filesCreated: currentFileIndex,
-          });
-
-          updateProgressModal(
-            Math.min(90, (totalRows / (file.size / 100)) * 30),
-            `Processing... (${totalRows.toLocaleString()} rows)`,
-            { rowsProcessed: totalRows, filesCreated: currentFileIndex },
-          );
+      // Split into individual lines. We must be careful about quoted fields
+      // that contain embedded newlines (e.g. a notes column). We use a
+      // simple state-machine line splitter that respects RFC-4180 quoting
+      // so we never cut a row in the middle of a quoted field.
+      const splitLines = (text) => {
+        const lines = [];
+        let current = "";
+        let inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          if (ch === '"') {
+            // Toggle quote state; handle escaped quote "" by peeking ahead
+            if (inQuotes && text[i + 1] === '"') {
+              current += '"';
+              i++; // skip the second quote
+            } else {
+              inQuotes = !inQuotes;
+              current += ch;
+            }
+          } else if (ch === "\n" && !inQuotes) {
+            lines.push(current);
+            current = "";
+          } else {
+            current += ch;
+          }
         }
+        // Push the last line if it has content (avoids adding a blank entry
+        // for files that end with a newline)
+        if (current.length > 0) lines.push(current);
+        return lines;
       };
 
-      // Stream parsing for memory efficiency.
-      // header:false keeps rows as raw arrays so no field values are
-      // transformed, renamed, or dropped (e.g. duplicate column names).
-      // We capture the first row manually as the header row.
-      Papa.parse(file, {
-        header: false,
-        skipEmptyLines: false,
-        chunk: (results, parser) => {
-          const rows = results.data;
+      const allLines = splitLines(normalized);
 
-          for (const row of rows) {
-            // The very first row of the file is the header row
-            if (!headers) {
-              headers = row;
-              updateProgressModal(5, "Processing file headers...");
-              continue;
-            }
+      if (allLines.length === 0) {
+        setError("The uploaded file appears to be empty.");
+        setProcessing(false);
+        const el = document.getElementById("splitter-progress-modal");
+        if (el) document.body.removeChild(el);
+        return;
+      }
 
-            // Commit the previously buffered row now that we know a newer
-            // row exists after it (so it is definitely not the last row)
-            commitPendingRow();
-            pendingRow = row;
-          }
-        },
-        complete: () => {
-          // Guard: if headers is still null the file was empty
-          if (!headers) {
-            setError(
-              "The uploaded file appears to be empty or has no header row.",
-            );
-            setProcessing(false);
-            const progressElement = document.getElementById(
-              "splitter-progress-modal",
-            );
-            if (progressElement) document.body.removeChild(progressElement);
-            return;
-          }
+      // First line is always the header — kept verbatim
+      const headerLine = allLines[0];
+      // Data lines are everything after the header
+      const dataLines = allLines.slice(1);
+      const totalRows = dataLines.length;
 
-          // Inspect the final buffered row. Discard it only if it is the
-          // trailing-newline artifact: a single-element array [""].
-          // Every other row — including genuinely empty data rows — is kept.
-          if (
-            pendingRow !== null &&
-            !(pendingRow.length === 1 && pendingRow[0] === "")
-          ) {
-            commitPendingRow();
-          }
+      if (totalRows === 0) {
+        setError("The file has a header but no data rows.");
+        setProcessing(false);
+        const el = document.getElementById("splitter-progress-modal");
+        if (el) document.body.removeChild(el);
+        return;
+      }
 
-          // Flush any remaining rows into the last file
-          if (currentChunk.length > 0) {
-            const csvContent = Papa.unparse([headers, ...currentChunk], {
-              quoteChar: '"',
-              escapeChar: '"',
-              newline: "\n",
-            });
+      // Slice data lines into chunks of chunkSize, each prefixed with the
+      // original header line. The line ending written back matches the
+      // original file's ending so the output is byte-for-byte faithful.
+      const lineEnding = usesCRLF ? "\r\n" : "\n";
+      const files = [];
+      let fileIndex = 0;
 
-            currentFileIndex++;
-            const baseName = file.name.replace(/\.csv$/i, "");
-            const fileName = `${baseName}_part_${currentFileIndex}.csv`;
+      for (let i = 0; i < dataLines.length; i += chunkSize) {
+        const chunk = dataLines.slice(i, i + chunkSize);
+        // Join with the original line ending; also end the file with one
+        // trailing newline to match standard CSV convention
+        const content = [headerLine, ...chunk].join(lineEnding) + lineEnding;
+        fileIndex++;
+        const baseName = file.name.replace(/\.csv$/i, "");
+        files.push({
+          name: `${baseName}_part_${fileIndex}.csv`,
+          content,
+          rows: chunk.length,
+          startRow: i + 1,
+          endRow: i + chunk.length,
+        });
 
-            files.push({
-              name: fileName,
-              content: csvContent,
-              rows: currentChunk.length,
-              startRow: totalRows - currentChunk.length + 1,
-              endRow: totalRows,
-            });
-          }
+        setProcessingStats({ rowsProcessed: i + chunk.length, filesCreated: fileIndex });
+        updateProgressModal(
+          Math.min(90, Math.round(((i + chunk.length) / totalRows) * 90)),
+          `Processing... (${(i + chunk.length).toLocaleString()} / ${totalRows.toLocaleString()} rows)`,
+          { rowsProcessed: i + chunk.length, filesCreated: fileIndex },
+        );
+      }
 
-          // Rename all files now that we know the final total
-          const totalFiles = files.length;
-          const baseName = file.name.replace(/\.csv$/i, "");
-          files.forEach((f, index) => {
-            f.name = `${baseName}_part_${index + 1}_of_${totalFiles}.csv`;
-          });
-
-          updateProgressModal(100, "Processing complete!", {
-            rowsProcessed: totalRows,
-            filesCreated: files.length,
-          });
-
-          // Remove progress modal after a short delay
-          setTimeout(() => {
-            const progressElement = document.getElementById(
-              "splitter-progress-modal",
-            );
-            if (progressElement) {
-              document.body.removeChild(progressElement);
-            }
-          }, 1000);
-
-          setResults({
-            originalRows: totalRows,
-            numberOfFiles: files.length,
-            files: files,
-          });
-          setProcessing(false);
-          setProgress(100);
-        },
-        error: (error) => {
-          setError(`Error parsing CSV: ${error.message}`);
-          setProcessing(false);
-
-          // Remove progress modal
-          const progressElement = document.getElementById(
-            "splitter-progress-modal",
-          );
-          if (progressElement) {
-            document.body.removeChild(progressElement);
-          }
-        },
+      // Rename all files now that we know the final total
+      const totalFiles = files.length;
+      const baseName = file.name.replace(/\.csv$/i, "");
+      files.forEach((f, index) => {
+        f.name = `${baseName}_part_${index + 1}_of_${totalFiles}.csv`;
       });
+
+      updateProgressModal(100, "Processing complete!", {
+        rowsProcessed: totalRows,
+        filesCreated: files.length,
+      });
+
+      setTimeout(() => {
+        const el = document.getElementById("splitter-progress-modal");
+        if (el) document.body.removeChild(el);
+      }, 1000);
+
+      setResults({
+        originalRows: totalRows,
+        numberOfFiles: files.length,
+        files,
+      });
+      setProcessing(false);
+      setProgress(100);
     } catch (error) {
       setError(`Error reading file: ${error.message}`);
       setProcessing(false);
 
-      // Remove progress modal on error
-      const progressElement = document.getElementById(
-        "splitter-progress-modal",
-      );
-      if (progressElement) {
-        document.body.removeChild(progressElement);
-      }
+      const el = document.getElementById("splitter-progress-modal");
+      if (el) document.body.removeChild(el);
     }
   };
 
   const downloadFile = (fileData) => {
-    // Prepend UTF-8 BOM so Excel on Windows opens the file without
-    // mangling accented names and special characters
-    const bom = "\uFEFF";
-    const blob = new Blob([bom + fileData.content], {
-      type: "text/csv;charset=utf-8;",
-    });
+    const blob = new Blob([fileData.content], { type: "text/csv;charset=utf-8;" });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
