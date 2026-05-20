@@ -404,6 +404,7 @@ const SimpleDuplicateTagger = () => {
       const mergedData = results.processedData.map((record) => ({ ...record }));
       let mergeCount = 0;
       let masterCount = 0;
+      let skippedGroups = 0;
 
       // Group records by normalized name again to process merges
       const nameGroups = new Map();
@@ -436,35 +437,41 @@ const SimpleDuplicateTagger = () => {
         });
 
         const masterRecord = mergedData[records[0].index];
-        const duplicateRecords = records.slice(1);
-
-        addLog(
-          `Merging ${duplicateRecords.length} duplicates into master: "${name}"`
-        );
-
-        // Debug: Track Robert Abbott specifically
-        if (
-          name.toLowerCase().includes("robert") &&
-          name.toLowerCase().includes("abbott")
-        ) {
-          console.log("=== ROBERT ABBOTT MERGE DEBUG ===");
-          console.log(`Master record index: ${records[0].index}`);
-          console.log(`Master record:`, masterRecord);
-          console.log(`Duplicate records count: ${duplicateRecords.length}`);
-          duplicateRecords.forEach((dup, i) => {
-            console.log(`Duplicate ${i + 1} index: ${dup.index}`);
-            console.log(`Duplicate ${i + 1} record:`, mergedData[dup.index]);
-          });
-        }
 
         // Extract existing data from master
-        const masterEmails = extractEmails(masterRecord).map((e) =>
-          e.toLowerCase()
-        );
+        const masterEmails = extractEmails(masterRecord).map((e) => e.toLowerCase());
         const masterPhones = extractPhones(masterRecord);
 
-        // Merge data from each duplicate into master
-        for (const duplicate of duplicateRecords) {
+        // Only merge duplicates that share at least one email OR phone with master
+        const eligibleDuplicates = [];
+        const ineligibleDuplicates = [];
+
+        for (const dup of records.slice(1)) {
+          const dupEmails = extractEmails(dup.record);
+          const dupPhones = extractPhones(dup.record);
+
+          const sharesEmail = dupEmails.some((e) => masterEmails.includes(e.toLowerCase()));
+          const sharesPhone = dupPhones.some((p) => masterPhones.includes(p));
+
+          if (sharesEmail || sharesPhone) {
+            eligibleDuplicates.push(dup);
+            addLog(`  ✅ "${name}" - eligible for merge via ${sharesEmail ? "email" : "phone"}`);
+          } else {
+            ineligibleDuplicates.push(dup);
+            addLog(`  ⏭️ "${name}" - skipped, no matching email or phone`);
+          }
+        }
+
+        if (eligibleDuplicates.length === 0) {
+          skippedGroups++;
+          addLog(`  ⏭️ Group "${name}" skipped entirely - no duplicates share email or phone with master`);
+          continue;
+        }
+
+        addLog(`Merging ${eligibleDuplicates.length} eligible duplicates into master: "${name}"`);
+
+        // Merge data from each eligible duplicate into master
+        for (const duplicate of eligibleDuplicates) {
           const dupRecord = mergedData[duplicate.index];
 
           // Merge emails
@@ -600,7 +607,7 @@ const SimpleDuplicateTagger = () => {
 
         // Add change tracking for merge
         const existingChanges = masterRecord["Changes Made"] || "";
-        const newChange = `Merged with ${duplicateRecords.length} duplicate records`;
+        const newChange = `Merged with ${eligibleDuplicates.length} duplicate records`;
         masterRecord["Changes Made"] = existingChanges
           ? `${existingChanges}; ${newChange}`
           : newChange;
@@ -609,29 +616,9 @@ const SimpleDuplicateTagger = () => {
       }
 
       addLog(`\n=== MERGE COMPLETE ===`);
-      addLog(`Master records created: ${masterCount}`);
-      addLog(`Duplicate records merged: ${mergeCount}`);
-
-      // Debug: Count Robert Abbott records in final mergedData
-      const robertAbbottRecords = mergedData.filter(
-        (record) =>
-          record["First Name"] &&
-          record["Last Name"] &&
-          record["First Name"].toLowerCase().includes("robert") &&
-          record["Last Name"].toLowerCase().includes("abbott")
-      );
-      console.log("=== FINAL ROBERT ABBOTT COUNT ===");
-      console.log(
-        `Found ${robertAbbottRecords.length} Robert Abbott records in mergedData:`
-      );
-      robertAbbottRecords.forEach((record, i) => {
-        console.log(`Robert Abbott ${i + 1}:`, {
-          firstName: record["First Name"],
-          lastName: record["Last Name"],
-          tags: record["Tags"],
-          email: record["Email"] || record["Personal Email"],
-        });
-      });
+      addLog(`Master records merged: ${masterCount}`);
+      addLog(`Duplicate records consolidated: ${mergeCount}`);
+      addLog(`Groups skipped (no matching email or phone): ${skippedGroups}`);
 
       // Update results with merged data
       setResults({
@@ -639,6 +626,7 @@ const SimpleDuplicateTagger = () => {
         mergedData: mergedData,
         masterCount: masterCount,
         mergeCount: mergeCount,
+        skippedGroups: skippedGroups,
         hasMerged: true,
       });
     } catch (error) {
@@ -879,15 +867,13 @@ const SimpleDuplicateTagger = () => {
                     <p className="font-medium">✅ Merge Complete!</p>
                     <div className="mt-2 text-sm">
                       <p>
-                        • {results.masterCount} master records created with CRM:
-                        Merged tags
+                        • {results.masterCount} master records merged with CRM:Merged tags
                       </p>
                       <p>
                         • {results.mergeCount} duplicate records consolidated
                       </p>
                       <p>
-                        • Data merged: emails, phones, addresses, and other
-                        fields
+                        • {results.skippedGroups} groups skipped (same name but no matching email or phone)
                       </p>
                     </div>
                   </div>

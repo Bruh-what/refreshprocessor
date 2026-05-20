@@ -203,7 +203,10 @@ function Splitter() {
           endRow: i + chunk.length,
         });
 
-        setProcessingStats({ rowsProcessed: i + chunk.length, filesCreated: fileIndex });
+        setProcessingStats({
+          rowsProcessed: i + chunk.length,
+          filesCreated: fileIndex,
+        });
         updateProgressModal(
           Math.min(90, Math.round(((i + chunk.length) / totalRows) * 90)),
           `Processing... (${(i + chunk.length).toLocaleString()} / ${totalRows.toLocaleString()} rows)`,
@@ -245,7 +248,9 @@ function Splitter() {
   };
 
   const downloadFile = (fileData) => {
-    const blob = new Blob([fileData.content], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([fileData.content], {
+      type: "text/csv;charset=utf-8;",
+    });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
