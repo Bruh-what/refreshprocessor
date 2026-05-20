@@ -123,7 +123,7 @@ const SimpleDuplicateTagger = () => {
         const record = parsed.data[i];
         const normalizedName = normalizeName(
           record["First Name"],
-          record["Last Name"]
+          record["Last Name"],
         );
 
         if (!normalizedName) {
@@ -181,7 +181,7 @@ const SimpleDuplicateTagger = () => {
                   lastName: record["Last Name"],
                   name: record["Name"],
                   tags: record["Tags"],
-                }
+                },
               );
             }
 
@@ -212,7 +212,7 @@ const SimpleDuplicateTagger = () => {
                   lastName: record["Last Name"],
                   name: record["Name"],
                   tags: record["Tags"],
-                }
+                },
               );
             }
           }
@@ -247,15 +247,15 @@ const SimpleDuplicateTagger = () => {
       addLog(`\n=== TAGGING COMPLETE ===`);
       addLog(`Duplicate groups found: ${duplicateGroups}`);
       addLog(
-        `Total records tagged with CRM:Duplicate: ${totalDuplicateRecords}`
+        `Total records tagged with CRM:Duplicate: ${totalDuplicateRecords}`,
       );
       addLog(
-        `Master records (latest Created At date in each group): ${masterRecords}`
+        `Master records (latest Created At date in each group): ${masterRecords}`,
       );
 
       // Verify tags were applied
       const taggedDuplicates = processedData.filter(
-        (r) => r.Tags && r.Tags.includes("CRM:Duplicate")
+        (r) => r.Tags && r.Tags.includes("CRM:Duplicate"),
       ).length;
 
       addLog(`\n=== VERIFICATION ===`);
@@ -296,7 +296,7 @@ const SimpleDuplicateTagger = () => {
 
     // Filter to only records that have CRM:Duplicate tag
     const taggedRecords = results.processedData.filter(
-      (record) => record.Tags && record.Tags.includes("CRM:Duplicate")
+      (record) => record.Tags && record.Tags.includes("CRM:Duplicate"),
     );
 
     if (taggedRecords.length === 0) {
@@ -415,7 +415,7 @@ const SimpleDuplicateTagger = () => {
 
         const normalizedName = normalizeName(
           record["First Name"],
-          record["Last Name"]
+          record["Last Name"],
         );
         if (!normalizedName) continue;
 
@@ -439,7 +439,9 @@ const SimpleDuplicateTagger = () => {
         const masterRecord = mergedData[records[0].index];
 
         // Extract existing data from master
-        const masterEmails = extractEmails(masterRecord).map((e) => e.toLowerCase());
+        const masterEmails = extractEmails(masterRecord).map((e) =>
+          e.toLowerCase(),
+        );
         const masterPhones = extractPhones(masterRecord);
 
         // Only merge duplicates that share at least one email OR phone with master
@@ -450,12 +452,16 @@ const SimpleDuplicateTagger = () => {
           const dupEmails = extractEmails(dup.record);
           const dupPhones = extractPhones(dup.record);
 
-          const sharesEmail = dupEmails.some((e) => masterEmails.includes(e.toLowerCase()));
+          const sharesEmail = dupEmails.some((e) =>
+            masterEmails.includes(e.toLowerCase()),
+          );
           const sharesPhone = dupPhones.some((p) => masterPhones.includes(p));
 
           if (sharesEmail || sharesPhone) {
             eligibleDuplicates.push(dup);
-            addLog(`  ✅ "${name}" - eligible for merge via ${sharesEmail ? "email" : "phone"}`);
+            addLog(
+              `  ✅ "${name}" - eligible for merge via ${sharesEmail ? "email" : "phone"}`,
+            );
           } else {
             ineligibleDuplicates.push(dup);
             addLog(`  ⏭️ "${name}" - skipped, no matching email or phone`);
@@ -464,11 +470,15 @@ const SimpleDuplicateTagger = () => {
 
         if (eligibleDuplicates.length === 0) {
           skippedGroups++;
-          addLog(`  ⏭️ Group "${name}" skipped entirely - no duplicates share email or phone with master`);
+          addLog(
+            `  ⏭️ Group "${name}" skipped entirely - no duplicates share email or phone with master`,
+          );
           continue;
         }
 
-        addLog(`Merging ${eligibleDuplicates.length} eligible duplicates into master: "${name}"`);
+        addLog(
+          `Merging ${eligibleDuplicates.length} eligible duplicates into master: "${name}"`,
+        );
 
         // Merge data from each eligible duplicate into master
         for (const duplicate of eligibleDuplicates) {
@@ -594,15 +604,12 @@ const SimpleDuplicateTagger = () => {
           mergeCount++;
         }
 
-        // Update master record tags
+        // Update master record tags - remove CRM:Duplicate, no new tag needed
         const existingTags = (masterRecord["Tags"] || "")
           .split(",")
           .map((t) => t.trim())
           .filter((t) => t);
         const updatedTags = existingTags.filter((t) => t !== "CRM:Duplicate");
-        if (!updatedTags.includes("CRM:Merged")) {
-          updatedTags.push("CRM:Merged");
-        }
         masterRecord["Tags"] = updatedTags.join(",");
 
         // Add change tracking for merge
@@ -640,68 +647,7 @@ const SimpleDuplicateTagger = () => {
   const exportMergedResults = () => {
     if (!results || !results.hasMerged) return;
 
-    // Debug: Check what we're about to export
-    console.log("=== EXPORT DEBUG ===");
-    console.log(`Total records in mergedData: ${results.mergedData.length}`);
-
-    const robertAbbottExportRecords = results.mergedData.filter(
-      (record) =>
-        record["First Name"] &&
-        record["Last Name"] &&
-        record["First Name"].toLowerCase().includes("robert") &&
-        record["Last Name"].toLowerCase().includes("abbott")
-    );
-
-    console.log(
-      `Robert Abbott records being exported: ${robertAbbottExportRecords.length}`
-    );
-    robertAbbottExportRecords.forEach((record, i) => {
-      console.log(`Export Robert Abbott ${i + 1}:`, {
-        firstName: record["First Name"],
-        lastName: record["Last Name"],
-        tags: record["Tags"],
-        email:
-          record["Email"] ||
-          record["Personal Email"] ||
-          record["Primary Work Email"],
-        createdAt: record["Created At"],
-      });
-    });
-
     const csv = Papa.unparse(results.mergedData);
-
-    // Debug: Check the CSV output for Robert Abbott
-    const csvLines = csv.split("\n");
-    const robertLines = csvLines.filter(
-      (line) =>
-        line.toLowerCase().includes("robert") &&
-        line.toLowerCase().includes("abbott")
-    );
-    console.log(`Robert Abbott lines in CSV: ${robertLines.length}`);
-    robertLines.forEach((line, i) => {
-      console.log(
-        `CSV Robert Abbott line ${i + 1}:`,
-        line.substring(0, 200) + "..."
-      );
-    });
-
-    // Debug: Check for duplicate lines
-    const allLines = csv.split("\n");
-    console.log(`Total CSV lines: ${allLines.length}`);
-    console.log(
-      `First few Robert Abbott characters in CSV:`,
-      csv.substring(csv.indexOf("Robert"), csv.indexOf("Robert") + 500)
-    );
-
-    // Debug: Check if both records are actually different
-    const uniqueRobertLines = [...new Set(robertLines)];
-    console.log(`Unique Robert Abbott lines: ${uniqueRobertLines.length}`);
-    if (uniqueRobertLines.length !== robertLines.length) {
-      console.log("WARNING: Duplicate Robert Abbott lines detected!");
-      console.log("Original lines:", robertLines.length);
-      console.log("Unique lines:", uniqueRobertLines.length);
-    }
-
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -832,8 +778,7 @@ const SimpleDuplicateTagger = () => {
                       <p className="font-medium">⚠️ Important:</p>
                       <ul className="list-disc list-inside mt-2 text-sm">
                         <li>
-                          Master records will get <strong>CRM:Merged</strong>{" "}
-                          tags
+                          Master records will have <strong>CRM:Duplicate</strong> removed
                         </li>
                         <li>
                           Duplicate records keep <strong>CRM:Duplicate</strong>{" "}
@@ -867,13 +812,14 @@ const SimpleDuplicateTagger = () => {
                     <p className="font-medium">✅ Merge Complete!</p>
                     <div className="mt-2 text-sm">
                       <p>
-                        • {results.masterCount} master records merged with CRM:Merged tags
+                        • {results.masterCount} master records merged (CRM:Duplicate removed)
                       </p>
                       <p>
                         • {results.mergeCount} duplicate records consolidated
                       </p>
                       <p>
-                        • {results.skippedGroups} groups skipped (same name but no matching email or phone)
+                        • {results.skippedGroups} groups skipped (same name but
+                        no matching email or phone)
                       </p>
                     </div>
                   </div>
